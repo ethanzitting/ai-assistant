@@ -38,7 +38,9 @@ The trust tiers from [trust-model.md](trust-model.md) live here architecturally:
 
 Sources, work-data boundary, and quick-capture channels are detailed in [ingestion.md](ingestion.md).
 
-**Architectural constraint:** the ingestion agent (which processes untrusted external content like emails and documents) must be separated from the action agent (which can draft replies or take actions). This prevents prompt injection in ingested content from triggering unintended actions. See [security.md](security.md).
+Also handles web fetching for research flows and file ingestion (email attachments, Telegram documents, PDFs). All ingested files are stored in the file store and cataloged in the knowledge graph.
+
+**Architectural constraint:** the ingestion layer runs as a **separate container** from the core system. It can only emit structured records through a schema-validated channel — it cannot read the knowledge graph, modify preferences, or trigger actions. This prevents prompt injection in ingested content from causing unintended side effects. See [security.md](security.md).
 
 ## 5. The Reasoning & Prioritization Layer ("the judgment")
 

@@ -6,7 +6,7 @@ Phased implementation plan. Each month builds on the previous one; each checkbox
 
 The goal is a running system that ingests data, stores it, and produces a daily briefing.
 
-- [ ] Docker Compose stack running locally (Postgres + pgvector, app server)
+- [ ] Docker Compose stack running locally (Postgres + pgvector, core, ingestion, sandbox containers)
 - [ ] Knowledge graph schema: entities, relationships, facts tables with temporal validity
 - [ ] Structured data models: contacts, events, cadences, preferences
 - [ ] 1Password integration: all secrets retrieved via `op run`, no `.env` on disk
@@ -29,14 +29,16 @@ The goal is a system that remembers, connects dots, and retrieves context intell
 - [ ] Knowledge graph population: entities and facts extracted from email and note ingestion
 - [ ] Entity enrichment: contacts, contracts, projects enriched with extracted facts from emails and notes
 - [ ] RAG retrieval pipeline: queries search pgvector + knowledge graph tables, assemble context for LLM
-- [ ] Prompt injection defense: ingestion/action agent separation, structural prompt sandboxing, classifier filter
+- [ ] Container isolation: ingestion container with emission-only DB access, core container with full DB access, schema-validated emission channel
+- [ ] Prompt injection defense: structural prompt sandboxing, classifier filter, emission validation in core
 - [ ] Voice memo ingestion: Whisper API transcription → processing pipeline
 - [ ] Conversation memory: assistant remembers past interactions, builds preference profile
 - [ ] Event & cadence engine: recurring reminders, deadline sequences, basic conditional triggers
 - [ ] Task & project engine: task CRUD via Telegram, status tracking, surfacing policy, project grouping
-- [ ] Archive embedding index: comprehensive secondary index over all originals
+- [ ] Sandbox container: gVisor runtime, LLM-generated code execution against read-only data slices, PDF parsing
+- [ ] File store integration: Google Drive or GCS as active file system, file cataloging in knowledge graph
+- [ ] Archive embedding index: comprehensive secondary index over all files
 - [ ] Pruning job v1: hot → warm tier summarization for emails
-- [ ] Google Drive integration: personal documents ingested and archived
 
 ## Month 3 — Smarter Tier 1
 
@@ -46,6 +48,8 @@ The goal is a system that gets noticeably better at surfacing the right informat
 - [ ] Financial awareness: at minimum CSV transaction import, ideally Plaid API for balance checking (read-only)
 - [ ] Multi-channel output: priority/length/context classification for notifications
 - [ ] Smartwatch notifications: Apple Watch as glanceable output channel
+- [ ] Research & fact-checking: web search via ingestion container, file capture, steelman/flaw analysis, living fact-check cache in knowledge graph
+- [ ] Ad-hoc data analysis: natural language queries that generate and execute code in the sandbox (e.g., "show me spending outliers")
 - [ ] Meeting prep surfacing: pulling context from knowledge graph + recent interactions before scheduled meetings
 - [ ] Pruning job v2: warm → cold transitions, periodic summary aggregation
 - [ ] Sensitivity tagging system: personal / work-adjacent / confidential classification
@@ -65,6 +69,5 @@ The goal is a system that gets noticeably better at surfacing the right informat
 These capabilities require the assistant to act on your behalf. They are out of scope until Tier 1 has been running reliably for at least a year and trust is established.
 
 - [ ] Email drafting: compose replies in your voice for review before sending
-- [ ] Research & decision support: web searches, comparison matrices, option gathering
 - [ ] Expand integrations from read-only to draft/propose permissions
-- [ ] gVisor sandboxing: required if agent code execution capabilities are added
+- [ ] Agent-delegated research subtasks: agent autonomously picks up research tasks from the project engine

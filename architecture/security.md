@@ -69,21 +69,70 @@ Triggered via a Telegram bot command or by flipping the 1Password flag directly 
 
 Not every anomaly requires a full kill. If monitoring detects suspicious behavior, the agent's tool permissions are reduced to read-only mode rather than killed entirely. This maps directly to the trust tier framework — the system dynamically drops from Tier 2 back to Tier 1 if something looks wrong.
 
+## Container isolation model
+
+The system runs as three application containers with strict network and permission boundaries. This is the primary architectural defense — even if one container is fully compromised, the blast radius is contained. See [infrastructure.md](infrastructure.md) for the full container layout.
+
+### Ingestion container
+
+Processes all untrusted external input: emails, Telegram messages, Plaid transactions, web-fetched content, OCR'd documents. This is the highest-risk component — it directly handles attacker-controlled content.
+
+**Permissions:**
+- Outbound network access to specific external APIs only (Gmail, Telegram, Plaid, LLM API)
+- No direct database access — emits structured records to a single Postgres table (`ingestion_emissions`) via a database user with INSERT-only permissions on that one table
+- No access to OAuth write tokens, 1Password secrets for other services, or any core system resources
+- Separate Docker network from core — communicates only through the emission table
+
+**Emission schema:** Every record the ingestion container emits must conform to a predefined schema — typed fields for entities, facts, events, tasks, embeddings. The core container validates every emission against these schemas before acting on it. Anything that doesn't match is logged and dropped. No free-form text passes through as executable instructions.
+
+**Monitoring:** The core container watches the emission stream for anomalies:
+- Volume spikes (emission rate far above normal)
+- Schema violations (unexpected fields, malformed types)
+- Content anomalies (emissions containing prompt-like patterns, references to system internals, attempts to modify preferences or trust levels)
+- Behavioral anomalies (entity creation patterns that don't match normal ingestion)
+
+If anomalies are detected, the core can kill the ingestion container and alert you via Telegram.
+
+### Sandbox container
+
+Executes LLM-generated code for ad-hoc analysis, PDF parsing, and computations. See [infrastructure.md](infrastructure.md) for the gVisor runtime details.
+
+**Permissions:**
+- No network access whatsoever
+- No database access
+- No access to secrets
+- Receives only a read-only data slice prepared by core (e.g., a CSV of transactions, extracted PDF text)
+- Returns structured results via a mounted output volume
+- Destroyed and recreated per task — no persistent state between executions
+
+### Core container
+
+The only trusted component. Has full database access, coordinates ingestion and sandbox, handles user interactions, calls LLM APIs for reasoning.
+
+**Sole authority for:**
+- Database writes (beyond the ingestion emission table)
+- Knowledge graph updates
+- Task and project state changes
+- Preference modifications
+- OAuth token management (via 1Password)
+
 ## Prompt injection defense
 
 Prompt injection is the #1 vulnerability in LLM applications and the threat is especially acute for a system that ingests emails, documents, OCR'd mail, and voice transcripts — all of which become indirect injection vectors.
 
 ### Defense-in-depth stack
 
-1. **Structural prompt separation.** All ingested content (emails, documents, transcripts, OCR output) is placed in clearly delimited data sections of the prompt with explicit system instructions that this content is data, not instructions. Use Anthropic's and OpenAI's structured prompt patterns for this.
+1. **Container separation.** The ingestion container processes untrusted content in isolation. Even if an injected prompt fully controls the ingestion LLM, it can only emit structured records through the schema-validated emission channel — it cannot trigger actions, read the knowledge graph, or access other services. This is the most important layer.
 
-2. **Output schema validation.** Constrain agent outputs to structured formats (typed tool calls, JSON schemas) wherever possible. Freeform output is where injection payloads produce the most damage.
+2. **Structural prompt separation.** All ingested content (emails, documents, transcripts, OCR output) is placed in clearly delimited data sections of the prompt with explicit system instructions that this content is data, not instructions. Use Anthropic's and OpenAI's structured prompt patterns for this.
 
-3. **Tool permission scoping.** The ingestion pipeline, which processes untrusted external content, has the most restrictive tool permissions. It should never have write access to anything beyond the database tables it's populating. **The ingestion agent and the action agent are separate** — an email being processed cannot trigger the agent to draft a reply or take an action.
+3. **Output schema validation.** Constrain agent outputs to structured formats (typed tool calls, JSON schemas) wherever possible. Freeform output is where injection payloads produce the most damage.
 
 4. **Classifier filter on ingested content.** Before untrusted content enters any LLM prompt, run a lightweight classifier (a second, cheaper model call or a rule-based filter) to detect common injection patterns. This catches the obvious attacks at low cost.
 
-5. **Human-in-the-loop for all Tier 2+ actions.** Enforced architecturally, not just as policy. The daily briefing's "pending changes" queue is the right pattern. See [trust-model.md](trust-model.md).
+5. **Emission validation in core.** The core container treats all ingestion emissions as untrusted even after schema validation. Emissions that attempt to create preferences, modify trust levels, or reference system internals go to a review queue rather than applying automatically.
+
+6. **Human-in-the-loop for all Tier 2+ actions.** Enforced architecturally, not just as policy. The daily briefing's "pending changes" queue is the right pattern. See [trust-model.md](trust-model.md).
 
 ### Specific risk: email ingestion
 

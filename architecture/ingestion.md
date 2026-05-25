@@ -41,14 +41,21 @@ This is principle #5 in [vision.md](vision.md), enforced at the integration laye
 For data sources that can't or shouldn't be automated, three frictionless input methods:
 
 1. **Telegram bot** (or simple mobile-friendly web form behind VPN). Pull out phone, type or dictate a note or task. *"Met with James from client team, he mentioned contract renews in September."* The assistant ingests this as a first-person note, extracts entities and facts. Also the primary interface for creating and managing tasks: *"Add a task: research lumber options for the dog house project."*
-2. **Photo capture.** Take a photo of physical mail, send to bot. System OCRs it, classifies it, extracts structured data, archives the original photo.
-3. **Voice memos.** After a meeting or conversation, record a brief voice note. System transcribes (Whisper API), processes content. Supports annotations: *"Dave mentioned he's leaving — told me in confidence, don't surface this."*
+2. **Document capture.** Send documents (PDFs, images, text files) to the Telegram bot or email them to a designated address. Email attachments are automatically extracted and processed. All files are stored in the file store and cataloged in the knowledge graph. See [data-architecture.md](data-architecture.md).
+3. **Photo capture.** Take a photo of physical mail, send to bot. System OCRs it, classifies it, extracts structured data, stores the original photo.
+4. **Voice memos.** After a meeting or conversation, record a brief voice note. System transcribes (Whisper API), processes content. Supports annotations: *"Dave mentioned he's leaving — told me in confidence, don't surface this."*
 
 **The key principle for work data:** you are the filter. You capture your own observations, feelings, plans, and takeaways — those are yours. The company's documents, messages, and recordings are theirs.
 
 The Telegram bot is also the primary inbound interface during the prototype phase — see [interfaces.md](interfaces.md).
 
-**Architectural constraint:** the ingestion pipeline processes untrusted external content (emails from anyone, OCR'd mail, documents). It runs as a separate agent from the action/reasoning layer, with restricted tool permissions — it can write to database tables but cannot draft replies, send messages, or trigger actions. This prevents prompt injection in ingested content from causing unintended side effects. See [security.md](security.md).
+## Web fetching (research flows)
+
+During research tasks, the ingestion container fetches web content on behalf of the core system — downloading studies, capturing web pages as PDFs, pulling data from public APIs. This is the same container that handles email and Telegram input, so all web-fetched content goes through the same prompt injection defenses and schema-validated emission channel. The core system requests specific URLs or search queries; the ingestion container fetches, processes, and emits structured results. Fetched files are stored in the file store and cataloged in the knowledge graph.
+
+## Architectural constraint
+
+The ingestion pipeline runs as a **separate container** from the core system, with strict isolation. It processes all untrusted external content (emails, Telegram messages, web pages, documents) and can only emit structured records through a schema-validated channel. It cannot read the knowledge graph, modify preferences, trigger actions, or access secrets beyond its own API keys. This prevents prompt injection in ingested content from causing unintended side effects. See [security.md](security.md) for the full isolation model.
 
 ## Sensitivity tagging
 

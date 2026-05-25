@@ -8,17 +8,21 @@ Where the system runs, how big it needs to be, and what it costs to operate. Sec
 
 **Recommended:** Hetzner CX32 or DigitalOcean droplet — 4 vCPUs, 8GB RAM, 80-160GB SSD. $15-30/month. More than sufficient for a single-user workload.
 
-Docker Compose defines two services:
+Docker Compose defines four services:
 
 - **Postgres** (with pgvector extension): structured data, vector embeddings, and knowledge graph tables. See [data-architecture.md](data-architecture.md).
-- **Application server** (Python or Node): orchestration logic, LLM API calls, ingestion pipeline, pruning jobs.
+- **Core** (Python or Node): trusted orchestration — LLM API calls, tool execution, pruning jobs, user interaction. Has full database access. See [security.md](security.md) for the isolation model.
+- **Ingestion** (Python or Node): isolated container that processes all untrusted external input (emails, Telegram messages, Plaid transactions, web content). Emits structured data to a narrow intake channel. No direct database access beyond its own emission table. See [security.md](security.md).
+- **Sandbox** (Python, gVisor runtime): executes LLM-generated code for ad-hoc analysis, PDF parsing, and computations. Receives a read-only data slice from core, returns structured results. No network access, no secrets, no database connection. Destroyed and recreated per task.
 
 ### Project layout
 
 ```
 project/
 ├── docker-compose.yml
-├── app/                  # Orchestration server
+├── core/                 # Trusted orchestration server
+├── ingestion/            # Isolated ingestion pipeline
+├── sandbox/              # Code execution sandbox (gVisor)
 ├── backups/              # Backup scripts
 ├── data/
 │   └── postgres/         # Postgres data volume
@@ -72,11 +76,19 @@ Three tiers of protection:
 - The facts table's temporal model tracks validity windows — old facts get `valid_until` set, never deleted. Surgical rollback of specific facts without touching anything else. See schema in [data-architecture.md](data-architecture.md).
 - **Nuclear option:** nuke the knowledge graph tables and rebuild from the archive. (The archive is the source of truth.)
 
-## Sandboxing (future)
+## Sandbox container
 
-If the agent ever needs to execute generated code (code interpreter tool, script runners), use **gVisor** (`runsc`) as an alternative Docker runtime for those containers. Standard Docker shares the host kernel — gVisor interposes a user-space kernel that intercepts syscalls. On DigitalOcean, gVisor runs in ptrace mode (no nested virtualization). Sandbox containers must not have access to secrets or the database connection string.
+The sandbox runs LLM-generated code — ad-hoc analysis, PDF parsing, numerical computations, data transformations. It uses **gVisor** (`runsc`) as an alternative Docker runtime. Standard Docker shares the host kernel; gVisor interposes a user-space kernel that intercepts syscalls. On DigitalOcean/Hetzner, gVisor runs in ptrace mode (no nested virtualization).
 
-This is not a day-1 requirement. The current design is an orchestrator that runs trusted code and calls LLM APIs — no arbitrary code execution. Add gVisor when code execution capabilities are introduced.
+**Isolation constraints:**
+- No network access (no outbound connections, no DNS)
+- No secrets or database connection string
+- Receives only a read-only data slice prepared by the core container
+- Returns structured results through a mounted output volume
+- Destroyed and recreated per task — no persistent state
+- Resource-limited: CPU time cap, memory cap, disk quota
+
+**Execution flow:** Core decides a query needs computation → core extracts the relevant data slice (e.g., transaction CSV, PDF content) → core writes data to a temporary input volume → sandbox runs LLM-generated code against the input → sandbox writes results to output volume → core reads results and validates before acting on them.
 
 ## Monthly operating costs
 

@@ -108,43 +108,60 @@ Progressive compression of older data. Recent interactions stored verbatim, olde
 
 This cuts token costs by 80-90% while potentially improving response quality by removing noise. Lifecycle rules in [data-lifecycle.md](data-lifecycle.md).
 
-## The archive — permanent source of truth
+## The file store — active storage and permanent archive
 
-**Critical architectural principle: the knowledge system is a cache, not a replacement. The originals are the source of truth.**
+**Critical architectural principle: the knowledge system is a cache, not a replacement. The files are the source of truth.**
 
-Every piece of raw data — every email, PDF, transcript, LLM interaction log — is archived to object storage (S3 or Backblaze B2) before any processing happens. Nothing gets summarized, embedded, or added to the knowledge graph until the original is safely archived. If the processing pipeline crashes halfway through, nothing is lost.
+The file store (Google Drive, GCS bucket, or S3/Backblaze B2) is not just a backup destination — it's the agent's **active file system**. Files flow in from multiple sources and the agent can create new ones:
 
-### Archive organization
+- **Ingested files:** email attachments, documents sent via Telegram, OCR'd physical mail, voice memo audio
+- **Agent-created files:** research summaries saved as PDFs, web pages captured during research, comparison documents, exported analyses
+- **User-uploaded files:** documents dropped into Google Drive or sent to the Telegram bot for processing
+
+Every file is cataloged in the knowledge graph as an entity with metadata (source, type, related entities, ingestion date, status). The knowledge graph entry is the index; the file store holds the content.
+
+### File lifecycle
+
+Files are **never deleted** from the file store. When a file is no longer relevant:
+- The knowledge graph entity gets a `status = 'inactive'` flag and a `valid_until` timestamp
+- The file remains in storage for future reference, reprocessing, or dispute resolution
+- Inactive files are excluded from active search results unless explicitly requested
+- Storage is cheap enough that retention is permanent — see economics below
+
+### File store organization
 
 ```
-archive/
+files/
 ├── 2026/
 │   ├── 01/
 │   │   ├── emails/
 │   │   │   └── 2026-01-15T09:32:00Z_from-sarah_re-new-job.json
 │   │   ├── documents/
 │   │   │   └── 2026-01-20_tax-w2-employer.pdf
-│   │   ├── transcripts/
-│   │   │   └── 2026-01-22T10:00:00Z_project-standup.md
+│   │   ├── voice-memos/
+│   │   │   └── 2026-01-22T10:00:00Z_post-meeting.md
+│   │   ├── research/
+│   │   │   └── 2026-01-25_housing-market-analysis.pdf
 │   │   └── llm-logs/
 │   │       └── 2026-01-15T08:00:00Z_morning-briefing.json
 │   └── 02/ ...
 ```
 
-Each archived item includes metadata: ingestion timestamp, data type, entities involved, processing applied, and a unique ID (`source_ref`) linking it to all derived artifacts in the knowledge system. Every summary, every knowledge graph fact, every embedding traces back to its archived original.
+Each file includes metadata: ingestion timestamp, data type, entities involved, processing applied, and a unique ID (`source_ref`) linking it to all derived artifacts in the knowledge system. Every summary, every knowledge graph fact, every embedding traces back to its source file.
 
 ### Storage economics
 
-A year of heavy personal use (20,000 emails, 200 PDFs, 100 transcripts, thousands of LLM logs) is ~2-5GB of raw data. On Backblaze B2, that's ~$0.03/month. Even after 10 years, storage costs are under $1/month. **There is no financial reason to delete originals, ever.**
+A year of heavy personal use (20,000 emails, 200 PDFs, 100 voice memos, research files, thousands of LLM logs) is ~2-5GB of raw data. On Backblaze B2, that's ~$0.03/month. Even after 10 years, storage costs are under $1/month. **There is no financial reason to delete files, ever.**
 
 ### Retrieval modes
 
-- **Targeted.** Know roughly what you're looking for. The knowledge system identifies relevant `source_ref` IDs, fetches specific files from the archive.
-- **Exploratory.** Full natural-language search over originals via the archive embedding index. For legal, audit, or dispute scenarios where summaries may not be sufficient.
+- **Targeted.** Know roughly what you're looking for. The knowledge system identifies relevant `source_ref` IDs, fetches specific files from the store.
+- **Exploratory.** Full natural-language search over files via the archive embedding index. For legal, audit, or dispute scenarios where summaries may not be sufficient.
+- **Agent-initiated.** During analysis or research, the agent can pull files into the sandbox container for parsing, computation, or re-examination.
 
 ### Reprocessing capability
 
-If a better embedding model or entity extraction tool emerges, the entire archive can be reprocessed through an improved pipeline. The archive is the immutable foundation; everything else is a derived view that can be rebuilt.
+If a better embedding model or entity extraction tool emerges, the entire file store can be reprocessed through an improved pipeline. The files are the immutable foundation; everything else is a derived view that can be rebuilt.
 
 ## Query-time context assembly
 

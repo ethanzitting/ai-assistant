@@ -14,6 +14,7 @@ Chosen technologies and a structured learning path for ramping up on the unfamil
 | **WireGuard** | VPN for server access | New — learn |
 | **S3 / Backblaze B2** | Object storage for archive | Likely known |
 | **1Password CLI / Connect** | Secrets management — all credentials at runtime | Likely known |
+| **gVisor** | Sandbox container runtime — syscall-level isolation for LLM-generated code execution | New — learn |
 
 > **Decision (2025-05-25):** Neo4j and Graphiti removed from the stack. The knowledge graph is modeled as Postgres tables (entities, relationships, facts) with temporal validity windows. At the scale of a single-user assistant (500–2,000 entities), recursive CTEs handle graph traversal in single-digit ms. Apache AGE is the escape hatch if Cypher syntax is ever needed. See [data-architecture.md](data-architecture.md).
 
@@ -56,5 +57,5 @@ Chosen technologies and a structured learning path for ramping up on the unfamil
 - Search: `"docker compose postgres python app multi-service"`
 - Search: `"1password CLI op run docker environment variables"`
 - Search: `"pg_dump automated backup script docker cron"`
-- Get Postgres + app server running locally. Wire secrets through `op run` so no `.env` file touches disk.
-- Write one endpoint that accepts a question, queries both relational and knowledge graph tables, assembles a prompt, calls Claude API, returns a response. Get backup scripts working.
+- Get Postgres + core + ingestion containers running locally. Wire secrets through `op run` so no `.env` file touches disk.
+- Write one query flow that accepts a question, queries both relational and knowledge graph tables, assembles a prompt, calls Claude API, returns a response. Get backup scripts working.

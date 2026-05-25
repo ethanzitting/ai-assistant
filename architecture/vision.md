@@ -56,11 +56,12 @@ These are the areas the assistant should eventually cover. They are not all in s
 - Stalled intention detection: *"You've been talking about refinancing for 3 months but haven't acted."*
 - Surfacing on a cadence you choose — daily, weekly, or only when you ask — so nothing falls through the cracks but you're not nagged about low-priority items.
 
-### Research & decision support (future — Tier 2)
-- Gather options for decisions (phone plans, contractors, schools).
-- Build comparison matrices.
-- Present short lists instead of overwhelming open fields.
-- This requires the assistant to take actions (web searches, API calls to external services) on your behalf — a Tier 2 capability that comes later.
+### Research & fact-checking
+- Deep research on a topic: steelman both sides, search for flaws, find high-quality sources, summarize findings.
+- **Living fact-check cache:** research summaries stored as files and knowledge graph entities, updated when new information emerges. Rapidly pull up a summary during a conversation, then update it later as facts change.
+- Gather options for decisions (phone plans, contractors, schools). Build comparison matrices. Present short lists instead of overwhelming open fields.
+- All research artifacts (PDFs, studies, summaries) permanently stored in the file system and cataloged in the knowledge graph for future retrieval.
+- Requires web search and file creation capabilities — available once the sandbox and ingestion containers support outbound research flows.
 
 ### Proactive pattern recognition
 - *"You've canceled your gym session 3 weeks in a row — want to move it to a different slot?"*
