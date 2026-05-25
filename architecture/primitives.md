@@ -24,17 +24,17 @@ Tracks what you intend to do — open-ended tasks, multi-step projects, and long
 
 **Tasks** are individual units of work. Each has a status (open, in-progress, waiting, done, dropped), a priority, optional context (links, notes, related entities in the knowledge graph), and a **surfacing policy** that controls how often the assistant brings it up: every daily briefing, weekly review only, or on-demand. Tasks without deadlines don't disappear — they surface on their policy's cadence until explicitly resolved.
 
-**Projects** group related tasks under a shared goal. *"Build a dog house"* is a project; *"research lumber options,"* *"find plans online,"* and *"buy materials"* are its tasks. Projects can be broken down incrementally — you don't need the full task list upfront. The assistant can suggest breakdowns, and in Tier 2, take on research subtasks itself.
+**Projects** group related tasks under a shared goal. *"Build a dog house"* is a project; *"research lumber options,"* *"find plans online,"* and *"buy materials"* are its tasks. Projects can be broken down incrementally — you don't need the full task list upfront. The assistant can suggest breakdowns, and eventually take on research subtasks itself.
 
 **Goals** are lightweight long-arc markers that projects and tasks roll up into. *"Read 24 books this year"* is a goal; individual books are tasks. The assistant tracks progress and flags stalls (*"You're at 6 and it's June"*).
 
-The data model is intentionally simple now — status, priority, parent project, surfacing policy — but doesn't prevent adding assignees, dependencies, or delegation tracking as the agent grows into Tier 2 and beyond.
+The data model is intentionally simple now — status, priority, parent project, surfacing policy — but doesn't prevent adding assignees, dependencies, or delegation tracking as the agent's capabilities grow.
 
 ## 4. The Ingestion & Integration Layer ("the senses")
 
 Connects to external data sources, normalizes data, and feeds it into the knowledge graph and event engine. Supports both structured integrations (APIs, OAuth) and unstructured parsing (extracting a date from a school email).
 
-The trust tiers from [trust-model.md](trust-model.md) live here architecturally: Tier 1 = read-only access, Tier 2 = prepare actions, Tier 3 = write access.
+Currently all integrations are read-only. Write access (drafting, booking, sending) gets added per-integration as trust develops. See [trust-model.md](trust-model.md).
 
 Sources, work-data boundary, and quick-capture channels are detailed in [ingestion.md](ingestion.md).
 

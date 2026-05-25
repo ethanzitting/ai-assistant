@@ -65,4 +65,4 @@ Every stored item gets a sensitivity classification:
 - **Work-adjacent.** Your observations about work situations, career plans, colleague relationship notes. Assistant reasons about it but is conservative in surfacing — shouldn't generate output that reads like a company document.
 - **Confidential.** Things told to you in confidence, sensitive information. System stores for your reference but never proactively surfaces. Requires explicit queries to retrieve.
 
-Sensitivity tags are honored by the [reasoning layer](primitives.md) when deciding what to surface proactively, and by the storage layer when deciding what gets the second-factor-encrypted partition (see [security.md](security.md)).
+Sensitivity tags are honored by the [reasoning layer](primitives.md) when deciding what to surface proactively and how conservatively to handle the data.

@@ -4,9 +4,9 @@ If the server is compromised, an attacker gains: full relationship graph, financ
 
 ## Core security principles
 
-### 1. Minimize what's stored
+### 1. Store everything, protect it aggressively
 
-For every piece of information, ask: does the system need to *store* this, or just *access* it at query time? Financial data should be pulled from bank APIs at query time, not persisted as raw transaction history. Email content should be stored as metadata and summaries, not full bodies. The knowledge graph stores facts and relationships, not raw source material.
+The system's value comes from having a complete, permanent record you own — financial transactions, full email archives, research artifacts, conversation history. Minimizing storage undermines the core value proposition and leaves you dependent on third-party retention policies. The security posture is about hardening access to a comprehensive store, not reducing what's there. Container isolation, encryption, and strict access controls are the defense — not data minimization.
 
 ### 2. Encrypt data at rest with off-server keys
 
@@ -16,7 +16,7 @@ Database volumes encrypted with LUKS. Decryption key stored in a separate secret
 
 - **Store all secrets in 1Password.** OAuth tokens, API keys, database credentials, and service passwords live in 1Password — never in `.env` files on disk. The application retrieves secrets at runtime via the 1Password CLI (`op`) or Connect server API. File system compromise alone yields nothing.
 - Use short-lived OAuth tokens (not permanent API keys) wherever possible.
-- Principle of least privilege: calendar = read-only, email = read-only, no send-as capability. This directly enforces the [trust model](trust-model.md) at the infrastructure level.
+- Principle of least privilege: calendar = read-only, email = read-only, no send-as capability.
 
 ### 4. Authenticate everything
 
@@ -29,7 +29,7 @@ Entire server behind a **WireGuard VPN** — nothing exposed to the public inter
 Rich personal context is sent to Anthropic/OpenAI with every query. Mitigations:
 
 - Enable zero data retention on LLM APIs.
-- Consider local models for the most sensitive domains (financial analysis, health, intimate relationship context).
+- Consider local models for cost savings on simple operations (classification, triage, extraction) where a large frontier model is overkill.
 - Prompt injection defense is critical — see the dedicated section below.
 
 ### 6. Audit logging and anomaly detection
@@ -40,13 +40,12 @@ Anomaly alerts: API calls at unusual hours, spikes in database queries, access f
 
 ### 7. Design for breach containment
 
-- Most sensitive data (financial, health, intimate relationships) in a separate encrypted partition requiring a second factor to unlock. Maps to the "confidential" sensitivity tag from [ingestion.md](ingestion.md).
 - Automatic credential rotation — short-lived OAuth tokens expire automatically if the server goes offline.
 - Documented **breach runbook**: a checklist executable from your phone that revokes every credential and kills the server.
 
 ## Agent safety controls
 
-The [trust model](trust-model.md) defines *policy* — what the agent should be allowed to do. These controls provide the *mechanism* — runtime enforcement that the agent cannot bypass.
+Runtime safety controls that the agent cannot bypass. These are hardcoded safeguards, not a dynamic permission system.
 
 ### Circuit breakers (automated)
 
@@ -54,7 +53,7 @@ A middleware wrapper around every tool call the agent makes. Before execution, c
 
 - **Budget caps.** Token spend, API call count, and database write count per session and per time window. Trip if exceeded.
 - **Loop detection.** More than N identical tool calls within a short window indicates a runaway loop. Trip immediately.
-- **Scope enforcement.** Allowlist of permitted tool calls per trust tier. Any call outside the list is blocked and logged.
+- **Scope enforcement.** Allowlist of permitted tool calls. Any call outside the list is blocked and logged.
 - **Rate limiting.** Maximum operations per minute to prevent rapid-fire damage.
 
 These are fast, stateless checks — not LLM calls. A few conditionals in the middleware, checked on every tool invocation.
@@ -67,7 +66,7 @@ Triggered via a Telegram bot command or by flipping the 1Password flag directly 
 
 ### Graceful degradation
 
-Not every anomaly requires a full kill. If monitoring detects suspicious behavior, the agent's tool permissions are reduced to read-only mode rather than killed entirely. This maps directly to the trust tier framework — the system dynamically drops from Tier 2 back to Tier 1 if something looks wrong.
+Not every anomaly requires a full kill. If monitoring detects suspicious behavior, the agent's tool permissions are reduced to read-only mode rather than killed entirely.
 
 ## Container isolation model
 
@@ -88,7 +87,7 @@ Processes all untrusted external input: emails, Telegram messages, Plaid transac
 **Monitoring:** The core container watches the emission stream for anomalies:
 - Volume spikes (emission rate far above normal)
 - Schema violations (unexpected fields, malformed types)
-- Content anomalies (emissions containing prompt-like patterns, references to system internals, attempts to modify preferences or trust levels)
+- Content anomalies (emissions containing prompt-like patterns, references to system internals, attempts to modify preferences)
 - Behavioral anomalies (entity creation patterns that don't match normal ingestion)
 
 If anomalies are detected, the core can kill the ingestion container and alert you via Telegram.
@@ -130,9 +129,7 @@ Prompt injection is the #1 vulnerability in LLM applications and the threat is e
 
 4. **Classifier filter on ingested content.** Before untrusted content enters any LLM prompt, run a lightweight classifier (a second, cheaper model call or a rule-based filter) to detect common injection patterns. This catches the obvious attacks at low cost.
 
-5. **Emission validation in core.** The core container treats all ingestion emissions as untrusted even after schema validation. Emissions that attempt to create preferences, modify trust levels, or reference system internals go to a review queue rather than applying automatically.
-
-6. **Human-in-the-loop for all Tier 2+ actions.** Enforced architecturally, not just as policy. The daily briefing's "pending changes" queue is the right pattern. See [trust-model.md](trust-model.md).
+5. **Emission validation in core.** The core container treats all ingestion emissions as untrusted even after schema validation. Emissions that attempt to create preferences or reference system internals go to a review queue rather than applying automatically.
 
 ### Specific risk: email ingestion
 

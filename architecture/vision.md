@@ -26,7 +26,7 @@ These are the areas the assistant should eventually cover. They are not all in s
 ### Communication triage
 - Email triage: flag what's urgent, summarize routine messages, surface buried important items.
 - Follow-up tracking: *"You emailed the contractor 5 days ago and never heard back."*
-- Drafting and sending on your behalf is a Tier 2/3 capability — out of scope until trust is established over time. See [trust-model.md](trust-model.md).
+- Drafting and sending on your behalf comes later — out of scope until the core system is running reliably and generating real value.
 
 ### Financial awareness
 - Track upcoming bills and due dates.
@@ -75,10 +75,10 @@ These constrain every decision in the rest of the architecture docs. When two de
 1. **Build primitives, not features.** Features are configurations of the [core primitives](primitives.md). Don't bake one-off feature logic into the platform.
 2. **The knowledge system is a cache; the archive is the truth.** Everything derived can be rebuilt from originals. See [data-architecture.md](data-architecture.md).
 3. **Every write is an append.** No destructive updates. Full audit trail. Temporal validity on all facts.
-4. **Trust is earned incrementally.** The system runs at Tier 1 (observe and inform) for at least a year. Tier 2 and 3 are future capabilities that require demonstrated reliability and clear value. See [trust-model.md](trust-model.md).
+4. **Trust is earned incrementally.** Start with observe-and-inform capabilities. More powerful capabilities (drafting, acting on your behalf) get added when the current system is working well and generating real value. See [trust-model.md](trust-model.md).
 5. **Work data stays in work systems.** The assistant knows about work's *impact on your life*, not work's *content*. See [ingestion.md](ingestion.md).
 6. **You are the filter for unstructured input.** Manual capture through frictionless channels, informed by your judgment about what's personal vs. proprietary.
-7. **Security is not an afterthought.** Assume eventual compromise. Minimize stored data, encrypt everything, segment credentials, plan for containment. See [security.md](security.md).
+7. **Security is not an afterthought.** Assume eventual compromise. Store everything but protect it aggressively — encrypt at rest, segment credentials, isolate containers, plan for containment. See [security.md](security.md).
 8. **Non-intrusive output matters.** Optimize for Telegram, smartwatch notifications, and AirPods — channels that surface information without demanding attention. Smart glasses (Even Realities G2) are a future upgrade once the system is generating real daily value. See [interfaces.md](interfaces.md).
 9. **Context engineering matters more than model choice.** Getting the right 3,000 tokens into the prompt beats throwing 100K tokens at a bigger context window.
 10. **The system should get smarter, not just bigger.** Progressive summarization, preference extraction, and pattern recognition mean the assistant improves even as raw data is compressed away.

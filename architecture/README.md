@@ -31,7 +31,7 @@ Where each section of the original docs lives now:
 |---|---|
 | PLAN §1 Vision | [vision.md](vision.md) |
 | PLAN §2 Feature Domains | [vision.md](vision.md) |
-| PLAN §3 Trust & Autonomy Tiers | [trust-model.md](trust-model.md) |
+| PLAN §3 Trust & Autonomy | [trust-model.md](trust-model.md) |
 | PLAN §4 Core Architectural Primitives | [primitives.md](primitives.md) |
 | PLAN §5 Technical Architecture (data layers, archive, query assembly) | [data-architecture.md](data-architecture.md) |
 | PLAN §6 Data Lifecycle | [data-lifecycle.md](data-lifecycle.md) |

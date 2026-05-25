@@ -40,7 +40,7 @@ The goal is a system that remembers, connects dots, and retrieves context intell
 - [ ] Archive embedding index: comprehensive secondary index over all files
 - [ ] Pruning job v1: hot → warm tier summarization for emails
 
-## Month 3 — Smarter Tier 1
+## Month 3 — Smarter & More Useful
 
 The goal is a system that gets noticeably better at surfacing the right information at the right time.
 
@@ -56,7 +56,7 @@ The goal is a system that gets noticeably better at surfacing the right informat
 - [ ] Audit log review interface: see what the agent has been doing and why
 - [ ] Breach runbook: documented, tested, executable from phone
 
-## Ongoing — Tier 1 refinement
+## Ongoing — Refinement
 
 - [ ] Preference refinement: system gets better at prioritization, tone, timing
 - [ ] Household management module: maintenance schedules, registration reminders
@@ -64,10 +64,10 @@ The goal is a system that gets noticeably better at surfacing the right informat
 - [ ] Additional ingestion sources as needs arise
 - [ ] Periodic reprocessing: as better models/tools emerge, rebuild derived layers from archive
 
-## Future — Tier 2+ (not before Year 2)
+## Future — Draft & Act capabilities
 
-These capabilities require the assistant to act on your behalf. They are out of scope until Tier 1 has been running reliably for at least a year and trust is established.
+These capabilities require the assistant to act on your behalf. They get built when the core system is running reliably and generating real daily value.
 
 - [ ] Email drafting: compose replies in your voice for review before sending
 - [ ] Expand integrations from read-only to draft/propose permissions
-- [ ] Agent-delegated research subtasks: agent autonomously picks up research tasks from the project engine
+- [ ] Agent-delegated subtasks: agent autonomously picks up research and other tasks from the project engine
