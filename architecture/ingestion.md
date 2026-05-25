@@ -48,9 +48,18 @@ For data sources that can't or shouldn't be automated, three frictionless input 
 
 The Telegram bot is also the primary inbound interface during the prototype phase — see [interfaces.md](interfaces.md).
 
-## Web fetching (research flows)
+## Web search and fetching (research flows)
 
-During research tasks, the ingestion container fetches web content on behalf of the core system — downloading studies, capturing web pages as PDFs, pulling data from public APIs. This is the same container that handles email and Telegram input, so all web-fetched content goes through the same prompt injection defenses and schema-validated emission channel. The core system requests specific URLs or search queries; the ingestion container fetches, processes, and emits structured results. Fetched files are stored in the file store and cataloged in the knowledge graph.
+All web interaction — Anthropic web search and direct URL fetching — runs through the ingestion container, never core. Web search results and fetched pages are untrusted external content, just like emails and documents, so they belong behind the same isolation boundary: processed by the ingestion LLM, emitted as structured records through the schema-validated emission channel, validated by core before acting on them.
+
+This prevents a critical attack vector: if web search ran directly in core, a prompt injection in a search result could influence an LLM call with full system privileges (database writes, knowledge graph updates, preference changes). Routing through ingestion means a successful injection can only produce schema-valid emissions — the same constrained blast radius as a compromised email.
+
+**Two constraints on web fetching:**
+
+1. **Only triggered by explicit user requests routed through core.** The ingestion container never autonomously follows URLs found in emails, documents, or other ingested content. Core decides "user wants this researched" and instructs ingestion to search or fetch. This breaks the email → URL → injection chain. See [RISKS.md](RISKS.md).
+2. **Core never enables web search on its own LLM calls.** Core's Anthropic API calls are for reasoning over trusted, already-validated context (knowledge graph data, validated emissions, user messages). Untrusted web content never enters a privileged LLM call.
+
+Fetched files are stored in the file store and cataloged in the knowledge graph.
 
 ## Architectural constraint
 

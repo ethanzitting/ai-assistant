@@ -11,7 +11,7 @@ The goal is a running system on Digital Ocean that reads your email and calendar
 - [ ] Structured data models: contacts, events, cadences, preferences
 - [ ] 1Password integration: all secrets retrieved via `op run`, no `.env` on disk
 - [ ] Anthropic API integration with prompt caching
-- [ ] Anthropic web search as the agent's research tool
+- [ ] Anthropic web search as the agent's research tool (runs directly in core until container isolation in Month 2)
 - [ ] Personal Gmail integration (OAuth, read-only) with email classification pipeline
 - [ ] Archive pipeline: every email archived to object storage before processing
 - [ ] Basic embedding pipeline: emails chunked, embedded, stored in pgvector
@@ -32,7 +32,7 @@ The goal is a system that remembers across conversations, tracks what you need t
 - [ ] Knowledge graph population: entities and facts extracted from email and calendar ingestion
 - [ ] Task & project engine: task CRUD via Telegram, status tracking, surfacing policy, project grouping
 - [ ] Event & cadence engine: recurring reminders, deadline sequences, basic conditional triggers
-- [ ] Container isolation: separate ingestion container (emission-only DB access), core container (full DB access), schema-validated emission channel
+- [ ] Container isolation: separate ingestion container (emission-only DB access), core container (full DB access), schema-validated emission channel. Web search moves from core to ingestion — core never processes untrusted external content directly
 - [ ] Prompt injection defense: structural prompt sandboxing, classifier filter, emission validation in core
 - [ ] Agent safety controls: circuit breakers (budget caps, loop detection, scope enforcement) + kill switch
 - [ ] WireGuard VPN: no public-facing endpoints except VPN

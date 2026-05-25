@@ -4,21 +4,11 @@ Architectural review of the planning docs. Covers contradictions between documen
 
 ## Architectural risks
 
-### Ingestion container is overloaded and under-isolated
-
-[security.md](security.md) describes the ingestion container as the "highest-risk component" requiring strict isolation. But it is also responsible for: Gmail polling, Telegram message processing, Plaid transactions, voice transcription (Whisper API), OCR, LLM calls for email classification, and fetching arbitrary web URLs for research flows ([ingestion.md](ingestion.md)).
-
-**Arbitrary URL fetching is the problem.** An attacker who sends a crafted email can embed a URL. When the ingestion container fetches that URL for research, the response can contain prompt injection targeting the ingestion LLM. The ingestion container has LLM API access (for classification), so a compromised ingestion LLM can craft emissions that are schema-valid but semantically malicious — e.g., creating fake entities or facts that poison the knowledge graph. Schema validation catches structural attacks but not semantic ones.
-
-A container with outbound access to arbitrary URLs is also a data exfiltration channel if compromised, which directly conflicts with the isolation model in [security.md](security.md).
-
-> **Recommendation:** Split web fetching into a separate container with no LLM API access and no access to the emission table. Or at minimum, ensure research URL fetching is never triggered by content in ingested emails — only by explicit user requests routed through core.
-
 ### LLM API access in ingestion undermines isolation
 
 The ingestion container needs LLM API access for email triage classification. But [security.md](security.md) identifies LLM API calls as a "data exfiltration channel." The ingestion container processes untrusted content *and* can make LLM API calls — a compromised ingestion container could embed exfiltrated data in LLM API prompts.
 
-> **Recommendation:** Use rule-based or local classifier for email triage instead of LLM calls in the ingestion container. Or accept this as a known risk and document the mitigation (zero-retention on the LLM API, rate limiting on ingestion LLM calls).
+> **Partial resolution (2026-05-25):** Web search now routes through ingestion rather than core, which means core never processes untrusted external content directly — a significant improvement. The residual risk is that ingestion's LLM API calls (for email triage and web search processing) are themselves an exfiltration channel. Mitigated by: zero-retention on the LLM API, rate limiting on ingestion LLM calls, and the fact that an attacker must first compromise the container. Accepted as a known residual risk.
 
 ### LUKS encryption vs. unattended reboot
 
@@ -103,7 +93,7 @@ With Claude Sonnet this might hold. With Opus-class models for the reasoning lay
 | Priority | Item | Where to fix |
 |---|---|---|
 | **High** | Scope the append-only principle or rewrite lifecycle language | [vision.md](vision.md), [data-lifecycle.md](data-lifecycle.md) |
-| **High** | Split web fetching out of the ingestion container, or restrict it to user-initiated requests only | [security.md](security.md), [ingestion.md](ingestion.md) |
+| ~~**High**~~ | ~~Split web fetching out of the ingestion container, or restrict it to user-initiated requests only~~ — **Resolved:** web search routes through ingestion, user-initiated only, core never processes untrusted content | [security.md](security.md), [ingestion.md](ingestion.md) |
 | **High** | Decide core language (Python or Node) | [infrastructure.md](infrastructure.md), [tech-stack.md](tech-stack.md) |
 | **High** | Rebase timelines to 2-3x current estimates | [roadmap.md](roadmap.md) |
 | **Medium** | Decide LUKS reboot behavior | [security.md](security.md) |

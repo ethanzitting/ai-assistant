@@ -75,6 +75,8 @@ The system runs as three application containers with strict network and permissi
 
 Processes all untrusted external input: emails, Telegram messages, Plaid transactions, web-fetched content, OCR'd documents. This is the highest-risk component — it directly handles attacker-controlled content.
 
+**Web fetch constraint:** The ingestion container fetches URLs only when explicitly instructed by core (user-initiated research requests). It never autonomously follows URLs found in emails, documents, or other ingested content. This breaks the email → URL → prompt injection attack chain. See [ingestion.md](ingestion.md).
+
 **Permissions:**
 - Outbound network access to specific external APIs only (Gmail, Telegram, Plaid, LLM API)
 - No direct database access — emits structured records to a single Postgres table (`ingestion_emissions`) via a database user with INSERT-only permissions on that one table
@@ -107,6 +109,8 @@ Executes LLM-generated TypeScript via Deno inside a locked-down Docker container
 
 The only trusted component. Has full database access, coordinates ingestion and sandbox, handles user interactions, calls LLM APIs for reasoning.
 
+**Core never processes untrusted external content directly.** Web search results and fetched web pages are routed through the ingestion container, not processed by core's LLM calls. Core's Anthropic API calls reason over trusted, already-validated context: knowledge graph data, validated emissions, and user messages. This ensures that prompt injection in web content cannot influence an LLM call with full system privileges. See [ingestion.md](ingestion.md).
+
 **Sole authority for:**
 - Database writes (beyond the ingestion emission table)
 - Knowledge graph updates
@@ -120,7 +124,7 @@ Prompt injection is the #1 vulnerability in LLM applications and the threat is e
 
 ### Defense-in-depth stack
 
-1. **Container separation.** The ingestion container processes untrusted content in isolation. Even if an injected prompt fully controls the ingestion LLM, it can only emit structured records through the schema-validated emission channel — it cannot trigger actions, read the knowledge graph, or access other services. This is the most important layer.
+1. **Container separation.** The ingestion container processes all untrusted content in isolation — emails, documents, web search results, and fetched web pages. Even if an injected prompt fully controls the ingestion LLM, it can only emit structured records through the schema-validated emission channel — it cannot trigger actions, read the knowledge graph, or access other services. Core never processes untrusted external content directly, so prompt injection cannot reach a privileged LLM call. This is the most important layer.
 
 2. **Structural prompt separation.** All ingested content (emails, documents, transcripts, OCR output) is placed in clearly delimited data sections of the prompt with explicit system instructions that this content is data, not instructions. Use Anthropic's and OpenAI's structured prompt patterns for this.
 
