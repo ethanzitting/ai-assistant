@@ -4,12 +4,6 @@ Architectural review of the planning docs. Covers contradictions between documen
 
 ## Architectural risks
 
-### LLM API access in ingestion undermines isolation
-
-The ingestion container needs LLM API access for email triage classification. But [security.md](security.md) identifies LLM API calls as a "data exfiltration channel." The ingestion container processes untrusted content *and* can make LLM API calls — a compromised ingestion container could embed exfiltrated data in LLM API prompts.
-
-> **Partial resolution (2026-05-25):** Web search now routes through ingestion rather than core, which means core never processes untrusted external content directly — a significant improvement. The residual risk is that ingestion's LLM API calls (for email triage and web search processing) are themselves an exfiltration channel. Mitigated by: zero-retention on the LLM API, rate limiting on ingestion LLM calls, and the fact that an attacker must first compromise the container. Accepted as a known residual risk.
-
 ### LUKS encryption vs. unattended reboot
 
 [security.md](security.md) says database volumes are LUKS-encrypted with the decryption key "fetched from a separate service at boot time." If the VPS reboots for host maintenance (common on Hetzner/DigitalOcean), the system must either:
@@ -19,30 +13,7 @@ The ingestion container needs LLM API access for email triage classification. Bu
 
 Neither behavior is specified. This is a known tension in LUKS setups that needs a deliberate decision.
 
-### No LLM fallback
-
-The entire system — daily briefings, email triage, entity extraction, compaction, pattern recognition, calendar conflict detection — depends on LLM API availability. No degraded mode is discussed.
-
-Several features could work without LLM calls: bill due date alerts (database query), calendar conflicts (time overlap check), simple reminders (event engine), and task surfacing (database query + surfacing policy). These should function even during an API outage.
-
-> **Recommendation:** Identify which features are LLM-dependent vs. rule-based. Build the rule-based ones to work independently so the system degrades gracefully instead of going fully dark.
-
-### Kill switch 1Password polling
-
-[security.md](security.md) says the kill switch is "a key in 1Password that the tool-call middleware checks before every execution." This adds a network round-trip to 1Password on every tool call. Two unresolved questions:
-
-1. **Latency.** Every tool call blocks on a 1Password API call.
-2. **Failure mode.** If 1Password is unreachable, does the system fail-open (security risk) or fail-closed (availability risk)?
-
-> **Recommendation:** Cache the kill switch state locally with a short TTL (e.g., 60 seconds). Check 1Password periodically, not per-call. Fail-closed on unreachable — better to pause than to run without a kill switch.
-
 ## Questionable feasibility
-
-### Work calendar sharing depends on org policy
-
-[ingestion.md](ingestion.md) plans to share the work calendar to a personal Google account. Many organizations restrict external calendar sharing in Google Workspace admin settings. If the org blocks this, the unified schedule view breaks with no fallback mentioned.
-
-> **Recommendation:** Document the fallback: manual ICS export, a browser extension that scrapes free/busy, or simply accepting that work calendar integration may not be available.
 
 ### "Nuke and rebuild from archive" is expensive
 
@@ -56,9 +27,6 @@ Multiple docs reference the ability to "nuke the knowledge graph tables and rebu
 
 The ingestion container INSERTs into `ingestion_emissions`. Core needs to process these. The mechanism is not specified — LISTEN/NOTIFY, polling, triggers? This affects latency (how long between email arrival and agent awareness) and implementation complexity.
 
-### Silent context injection latency budget
-
-[context-assembly.md](context-assembly.md) says before every response, the agent queries for new entries since the last turn. Combined with the 1Password kill switch check and query-specific RAG retrieval, every user message triggers multiple DB queries + network calls before the LLM call starts. The total latency budget for this pre-fetch step is not discussed.
 
 ### High-impact vs. low-stakes boundary
 
@@ -104,7 +72,6 @@ With Claude Sonnet this might hold. With Opus-class models for the reasoning lay
 | **Medium** | Decide file store provider | [data-architecture.md](data-architecture.md) |
 | **Medium** | Test gVisor ptrace compatibility with target Python libraries | [infrastructure.md](infrastructure.md) |
 | **Low** | Identify LLM-independent features and build rule-based fallbacks | [primitives.md](primitives.md) |
-| **Low** | Document work calendar fallback if org blocks sharing | [ingestion.md](ingestion.md) |
 | **Low** | Revise cost estimates with model tier assumptions | [infrastructure.md](infrastructure.md) |
 | **Low** | Drop Plaid or document the ToS workaround | [roadmap.md](roadmap.md) |
 | **Low** | Fix quick-capture count (three vs. four) | [ingestion.md](ingestion.md) |

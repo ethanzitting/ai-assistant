@@ -56,7 +56,7 @@ The goal is a system that gets noticeably better at surfacing the right informat
 - [ ] File store integration: Google Drive or GCS as active file system, file cataloging in knowledge graph
 - [ ] Photo OCR pipeline for physical mail
 - [ ] Multi-channel output: priority/length/context classification for notifications
-- [ ] Sensitivity tagging system: personal / work-adjacent / confidential classification
+- [ ] Sensitivity tagging system: normal / confidential classification
 - [ ] Pruning job v2: warm → cold transitions, periodic summary aggregation
 
 ## Ongoing — Refinement

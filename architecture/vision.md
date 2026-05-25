@@ -18,7 +18,7 @@ These are the areas the assistant should eventually cover. They are not all in s
 - Context will be inherently lightweight — the system learns from emails, calendar events, and what you manually capture, not from recording calls or taking notes during conversations. This is a contacts-plus tool, not a CRM.
 
 ### Calendar & schedule management
-- Unified view across personal and work calendars (work calendar via a separate sharing path — see [ingestion.md](ingestion.md)).
+- Unified view across all calendars the user shares with the system.
 - Conflict detection — not just time overlaps, but logistical conflicts (meeting across town 15 minutes after another meeting).
 - Buffer awareness — flagging packed days with no breaks.
 - Meeting preparation: *"You're meeting with James tomorrow. Last time you discussed the Q3 timeline. He had an action item to get back to you on vendor pricing."*
@@ -76,8 +76,8 @@ These constrain every decision in the rest of the architecture docs. When two de
 2. **The knowledge system is a cache; the archive is the truth.** Everything derived can be rebuilt from originals. See [data-architecture.md](data-architecture.md).
 3. **Every write is an append.** No destructive updates to the knowledge graph or changelog — facts get `valid_until` timestamps, never deleted. Full audit trail. Active storage tiers prune older data, but originals are retained permanently in the archive.
 4. **Trust is earned incrementally.** Start with observe-and-inform capabilities. More powerful capabilities (drafting, acting on your behalf) get added when the current system is working well and generating real value. See [trust-model.md](trust-model.md).
-5. **Work data stays in work systems.** The assistant knows about work's *impact on your life*, not work's *content*. See [ingestion.md](ingestion.md).
-6. **You are the filter for unstructured input.** Manual capture through frictionless channels, informed by your judgment about what's personal vs. proprietary.
+5. **The user decides what to share.** Any data provided to the assistant is assumed to have permission to be processed. The agent doesn't police data boundaries — it works with whatever it receives. See [ingestion.md](ingestion.md).
+6. **You are the filter for unstructured input.** Manual capture through frictionless channels, informed by your judgment about what to share.
 7. **Security is not an afterthought.** Assume eventual compromise. Store everything but protect it aggressively — encrypt at rest, segment credentials, isolate containers, plan for containment. See [security.md](security.md).
 8. **Non-intrusive output matters.** Optimize for Telegram, smartwatch notifications, and AirPods — channels that surface information without demanding attention. Smart glasses (Even Realities G2) are a future upgrade once the system is generating real daily value. See [interfaces.md](interfaces.md).
 9. **Context engineering matters more than model choice.** Getting the right 3,000 tokens into the prompt beats throwing 100K tokens at a bigger context window.

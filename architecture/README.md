@@ -38,7 +38,7 @@ Where each section of the original docs lives now:
 | PLAN §6 Data Lifecycle | [data-lifecycle.md](data-lifecycle.md) |
 | PLAN §7 Hosting & Infrastructure | [infrastructure.md](infrastructure.md) |
 | PLAN §8 Security Architecture | [security.md](security.md) |
-| PLAN §9 Realistic Data Inputs & Work Data Boundaries | [ingestion.md](ingestion.md) |
+| PLAN §9 Realistic Data Inputs | [ingestion.md](ingestion.md) |
 | PLAN §10 Output Channels & G2 | [interfaces.md](interfaces.md) |
 | PLAN §11 Competitive Landscape | [landscape.md](landscape.md) |
 | PLAN §12 Learning Path & Tech Stack | [tech-stack.md](tech-stack.md) |

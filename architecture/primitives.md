@@ -36,7 +36,7 @@ Connects to external data sources, normalizes data, and feeds it into the knowle
 
 Currently all integrations are read-only. Write access (drafting, booking, sending) gets added per-integration as trust develops. See [trust-model.md](trust-model.md).
 
-Sources, work-data boundary, and quick-capture channels are detailed in [ingestion.md](ingestion.md).
+Sources and quick-capture channels are detailed in [ingestion.md](ingestion.md).
 
 Also handles web fetching for research flows and file ingestion (email attachments, Telegram documents, PDFs). All ingested files are stored in the file store and cataloged in the knowledge graph.
 

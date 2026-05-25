@@ -59,9 +59,11 @@ These are fast, stateless checks — not LLM calls. A few conditionals in the mi
 
 ### Kill switch (manual)
 
-A flag in an external store (a key in 1Password) that the tool-call middleware checks before every execution. When flipped, all tool calls are blocked and the agent session is frozen.
+A flag in an external store (a key in 1Password). A background process polls the flag every 60 seconds and caches the state locally. The tool-call middleware checks the local cache — no network round-trip per tool call. When the flag is flipped, all tool calls are blocked within 60 seconds and the agent session is frozen.
 
-Triggered via the SSH CLI on the server, a Telegram bot command, or by flipping the 1Password flag directly. The CLI is the most reliable path — it doesn't depend on Telegram or 1Password availability.
+**Fail-closed:** if 1Password is unreachable, the system treats the kill switch as engaged. Better to pause than to run without a kill switch.
+
+Triggered via the SSH CLI on the server, a Telegram bot command, or by flipping the 1Password flag directly. The CLI is the most reliable path — it writes the local cache directly, taking effect immediately without waiting for the next 1Password poll.
 
 ### Graceful degradation
 
