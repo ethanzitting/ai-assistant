@@ -40,7 +40,7 @@ This prevents a critical attack vector: if web search ran directly in core, a pr
 
 **Two constraints on web fetching:**
 
-1. **Only triggered by explicit user requests routed through core.** The ingestion container never autonomously follows URLs found in emails, documents, or other ingested content. Core decides "user wants this researched" and instructs ingestion to search or fetch. This breaks the email → URL → injection chain. See [RISKS.md](RISKS.md).
+1. **Only triggered by explicit user requests routed through core.** The ingestion container never autonomously follows URLs found in emails, documents, or other ingested content. Core decides "user wants this researched" and instructs ingestion to search or fetch. This breaks the email → URL → injection chain. See [security.md](security.md).
 2. **Core never enables web search on its own LLM calls.** Core's Anthropic API calls are for reasoning over trusted, already-validated context (knowledge graph data, validated emissions, user messages). Untrusted web content never enters a privileged LLM call.
 
 Fetched files are stored in the file store and cataloged in the knowledge graph.

@@ -83,18 +83,7 @@ Verify it works:
 
 ## Database migrations
 
-Schema changes are SQL files in `migrations/`, run in order:
-
-```
-migrations/
-├── 001_knowledge_graph.sql
-├── 002_events.sql
-├── 003_skills.sql
-├── 004_emissions.sql
-└── ...
-```
-
-To add a schema change: create the next numbered file, run `make migrate`. Never modify a migration that has already been applied — always create a new one.
+Schema changes are numbered SQL files in `migrations/`, run in order on startup. To add a schema change: create the next numbered file, run `make migrate`. See the root [README.md](../README.md) for migration rules and deployment procedures.
 
 ## Seeding initial data
 
@@ -107,7 +96,7 @@ After first run, populate the system with baseline data:
 
 ## Deploying to Digital Ocean
 
-1. Provision a droplet (Hetzner CX32 or DO droplet — 4 vCPU, 8GB RAM, 80-160GB SSD)
+1. Provision a droplet (see [infrastructure.md](infrastructure.md) for specs)
 2. Install Docker and Docker Compose on the droplet
 3. Install the 1Password CLI and configure a service account token (different from your personal token — scoped to the vault the app uses)
 4. Clone the repo
@@ -115,7 +104,7 @@ After first run, populate the system with baseline data:
 6. Verify: check logs, send a Telegram message, confirm calendar sync
 7. Set up the backup cron job (see below)
 
-Access is via SSH through the DO console initially; WireGuard VPN replaces this in Month 2.
+Access is via SSH through the DO console initially; WireGuard VPN replaces this in Version 2.
 
 ## Backups
 

@@ -1,6 +1,8 @@
-# Month 1 — Talking Chatbot
+# Version 1 — Talking Chatbot
 
 A conversational agent on Digital Ocean that knows your calendar, can set reminders, and holds context across a conversation. Each phase builds on the previous one and produces something testable.
+
+Schema definitions live in [data-architecture.md](../data-architecture.md). The event loop design lives in [core-loop.md](../core-loop.md). Event engine design lives in [event-engine.md](../event-engine.md). Setup procedures live in [setup.md](../setup.md). This doc covers the implementation sequence and Version 1-specific decisions — not the architecture itself.
 
 ## Phase 1 — Infrastructure & Database
 
@@ -8,66 +10,26 @@ Get a working dev environment with a database and secrets management. Nothing AI
 
 ### Docker Compose
 
-Two compose files:
+Two compose files (see [infrastructure.md](../infrastructure.md) for the full dev environment design):
 
-- `docker-compose.yml` — base configuration. Postgres with pgvector, core container, shared volumes, networks. 
+- `docker-compose.yml` — base configuration. Postgres with pgvector, core container, shared volumes, networks.
 - `docker-compose.dev.yml` — dev overrides. Source directory mounted into the core container, Deno runs with `--watch` for hot-reloading.
 
 `make dev` starts the dev stack. `make up` starts production-like (no hot-reload).
 
 ### Postgres
 
-The `pgvector/pgvector:pg16` image. One database, one schema. Core connects with a role that has SELECT, INSERT, UPDATE on all tables — no DELETE on knowledge graph tables. A separate superuser role exists for migrations and backups.
+The `pgvector/pgvector:pg16` image. One database, one schema. Core connects with a role that has SELECT, INSERT, UPDATE on all tables — no DELETE on knowledge graph tables (see [security.md](../security.md), core container section). A separate superuser role exists for migrations and backups.
 
 ### Migration system
 
-A `migrations/` directory with numbered SQL files. The Postgres entrypoint runs pending migrations on startup. Each migration is idempotent (uses `IF NOT EXISTS` or equivalent). Never modify a migration after it's been applied — always create a new one.
+A `migrations/` directory with numbered SQL files. The Postgres entrypoint runs pending migrations on startup. Each migration is idempotent (uses `IF NOT EXISTS` or equivalent). See the root [README.md](../../README.md) for migration rules and deployment procedures.
 
 ### Database schema
 
-All tables created via migrations:
+All tables created via migrations. Knowledge graph tables (entities, relationships, facts) use the schema defined in [data-architecture.md](../data-architecture.md). Additional tables for Version 1:
 
-**Knowledge graph tables** (from [data-architecture.md](../docs/data-architecture.md)):
-
-```sql
--- entities: people, places, organizations, accounts
-CREATE TABLE entities (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    type TEXT NOT NULL,
-    name TEXT NOT NULL,
-    properties JSONB DEFAULT '{}',
-    created_at TIMESTAMPTZ DEFAULT now(),
-    source_ref TEXT
-);
-
--- relationships: directed edges between entities
-CREATE TABLE relationships (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    entity_a_id UUID REFERENCES entities(id),
-    entity_b_id UUID REFERENCES entities(id),
-    type TEXT NOT NULL,
-    properties JSONB DEFAULT '{}',
-    valid_from TIMESTAMPTZ DEFAULT now(),
-    valid_until TIMESTAMPTZ,
-    created_at TIMESTAMPTZ DEFAULT now(),
-    source_ref TEXT
-);
-
--- facts: temporal knowledge with validity windows
-CREATE TABLE facts (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    entity_id UUID REFERENCES entities(id),
-    attribute TEXT NOT NULL,
-    value TEXT NOT NULL,
-    valid_from TIMESTAMPTZ DEFAULT now(),
-    valid_until TIMESTAMPTZ,
-    confidence REAL DEFAULT 1.0,
-    source_ref TEXT,
-    created_at TIMESTAMPTZ DEFAULT now()
-);
-```
-
-**Event engine tables:**
+**Event engine tables** (implements [event-engine.md](../event-engine.md)):
 
 ```sql
 CREATE TABLE events (
@@ -97,7 +59,7 @@ CREATE TABLE reminders (
 );
 ```
 
-**Skills table:**
+**Skills, preferences, audit log, and conversation log:**
 
 ```sql
 CREATE TABLE skills (
@@ -108,11 +70,7 @@ CREATE TABLE skills (
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );
-```
 
-**Preferences:**
-
-```sql
 CREATE TABLE preferences (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     key TEXT NOT NULL UNIQUE,
@@ -121,11 +79,7 @@ CREATE TABLE preferences (
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );
-```
 
-**Audit log:**
-
-```sql
 CREATE TABLE audit_log (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     action TEXT NOT NULL,
@@ -133,11 +87,7 @@ CREATE TABLE audit_log (
     outcome JSONB DEFAULT '{}',
     created_at TIMESTAMPTZ DEFAULT now()
 );
-```
 
-**Conversation log:**
-
-```sql
 CREATE TABLE conversations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     role TEXT NOT NULL,               -- 'user', 'assistant', 'system', 'tool_call', 'tool_result'
@@ -149,14 +99,7 @@ CREATE TABLE conversations (
 
 ### 1Password integration
 
-All secrets injected via `op run`. The `Makefile` wraps every command that needs secrets:
-
-```makefile
-dev:
-	op run --env-file=.env.tpl -- docker compose -f docker-compose.yml -f docker-compose.dev.yml up
-```
-
-The `.env.tpl` file maps 1Password references to environment variable names — no actual secrets on disk. See [setup.md](../docs/setup.md) for the full vault layout.
+All secrets injected via `op run` — see [setup.md](../setup.md) for the full vault layout and secret-to-environment-variable mappings.
 
 ### Testable at end of phase
 
@@ -199,37 +142,15 @@ No database table needed for the queue — it's ephemeral. Events arrive, get pr
 
 ### Core event loop
 
-The loop from [core-loop.md](../docs/core-loop.md):
+Implements the design from [core-loop.md](../core-loop.md). Key Version 1 behaviors:
 
-```
-while (true) {
-  event = queue.next()          // block until an event arrives
-  context = assemble(event)     // build the prompt
-  
-  while (true) {
-    response = await anthropic.call(context)
-    
-    if (response.has_tool_calls) {
-      results = await execute_tools(response.tool_calls)
-      new_events = queue.drain_high_priority()
-      context.append(results, new_events)
-    } else {
-      break  // final response, no more tool calls
-    }
-  }
-  
-  deliver(response)             // send to Telegram, log, etc.
-}
-```
-
-Key behaviors:
 - Between every tool call, drain high-priority events from the queue and append them as context
 - Normal-priority events wait until the current task completes
-- Every tool call passes through middleware that checks circuit breakers (stub for Month 1, real implementation Month 2)
+- Every tool call passes through middleware that checks circuit breakers (stubbed in Version 1 — passes all calls through. Real implementation in Version 2)
 
 ### Conversation management
 
-Simplified version of the four-layer context assembly. In Month 1:
+Simplified version of the four-layer context assembly (full implementation in Version 2 — see [context-assembly.md](../context-assembly.md)):
 
 - **Stable prefix:** system prompt, tool definitions, skill name/description list, user preferences from the preferences table. Cached via Anthropic prompt caching.
 - **Conversation history:** the last N messages, pulled from the conversations table. When the token count exceeds a budget (start with ~20,000 tokens), truncate from the oldest messages. No compaction yet — just truncation.
@@ -238,7 +159,7 @@ Every message (user and assistant) is persisted to the `conversations` table for
 
 ### Tool definitions
 
-Coarse-grained tools for Month 1. Each tool does significant work in application code — the LLM says what, the code figures out how.
+Coarse-grained tools for Version 1. Each tool does significant work in application code — the LLM says what, the code figures out how. See [core-loop.md](../core-loop.md) for the design rationale.
 
 **`query_knowledge`** — search the knowledge graph.
 - Input: natural language question or structured filter (entity type, name pattern, date range)
@@ -247,17 +168,17 @@ Coarse-grained tools for Month 1. Each tool does significant work in application
 
 **`remember`** — store information from the conversation.
 - Input: structured extraction (entity, fact, relationship, or preference)
-- Application code: inserts into the appropriate table. For entities, does fuzzy name matching first and returns candidates if ambiguous — the LLM picks the right one or creates a new entity.
+- Application code: inserts into the appropriate table. For entities, does fuzzy name matching first and returns candidates if ambiguous — the LLM picks the right one or creates a new entity. See [core-loop.md](../core-loop.md) entity resolution section.
 - Returns: confirmation of what was stored
 
 **`manage_events`** — create, update, list, and resolve events and reminders.
 - Input: action (create/update/list/complete/drop) with event details
-- Application code: CRUD operations on the events and reminders tables. Handles recurrence logic (fixed-schedule vs. interval-from-completion). Computes next reminder times.
+- Application code: CRUD operations on the events and reminders tables. Handles recurrence logic per [event-engine.md](../event-engine.md). Computes next reminder times.
 - Returns: confirmation or list of matching events
 
 **`get_calendar`** — fetch Google Calendar events for a date range.
 - Input: start date, end date
-- Application code: queries the Google Calendar API (or local cache if recently synced)
+- Application code: queries locally synced calendar events from Postgres (no API call per question)
 - Returns: formatted list of events with time, title, location
 
 **`fetch_skill`** — load a skill's full body.
@@ -269,6 +190,14 @@ Coarse-grained tools for Month 1. Each tool does significant work in application
 - Input: message text
 - Application code: calls the Telegram bot API to send the message
 - Returns: confirmation
+
+### Tests: token budget truncation
+
+Unit test the truncation logic — edge cases where the budget is exactly hit, where a single message exceeds the budget, where all messages fit. A bug here either blows the context window (loud) or silently drops important context (quiet and bad).
+
+### Tests: temporal knowledge graph queries
+
+Unit test the SQL generation for "what's true now" vs "what was true at date X" queries. Edge cases: facts with NULL valid_until, facts that start and end on the same day, overlapping validity windows. Wrong temporal logic means the agent silently gives stale or incorrect facts.
 
 ### Testable at end of phase
 
@@ -288,7 +217,7 @@ Wire up real user input. By the end of this phase, you can text the bot and have
 
 Use the [grammY](https://grammy.dev) framework — it runs natively on Deno, supports long polling, and handles message parsing, reply formatting, and error recovery.
 
-Long polling means the bot makes outbound HTTPS requests to Telegram's servers and holds the connection open until a message arrives. No webhooks, no public endpoints.
+Long polling means the bot makes outbound HTTPS requests to Telegram's servers and holds the connection open until a message arrives. No webhooks, no public endpoints. See [core-loop.md](../core-loop.md) Telegram routing section.
 
 ### Message routing
 
@@ -358,6 +287,10 @@ Insert the first skills:
 - **daily_briefing** — instructions for assembling and delivering the morning briefing
 - **remember_conversation** — guidelines for what to extract from conversation (entities, facts, tasks, preferences) and how to handle ambiguous entities
 
+### Tests: entity matching
+
+Unit test the fuzzy name matching logic in the `remember` tool. Cases: exact match, first-name-only with multiple candidates, email-based matching, no match (should create new entity). This is where silent corruption happens — wrong matches merge two people, missed matches create duplicates.
+
 ### Testable at end of phase
 
 - Ask the agent about a seeded contact: "What's my dentist's phone number?"
@@ -373,15 +306,7 @@ Connect the agent to your real calendar so it knows what your day looks like.
 
 ### OAuth flow
 
-The `make auth-google` command runs a local script that:
-
-1. Opens a browser to Google's consent screen
-2. User clicks "Allow"
-3. Script receives the authorization code via a localhost redirect
-4. Exchanges the code for access + refresh tokens
-5. Stores the refresh token in 1Password via `op item edit`
-
-This only runs once (on your laptop, not the server). The application uses the refresh token to get short-lived access tokens automatically.
+See [setup.md](../setup.md) for the full Google OAuth procedure. The `make auth-google` command runs the one-time authorization locally and stores the refresh token in 1Password.
 
 ### Calendar sync
 
@@ -408,7 +333,7 @@ The `get_calendar` tool queries the locally synced events. No API call per user 
 
 ## Phase 6 — Event Engine
 
-Give the agent the ability to track reminders, deadlines, and recurring tasks. This is the "clock" that makes the agent proactive.
+Give the agent the ability to track reminders, deadlines, and recurring tasks. This is the "clock" that makes the agent proactive. Implements the design from [event-engine.md](../event-engine.md).
 
 ### Event processing loop
 
@@ -421,10 +346,7 @@ A periodic job (every 60 seconds) that:
 
 ### Recurrence logic
 
-When an event is completed or a fixed-schedule recurrence fires:
-
-- **Fixed-schedule:** compute the next occurrence from the recurrence rule (e.g., "every Thursday" → next Thursday). Create the next reminder. A missed occurrence becomes an unresolved item.
-- **Interval-from-completion:** when you mark it done, compute the next occurrence from *now* (e.g., "every 90 days" → 90 days from today). Create the next reminder.
+Implements the two recurrence models from [event-engine.md](../event-engine.md): fixed-schedule (calendar-anchored, missed occurrences become unresolved items) and interval-from-completion (timer resets from actual completion date).
 
 ### Conversational event creation
 
@@ -439,6 +361,10 @@ The LLM parses the intent; the tool handles the database operations and recurren
 ### Daily briefing trigger
 
 A scheduled event that fires every morning at your preferred briefing time. The event processing loop detects it, pushes it into the queue, and the core loop processes it using the `daily_briefing` skill.
+
+### Tests: recurrence logic
+
+Unit test the next-occurrence computation for both recurrence models. Cases: normal next occurrence, missed occurrence (what happens to the schedule), month-end boundaries (Jan 31 → "every month" → Feb 28?), timezone transitions (DST), interval-from-completion with late completion. This is pure logic with many edge cases — a bug means missed reminders you never find out about.
 
 ### Testable at end of phase
 
@@ -487,44 +413,22 @@ When the daily briefing event fires, the core loop:
 
 ## Phase 8 — Deployment & Backups
 
-Get the system running on a real server so it's always available.
+Get the system running on a real server so it's always available. See [setup.md](../setup.md) for the full deployment and backup procedures — this section covers only what to verify.
 
 ### Digital Ocean setup
 
-1. Provision the droplet (4 vCPU, 8GB RAM, 80-160GB SSD)
-2. Install Docker and Docker Compose
-3. Install the 1Password CLI, configure a service account token scoped to the project vault
+1. Provision the droplet (see [infrastructure.md](../infrastructure.md) for specs)
+2. Install Docker, Docker Compose, 1Password CLI
+3. Configure 1Password service account token scoped to the project vault
 4. Clone the repo
 5. `make up` — production mode
 6. Verify: check logs, send a Telegram message, confirm calendar sync runs
 
-Access via DO console SSH for Month 1. WireGuard VPN comes in Month 2.
+Access via DO console SSH for Version 1. WireGuard VPN comes in Version 2.
 
-### Backup scripts
+### Backup and verification scripts
 
-A `backups/backup.sh` script that:
-
-1. Runs `pg_dump` as the Postgres superuser role
-2. Compresses with gzip
-3. Encrypts with GPG (key ID from 1Password)
-4. Uploads to B2 using the write-only application key
-5. Records a metrics snapshot (entity count, fact count, event count, file size, SHA256) as a JSON file alongside the backup
-6. Compares metrics against the previous backup, alerts via Telegram if counts dropped or file size shrank significantly
-
-Set up a cron job to run daily at a quiet hour.
-
-### Weekly verification script
-
-A `backups/verify.sh` script that:
-
-1. Downloads the most recent backup from B2
-2. Decrypts and decompresses
-3. Restores to a temporary Docker Postgres container
-4. Runs metric queries and compares against the stored snapshot
-5. Tears down the temporary container
-6. Alerts via Telegram on success or failure
-
-Set up a weekly cron job.
+Implement the backup procedure from [setup.md](../setup.md): daily `pg_dump` → gzip → GPG → B2 with metrics snapshots, weekly restore-to-container verification.
 
 ### Testable at end of phase
 

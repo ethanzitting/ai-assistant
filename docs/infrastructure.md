@@ -6,7 +6,7 @@ Where the system runs, how big it needs to be, and what it costs to operate. Sec
 
 **Single VPS, Docker Compose.** Everything runs on one machine.
 
-**Recommended:** Hetzner CX32 or DigitalOcean droplet — 4 vCPUs, 8GB RAM, 80-160GB SSD. $15-30/month. More than sufficient for a single-user workload.
+**Recommended:** DigitalOcean droplet — 4 vCPUs, 8GB RAM, 80-160GB SSD. $15-30/month. Hetzner is a viable alternative at similar specs. More than sufficient for a single-user workload.
 
 Docker Compose defines four services:
 
@@ -60,16 +60,7 @@ services:
 
 ### Database initialization
 
-SQL migration files in a `migrations/` directory, run in order on first start. The Postgres container's entrypoint runs pending migrations. Schema changes during development are new migration files, never manual DDL.
-
-```
-migrations/
-├── 001_knowledge_graph.sql    # entities, relationships, facts
-├── 002_events.sql             # event engine tables
-├── 003_skills.sql             # skills table
-├── 004_emissions.sql          # ingestion_emissions table
-└── ...
-```
+SQL migration files in a `migrations/` directory, run in order on first start. The Postgres container's entrypoint runs pending migrations. See the root [README.md](../README.md) for migration rules and deployment procedures.
 
 ### Secrets in development
 
@@ -77,24 +68,11 @@ Same 1Password path locally and in production. `op run` injects secrets as envir
 
 ### Makefile
 
-```makefile
-dev:        # Start dev environment with hot-reload
-up:         # Start production-like environment
-down:       # Stop everything
-logs:       # Tail all container logs
-db:         # Open psql shell
-migrate:    # Run pending migrations
-backup:     # Manual backup trigger
-test:       # Run test suite
-```
-
-### Setup
-
-Full setup instructions live in [setup.md](setup.md).
+See [setup.md](setup.md) for the full Makefile reference and setup instructions.
 
 ### Network access
 
-No public-facing HTTP endpoints. The server is accessed exclusively via SSH and WireGuard VPN. Ingestion happens through outbound polling (Gmail API, Google Calendar API) and the Telegram bot API (long polling, not webhooks — no inbound connections needed). See [security.md](security.md).
+No public-facing HTTP endpoints. In the target architecture, the server is accessed exclusively via SSH and WireGuard VPN (VPN is a Version 2 deliverable — Version 1 uses DO console SSH). Ingestion happens through outbound polling (Gmail API, Google Calendar API) and the Telegram bot API (long polling, not webhooks — no inbound connections needed). See [security.md](security.md).
 
 ## Storage sizing
 
@@ -190,4 +168,4 @@ Assumes Haiku 4.5 ($1/$5 per MTok in/out) for ingestion, Sonnet 4.6 ($3/$15) or 
 | **Heavy use, Sonnet core** (30 interactions/day, 100 emails/week, frequent research) | **~$50–65** |
 | **Heavy use, Opus core** | **~$65–80** |
 
-The biggest variable is conversation volume — each additional daily interaction costs ~$0.02 (Sonnet) to ~$0.04 (Opus) with good caching. Proactive analysis sweeps (Month 3) add ~$3–5/month.
+The biggest variable is conversation volume — each additional daily interaction costs ~$0.02 (Sonnet) to ~$0.04 (Opus) with good caching. Proactive analysis sweeps (Version 3) add ~$3–5/month.

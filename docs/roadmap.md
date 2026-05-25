@@ -1,32 +1,33 @@
 # Roadmap
 
-Phased implementation plan. Month 1 is deliberately minimal — get it working and generating real feedback. Months 2+ are reprioritized based on what actually matters after using the system daily.
+Phased implementation plan. Version 1 is deliberately minimal — get it working and generating real feedback. Later versions are reprioritized based on what actually matters after using the system daily. Detailed development plans live in [development/](development/).
 
-## Month 1 — Talking Chatbot
+## Version 1 — Talking Chatbot
 
-The goal is a conversational agent on Digital Ocean that knows your calendar, can set reminders, and holds context across a conversation. Barely useful, but running and generating real feedback.
+The goal is a conversational agent on Digital Ocean that knows your calendar, can set reminders, and holds context across a conversation. Barely useful, but running and generating real feedback. Detailed plan: [development/version-one.md](development/version-one.md).
 
-- [ ] Docker Compose stack: dev environment with hot-reloading, production-ready on Digital Ocean. See [infrastructure.md](infrastructure.md) for the dev environment design
+- [ ] Docker Compose stack: dev environment with hot-reloading, production-ready on Digital Ocean. See [infrastructure.md](infrastructure.md)
 - [ ] Postgres + pgvector in Docker
 - [ ] Knowledge graph schema: entities, relationships, facts tables with temporal validity
 - [ ] Structured data models: contacts, events, cadences, preferences
 - [ ] 1Password integration: all secrets retrieved via `op run`, no `.env` on disk
 - [ ] Anthropic API integration with prompt caching
 - [ ] Core event loop: agentic processing with coarse tools, event queue, priority levels. See [core-loop.md](core-loop.md)
-- [ ] Basic conversation management: token-budget truncation to prevent context window blowup (full four-layer context assembly is Month 2)
+- [ ] Basic conversation management: token-budget truncation to prevent context window blowup (full four-layer context assembly is Version 2)
 - [ ] Personal Google Calendar sync (OAuth, read-only, polling)
 - [ ] Telegram bot: text input, long polling, routed directly to core. See [core-loop.md](core-loop.md)
 - [ ] Event engine: scheduling, reminders, daily briefing trigger, recurring events. See [event-engine.md](event-engine.md)
 - [ ] Basic daily briefing: *"Here's what's on your calendar, here are your reminders and upcoming deadlines"*
 - [ ] Skills table: name + description in stable prefix, body fetched on demand
+- [ ] Circuit breaker middleware: stubbed in Version 1 (passes all calls through), real implementation in Version 2
 - [ ] Backup scripts: pg_dump → encrypted → object storage
 - [ ] Deploy to Digital Ocean, accessed via DO console SSH
 
-**Not in scope for Month 1:** Email ingestion, web search, embeddings, WireGuard VPN, circuit breakers or kill switch, Telegram file/photo uploads, physical mail OCR, voice memos, sandbox container, container isolation, SSH CLI.
+**Not in scope for Version 1:** Email ingestion, web search, embeddings, WireGuard VPN, kill switch, Telegram file/photo uploads, physical mail OCR, voice memos, sandbox container, container isolation, SSH CLI.
 
-## Month 2 — Memory, Email & Safety
+## Version 2 — Memory, Email & Safety
 
-The goal is a system that remembers across conversations, processes your email, and has real security boundaries. Prioritized based on Month 1 feedback.
+The goal is a system that remembers across conversations, processes your email, and has real security boundaries. Prioritized based on Version 1 feedback.
 
 - [ ] Context assembly: four-layer prompt construction (stable prefix, daily prefix, recent prefix, conversation), token-budget compaction, nightly prefix rebuild. See [context-assembly.md](context-assembly.md)
 - [ ] Conversation memory: assistant remembers past interactions, extracts entities and facts in real time, builds preference profile
@@ -38,14 +39,14 @@ The goal is a system that remembers across conversations, processes your email, 
 - [ ] Knowledge graph population: entities and facts extracted from email and calendar ingestion
 - [ ] Prompt injection defense: structural prompt sandboxing, self-hosted injection classifier (risk scoring, not gating — see [security.md](security.md)), emission validation in core
 - [ ] Task & project engine: task CRUD via Telegram, status tracking, surfacing policy, project grouping
-- [ ] Agent safety controls: circuit breakers (budget caps, loop detection, scope enforcement) + kill switch
+- [ ] Agent safety controls: circuit breakers (real implementation) + kill switch
 - [ ] WireGuard VPN: no public-facing endpoints except VPN
 - [ ] SSH CLI: admin commands, kill switch, status, query, task management. See [interfaces.md](interfaces.md)
 - [ ] Telegram file uploads: documents and photos sent to bot, routed to ingestion for processing
 - [ ] Voice memo ingestion: Whisper API transcription → processing pipeline
 - [ ] Pruning job v1: hot → warm tier summarization for emails
 
-## Month 3 — Smarter & More Useful
+## Version 3 — Smarter & More Useful
 
 The goal is a system that gets noticeably better at surfacing the right information at the right time.
 
@@ -69,7 +70,7 @@ The goal is a system that gets noticeably better at surfacing the right informat
 - [ ] Household management module: maintenance schedules, registration reminders
 - [ ] Goal tracking: long-arc progress monitoring, stalled-intention detection (builds on task & project engine)
 - [ ] Smartwatch notifications: Apple Watch as glanceable output channel
-- [ ] Research & fact-checking: steelman/flaw analysis, living fact-check cache in knowledge graph (builds on Anthropic web search from Month 1)
+- [ ] Research & fact-checking: steelman/flaw analysis, living fact-check cache in knowledge graph (builds on web search from Version 2)
 - [ ] Audit log review interface: see what the agent has been doing and why
 - [ ] Breach runbook: documented, tested, executable from phone
 - [ ] Additional ingestion sources as needs arise
