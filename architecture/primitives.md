@@ -1,6 +1,6 @@
 # Core Architectural Primitives
 
-The system is not built as features — it's built as composable primitives that features in [vision.md](vision.md) are configured on top of. There are six.
+The system is not built as features — it's built as composable primitives that features in [vision.md](vision.md) are configured on top of. There are seven.
 
 This file gives the overview. Each primitive is a candidate to split into its own file as it gets designed in detail.
 
@@ -14,16 +14,23 @@ Implementation lives in [data-architecture.md](data-architecture.md) — modeled
 
 ## 2. The Event & Cadence Engine ("the clock")
 
-Handles four distinct temporal patterns:
+Handles scheduling, reminders, and recurring tasks. Supports fixed events, deadline-driven sequences, two recurrence models (fixed-schedule vs. interval-from-completion), conditional triggers, and a priority system that controls how aggressively the agent reminds you.
 
-- **Fixed events.** Dentist appointment June 12 at 2pm.
-- **Recurring cadences.** Change furnace filter every 90 days. Check in with Dad every two weeks.
-- **Deadline-driven sequences.** Passport expires in 6 months, but renewal should start at the 3-month mark, so the reminder fires then.
-- **Conditional triggers.** Remind me based on state changes, not dates. *"When checking balance drops below $2,000."* *"When airfare to Denver drops below $300."* *"If I haven't heard back from the contractor in 5 days."*
+Full design in [event-engine.md](event-engine.md).
 
-> **Open question:** Conditional triggers need a polling/eval loop. Designed alongside the reasoning layer or as its own scheduler?
+## 3. The Task & Project Engine ("the hands")
 
-## 3. The Ingestion & Integration Layer ("the senses")
+Tracks what you intend to do — open-ended tasks, multi-step projects, and long-arc goals — independent of whether they have a deadline. The event engine handles *when*; this primitive handles *what* and *whether it's done*.
+
+**Tasks** are individual units of work. Each has a status (open, in-progress, waiting, done, dropped), a priority, optional context (links, notes, related entities in the knowledge graph), and a **surfacing policy** that controls how often the assistant brings it up: every daily briefing, weekly review only, or on-demand. Tasks without deadlines don't disappear — they surface on their policy's cadence until explicitly resolved.
+
+**Projects** group related tasks under a shared goal. *"Build a dog house"* is a project; *"research lumber options,"* *"find plans online,"* and *"buy materials"* are its tasks. Projects can be broken down incrementally — you don't need the full task list upfront. The assistant can suggest breakdowns, and in Tier 2, take on research subtasks itself.
+
+**Goals** are lightweight long-arc markers that projects and tasks roll up into. *"Read 24 books this year"* is a goal; individual books are tasks. The assistant tracks progress and flags stalls (*"You're at 6 and it's June"*).
+
+The data model is intentionally simple now — status, priority, parent project, surfacing policy — but doesn't prevent adding assignees, dependencies, or delegation tracking as the agent grows into Tier 2 and beyond.
+
+## 4. The Ingestion & Integration Layer ("the senses")
 
 Connects to external data sources, normalizes data, and feeds it into the knowledge graph and event engine. Supports both structured integrations (APIs, OAuth) and unstructured parsing (extracting a date from a school email).
 
@@ -33,7 +40,7 @@ Sources, work-data boundary, and quick-capture channels are detailed in [ingesti
 
 **Architectural constraint:** the ingestion agent (which processes untrusted external content like emails and documents) must be separated from the action agent (which can draft replies or take actions). This prevents prompt injection in ingested content from triggering unintended actions. See [security.md](security.md).
 
-## 4. The Reasoning & Prioritization Layer ("the judgment")
+## 5. The Reasoning & Prioritization Layer ("the judgment")
 
 LLM-powered core that transforms raw information into actionable intelligence. Handles triage, conflict detection, pattern recognition, synthesis, and relevance filtering.
 
@@ -41,7 +48,7 @@ Knows not just that three bills total $2,400 and your balance is $1,800, but tha
 
 Query-time context assembly for this layer is detailed in [data-architecture.md](data-architecture.md).
 
-## 5. The Communication Interface ("the voice")
+## 6. The Communication Interface ("the voice")
 
 How the assistant talks to you and how you talk to it. Manages both inbound (your questions, instructions, corrections) and outbound (proactive surfacing).
 
@@ -49,7 +56,7 @@ Critical design decision: modality and timing. Some things are a morning briefin
 
 Multiple output channels (Telegram, smartwatch, AirPods, desktop) are detailed in [interfaces.md](interfaces.md).
 
-## 6. The Preference & Feedback Loop ("the learning")
+## 7. The Preference & Feedback Loop ("the learning")
 
 Captures every correction, override, and expressed preference and feeds it back into the knowledge graph and reasoning layer.
 

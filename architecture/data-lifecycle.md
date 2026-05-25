@@ -43,15 +43,19 @@ These are your own after-the-fact captures — a 60-second voice note after a me
    - Action items (who committed to what, by when)
    - Decisions made (anything agreed upon)
    - Key facts and entity updates
-2. Action items → task/event system. Decisions → decisions log. Entity updates → knowledge graph. Summary + full text → embedded for vector search.
+2. Action items → task & project engine. Decisions → decisions log. Entity updates → knowledge graph. Summary + full text → embedded for vector search.
 3. **Pruning at 1 month:** Compressed summary generated. Verify all action items and decisions already extracted. Delete full text from active storage.
 4. **Pruning at 6 months:** Compressed summary folded into periodic summary. Individual summary deleted. Action items and decisions persist as standalone records.
 
-### LLM interaction logs
+### Conversations with the assistant
 
-1. Full interaction logged: query, assembled context, prompt, response, feedback.
-2. **Pruning at 1 month:** Classify each interaction. Discard routine ones (*"what's on my calendar today?"*). Keep interactions containing preference signals, corrections, or substantive decisions.
-3. **Preference distillation:** Preference-bearing interactions converted to explicit preference records in the knowledge graph (*"User prefers not to be reminded about gym on weekends, established May 2026"*). Raw conversation deleted; preference is the durable artifact. This feeds the preference & feedback loop primitive in [primitives.md](primitives.md).
+Your messages to the assistant — via Telegram, voice, or any other channel — are a first-class data source, not just transient queries. A conversation might contain facts (*"Julian recommended this book"*), intentions (*"I'm thinking about switching industries"*), entity updates (*"we hired a new contractor, his name is Dave"*), or task creation (*"I need to look into refinancing"*). These are as valuable as an email or a voice memo.
+
+1. Full interaction logged: your message, assembled context, prompt, response, feedback.
+2. **Immediate entity and fact extraction.** Every conversation turn is scanned for knowledge graph updates — new entities, facts, relationships, tasks, and events — using the same extraction pipeline as voice memos and emails. This happens at interaction time, not at pruning time, so the assistant's memory updates live.
+3. **Pruning at 1 month:** Classify each interaction. Discard routine ones (*"what's on my calendar today?"*). Keep interactions containing preference signals, corrections, or substantive decisions.
+4. **Preference distillation:** Preference-bearing interactions converted to explicit preference records in the knowledge graph (*"User prefers not to be reminded about gym on weekends, established May 2026"*). Raw conversation deleted; preference is the durable artifact. This feeds the preference & feedback loop primitive in [primitives.md](primitives.md).
+5. **Pruning at 6 months:** Retained interactions compressed into periodic summaries, same as voice memos. Extracted entities, facts, preferences, and tasks persist independently in the knowledge graph.
 
 ## Pruning engine
 

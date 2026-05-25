@@ -22,29 +22,15 @@ project/
 ├── backups/              # Backup scripts
 ├── data/
 │   └── postgres/         # Postgres data volume
-└── caddy/
-    └── Caddyfile         # Reverse proxy config (if co-hosting)
 ```
 
 **No `.env` files.** All secrets (API keys, DB credentials, OAuth tokens) live in 1Password and are retrieved at runtime via the 1Password CLI (`op run`) or Connect server. See [security.md](security.md).
 
 The LLM reasoning layer is **not hosted** — it's API calls to Claude or OpenAI. No GPU needed. The server is an orchestrator: receives trigger, gathers context from the database, assembles prompt, sends to LLM API, processes response.
 
-### Reverse proxy (Caddy)
+### Network access
 
-If the droplet hosts other projects alongside AEGIS, **Caddy** handles automatic HTTPS and domain routing:
-
-```
-aegis-api.yourdomain.com {
-    reverse_proxy localhost:3001
-}
-
-yoursite.com {
-    reverse_proxy localhost:3002
-}
-```
-
-Caddy handles Let's Encrypt certificate provisioning and renewal automatically. Public-facing thin edges (webhook receivers, Telegram bot callback URL) go through Caddy. The AEGIS admin interface and direct database access stay behind WireGuard. See [security.md](security.md) for co-hosting isolation requirements.
+No public-facing HTTP endpoints. The server is accessed exclusively via SSH and WireGuard VPN. Ingestion happens through outbound polling (Gmail API, Google Calendar API) and the Telegram bot API (long polling, not webhooks — no inbound connections needed). See [security.md](security.md).
 
 ## Storage sizing
 

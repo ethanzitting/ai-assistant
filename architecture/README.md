@@ -8,7 +8,8 @@ For someone new to the project:
 
 1. [vision.md](vision.md) — what we're building and why
 2. [trust-model.md](trust-model.md) — how much autonomy the assistant has
-3. [primitives.md](primitives.md) — the six conceptual building blocks
+3. [primitives.md](primitives.md) — the seven conceptual building blocks
+   - [event-engine.md](event-engine.md) — scheduling, reminders, recurrence models (split from primitives)
 4. [data-architecture.md](data-architecture.md) — storage layers and retrieval
 5. [data-lifecycle.md](data-lifecycle.md) — how data ages and gets compressed
 6. [ingestion.md](ingestion.md) — what comes in, and what doesn't
@@ -56,6 +57,6 @@ Where each section of the original docs lives now:
 
 These are flagged now so we don't have to rediscover them:
 
-- **`primitives.md`** — each of the 6 primitives (Knowledge Graph, Event Engine, Ingestion, Reasoning, Communication, Feedback Loop) is a natural per-file split once we start designing them in detail.
+- **`primitives.md`** — the remaining primitives (Knowledge Graph, Task & Project Engine, Ingestion, Reasoning, Communication, Feedback Loop) are natural per-file splits once they get designed in detail. Event Engine has already been split to [event-engine.md](event-engine.md).
 - **`vision.md`** — §2's 11 feature domains may each warrant their own file once we start picking which ones to build first.
 - **`ingestion.md`** — per-source integration design (Gmail, Calendar, Telegram, voice memos, OCR) may split out as each is implemented.

@@ -49,10 +49,12 @@ These are the areas the assistant should eventually cover. They are not all in s
 - Recurring maintenance tracking: furnace filter, gutter cleaning, car registration, pet vet appointments.
 - The "death by a thousand cuts" tasks that individually are trivial but collectively create enormous mental load.
 
-### Project & goal tracking
+### Tasks, projects & goal tracking
+- Open-ended task tracking: *"Study vim,"* *"Read this book for Julian,"* *"Look into breaking into X industry"* — things without hard deadlines that still need to get done.
+- Project breakdown: group related tasks, add subtasks incrementally, track progress across a multi-step effort like *"build a dog house."*
 - Higher-level accountability: *"You said in January you wanted to read 24 books this year. You're at 6 and it's June."*
 - Stalled intention detection: *"You've been talking about refinancing for 3 months but haven't acted."*
-- Long-arc goal monitoring across life domains.
+- Surfacing on a cadence you choose — daily, weekly, or only when you ask — so nothing falls through the cracks but you're not nagged about low-priority items.
 
 ### Research & decision support (future — Tier 2)
 - Gather options for decisions (phone plans, contractors, schools).

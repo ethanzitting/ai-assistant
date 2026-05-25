@@ -16,7 +16,7 @@ The goal is a running system that ingests data, stores it, and produces a daily 
 - [ ] Personal Google Calendar sync
 - [ ] Quick-capture Telegram bot (text + photo input)
 - [ ] Photo OCR pipeline for physical mail
-- [ ] Basic daily briefing: *"Here's what's on your calendar, here are important emails, here are reminders"*
+- [ ] Basic daily briefing: *"Here's what's on your calendar, here are important emails, here are reminders, and here are tasks due for attention"*
 - [ ] Agent safety controls: circuit breakers (budget caps, loop detection, scope enforcement) + kill switch
 - [ ] Backup scripts: pg_dump → encrypted → object storage
 - [ ] WireGuard VPN setup
@@ -33,6 +33,7 @@ The goal is a system that remembers, connects dots, and retrieves context intell
 - [ ] Voice memo ingestion: Whisper API transcription → processing pipeline
 - [ ] Conversation memory: assistant remembers past interactions, builds preference profile
 - [ ] Event & cadence engine: recurring reminders, deadline sequences, basic conditional triggers
+- [ ] Task & project engine: task CRUD via Telegram, status tracking, surfacing policy, project grouping
 - [ ] Archive embedding index: comprehensive secondary index over all originals
 - [ ] Pruning job v1: hot → warm tier summarization for emails
 - [ ] Google Drive integration: personal documents ingested and archived
@@ -48,7 +49,6 @@ The goal is a system that gets noticeably better at surfacing the right informat
 - [ ] Meeting prep surfacing: pulling context from knowledge graph + recent interactions before scheduled meetings
 - [ ] Pruning job v2: warm → cold transitions, periodic summary aggregation
 - [ ] Sensitivity tagging system: personal / work-adjacent / confidential classification
-- [ ] Caddy reverse proxy: automatic HTTPS, domain routing for co-hosted projects
 - [ ] Audit log review interface: see what the agent has been doing and why
 - [ ] Breach runbook: documented, tested, executable from phone
 
@@ -56,7 +56,7 @@ The goal is a system that gets noticeably better at surfacing the right informat
 
 - [ ] Preference refinement: system gets better at prioritization, tone, timing
 - [ ] Household management module: maintenance schedules, registration reminders
-- [ ] Goal tracking module: long-arc progress monitoring
+- [ ] Goal tracking: long-arc progress monitoring, stalled-intention detection (builds on task & project engine)
 - [ ] Additional ingestion sources as needs arise
 - [ ] Periodic reprocessing: as better models/tools emerge, rebuild derived layers from archive
 

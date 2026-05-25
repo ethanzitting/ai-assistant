@@ -8,7 +8,7 @@ The system uses a multi-layer storage architecture. Different types of memory li
 
 ### Layer 1 — Structured database (Postgres)
 
-Standard relational data: contacts, accounts, recurring events, preferences, transaction history.
+Standard relational data: contacts, accounts, recurring events, tasks, projects, preferences, transaction history.
 
 When the assistant needs *"what bills are due this Friday,"* it runs a database query. No AI involved in the retrieval. The LLM reasons about the data once retrieved, not to find it.
 

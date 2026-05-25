@@ -22,7 +22,7 @@ Database volumes encrypted with LUKS. Decryption key stored in a separate secret
 
 API server requires authentication on every endpoint, even though it's single-user. Strong API key or JWT over HTTPS.
 
-Entire server behind a **WireGuard VPN** — nothing exposed to the public internet except the VPN endpoint and any Caddy-proxied public edges (e.g., webhook receivers). The Postgres port, application admin API, and monitoring are all VPN-only.
+Entire server behind a **WireGuard VPN** — nothing exposed to the public internet except the VPN endpoint. No public-facing HTTP endpoints. The Postgres port, application server, and monitoring are all VPN-only. All access is via SSH or the ingestion channels (Telegram bot polling, OAuth API polling).
 
 ### 5. Treat the LLM API as a data exfiltration channel
 
@@ -61,9 +61,9 @@ These are fast, stateless checks — not LLM calls. A few conditionals in the mi
 
 ### Kill switch (manual)
 
-A flag in an external store (a key in 1Password, or a simple flag endpoint) that the tool-call middleware checks before every execution. When flipped, all tool calls are blocked and the agent session is frozen.
+A flag in an external store (a key in 1Password) that the tool-call middleware checks before every execution. When flipped, all tool calls are blocked and the agent session is frozen.
 
-Exposed via a simple authenticated API endpoint or a Telegram bot command — something executable from a phone in an emergency.
+Triggered via a Telegram bot command or by flipping the 1Password flag directly — something executable from a phone in an emergency.
 
 ### Graceful degradation
 
@@ -107,13 +107,3 @@ The email pipeline is the highest-risk injection surface. An attacker who knows 
 
 6. **Monitor OAuth token usage.** Google Workspace and Microsoft 365 support audit logging independent of your server. Flag anomalous token usage: reads outside normal polling schedule, keyword searches the assistant would never make.
 
-## Co-hosting considerations
-
-If the droplet hosts other projects alongside AEGIS (personal website, side projects, APIs):
-
-- **Isolated Docker networks.** AEGIS containers on their own bridge, no routing to/from other project containers.
-- **No shared volumes** between AEGIS and other projects.
-- **Least-privilege container users** — don't run anything as root.
-- **Caddy** handles public-facing edges for other projects; AEGIS management stays WireGuard-only. See [infrastructure.md](infrastructure.md).
-
-**When to split to a dedicated droplet:** if any co-hosted project accepts untrusted input (file uploads, form submissions, user-generated content), runs outdated dependencies, or exposes admin panels. A lateral movement path from a compromised side project to AEGIS's OAuth tokens is the real risk — and 1Password mitigates this significantly since secrets aren't on disk.

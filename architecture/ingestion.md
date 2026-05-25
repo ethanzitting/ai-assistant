@@ -33,13 +33,14 @@ This is principle #5 in [vision.md](vision.md), enforced at the integration laye
 | **Discord** | Potentially automated (gray area) | Read-only personal server messages | — |
 | **Physical mail** | Photo capture → OCR | Photos sent to quick-capture bot. OCR extracts text, classifies (bill, legal doc, personal letter), extracts structured data | — |
 | **Meeting takeaways** | Voice memo capture | 60-second post-meeting voice note, transcribed via Whisper API | No recording of actual meetings. Your observations and takeaways only |
+| **Conversations with the assistant** | Always on | Every message you send is scanned for entities, facts, tasks, intentions, and preferences — extracted to knowledge graph in real time | Routine queries pruned after 1 month; see [data-lifecycle.md](data-lifecycle.md) |
 | **Zoom/Slack/Google Meet recordings** | NOT integrated (work data) | Nothing | Everything |
 
 ## Quick-capture channels
 
 For data sources that can't or shouldn't be automated, three frictionless input methods:
 
-1. **Telegram bot** (or simple mobile-friendly web form behind VPN). Pull out phone, type or dictate a note. *"Met with James from client team, he mentioned contract renews in September."* The assistant ingests this as a first-person note, extracts entities and facts.
+1. **Telegram bot** (or simple mobile-friendly web form behind VPN). Pull out phone, type or dictate a note or task. *"Met with James from client team, he mentioned contract renews in September."* The assistant ingests this as a first-person note, extracts entities and facts. Also the primary interface for creating and managing tasks: *"Add a task: research lumber options for the dog house project."*
 2. **Photo capture.** Take a photo of physical mail, send to bot. System OCRs it, classifies it, extracts structured data, archives the original photo.
 3. **Voice memos.** After a meeting or conversation, record a brief voice note. System transcribes (Whisper API), processes content. Supports annotations: *"Dave mentioned he's leaving — told me in confidence, don't surface this."*
 

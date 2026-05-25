@@ -12,7 +12,7 @@ The target channels are **Telegram**, **smartwatch**, and **AirPods** — things
 
 **Voice I/O channel:** Telegram bot. You already need this for quick-capture (see [ingestion.md](ingestion.md)). Talk into Telegram via earbuds (native voice message support), bot receives audio, transcribes via Whisper API, processes through assistant, replies as text in the same chat. One app, one channel, works on day one.
 
-**Optional alternative — Siri Shortcut:** A shortcut called "Hey assistant" that records audio, hits your server's API, and speaks the response via text-to-speech. Triggered by "Hey Siri, assistant" or AirPod tap. No app needed.
+**Optional alternative — Siri Shortcut:** A shortcut called "Hey assistant" that records audio, sends it as a Telegram voice message to the bot, and speaks the response via text-to-speech. Triggered by "Hey Siri, assistant" or AirPod tap. No app needed, no exposed server endpoints — everything flows through Telegram's API.
 
 **Recommended hardware additions:**
 
@@ -21,11 +21,11 @@ The target channels are **Telegram**, **smartwatch**, and **AirPods** — things
 
 ### Key search queries for implementation
 
-- `"Telegram bot voice message webhook Python"` — receiving and processing voice input
+- `"Telegram bot long polling Python"` — receiving and processing messages without webhooks
+- `"Telegram bot voice message Python"` — handling voice input via Telegram
 - `"Pushover API send notification from server"` — one-line curl to push alerts
 - `"ntfy self-hosted push notifications iPhone"` — free Pushover alternative
-- `"Siri Shortcut record audio send to API endpoint"` — voice capture via Siri
-- `"iOS Shortcuts whisper API transcription"` — server-side transcription option
+- `"Siri Shortcut send Telegram message"` — voice capture via Siri routed through Telegram
 
 ### Cost
 
