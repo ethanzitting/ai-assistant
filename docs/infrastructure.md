@@ -32,6 +32,66 @@ project/
 
 The LLM reasoning layer is **not hosted** — it's API calls to Claude or OpenAI. No GPU needed. The server is an orchestrator: receives trigger, gathers context from the database, assembles prompt, sends to LLM API, processes response.
 
+## Development environment
+
+Dev and production use the same Docker Compose stack. The goal is that developing locally is as close to production as possible — same containers, same Postgres, same secrets path. The repo README documents everything needed to set the system up from scratch, written for a future reader who has forgotten the details.
+
+### Docker Compose structure
+
+```
+docker-compose.yml          # Base: Postgres, container definitions, networks, volumes
+docker-compose.dev.yml      # Dev overrides: volume mounts for hot-reload, relaxed resource limits
+```
+
+`docker compose up` runs production-like defaults. `docker compose -f docker-compose.yml -f docker-compose.dev.yml up` adds dev overrides. A `Makefile` wraps common operations.
+
+### Hot-reloading
+
+Dev overrides mount the source directories into containers as volumes. Deno runs with `--watch`, restarting on file changes. Code changes take effect without rebuilding containers.
+
+```yaml
+# docker-compose.dev.yml (example)
+services:
+  core:
+    volumes:
+      - ./core/src:/app/src
+    command: ["deno", "run", "--watch", "--allow-all", "src/main.ts"]
+```
+
+### Database initialization
+
+SQL migration files in a `migrations/` directory, run in order on first start. The Postgres container's entrypoint runs pending migrations. Schema changes during development are new migration files, never manual DDL.
+
+```
+migrations/
+├── 001_knowledge_graph.sql    # entities, relationships, facts
+├── 002_events.sql             # event engine tables
+├── 003_skills.sql             # skills table
+├── 004_emissions.sql          # ingestion_emissions table
+└── ...
+```
+
+### Secrets in development
+
+Same 1Password path locally and in production. `op run` injects secrets as environment variables — the application code doesn't know or care whether it's running locally or on the droplet. The setup guide documents which 1Password items need to exist and what fields they contain.
+
+### Makefile
+
+```makefile
+dev:        # Start dev environment with hot-reload
+up:         # Start production-like environment
+down:       # Stop everything
+logs:       # Tail all container logs
+db:         # Open psql shell
+migrate:    # Run pending migrations
+backup:     # Manual backup trigger
+test:       # Run test suite
+```
+
+### Setup
+
+Full setup instructions live in [setup.md](setup.md).
+
 ### Network access
 
 No public-facing HTTP endpoints. The server is accessed exclusively via SSH and WireGuard VPN. Ingestion happens through outbound polling (Gmail API, Google Calendar API) and the Telegram bot API (long polling, not webhooks — no inbound connections needed). See [security.md](security.md).
@@ -57,17 +117,17 @@ Everything is in one Postgres database — one backup strategy covers relational
 
 ### Infrastructure failure
 
-- Automated daily backups: `pg_dump` → compressed → encrypted with GPG key stored off-server → shipped to object storage (different provider than hosting).
+- Automated daily backups: `pg_dump` → compressed → encrypted with GPG key stored off-server → shipped to object storage (different provider than hosting). Each backup includes a metrics snapshot (entity/fact/event counts, file size, hash) for comparison.
+- Weekly backup verification: restore the latest backup to a temporary Docker container, compare metrics, tear down. Catches silent corruption. See [setup.md](setup.md) for the full procedure.
 - VPS provider volume snapshots enabled as belt-and-suspenders.
 - Recovery: spin up new VPS, pull docker-compose repo, retrieve secrets from 1Password, restore from latest backup. **Max data loss: 24 hours** (or less with more frequent dumps).
 
 ### Agent knowledge corruption
 
-Three tiers of protection:
+Two tiers of protection:
 
 1. **Audit log.** Every agent action that modifies state is logged with full context — what it read, what it concluded, what it changed.
-2. **Weekly knowledge snapshots.** Full `pg_dump` labeled as restore points (*"the system as it was on Sunday night"*).
-3. **Confidence & review system.** High-impact changes (merging contacts, changing relationship categorizations, updating financial rules) go to a "pending changes" queue for human review in the daily briefing. Low-stakes updates (logging an email, noting a calendar event) write directly.
+2. **Weekly knowledge snapshots.** Full `pg_dump` labeled as restore points (*"the system as it was on Sunday night"*). Verified against metrics snapshots.
 
 ### Architectural safeguard
 

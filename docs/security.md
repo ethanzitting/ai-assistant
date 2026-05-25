@@ -16,10 +16,12 @@ Postgres runs on the droplet's local disk — no LUKS, no separate encrypted vol
 
 Even if an attacker compromises both the server and B2, they can't read backups without the GPG key on your local machine.
 
+**B2 deletion protection:** The application uses a B2 application key scoped to `writeFiles` and `readFiles` only — no `deleteFiles` capability. A separate admin key with full permissions stays in 1Password but is never available to the application. Even full server compromise cannot delete backups or archived files. B2 Object Lock can be enabled on the backup bucket for additional retention guarantees (files cannot be deleted by anyone until the retention window expires).
+
 ### 3. Segment credentials and blast radius
 
 - **Store all secrets in 1Password.** OAuth tokens, API keys, database credentials, and service passwords live in 1Password — never in `.env` files on disk. The application retrieves secrets at runtime via the 1Password CLI (`op`) or Connect server API. File system compromise alone yields nothing.
-- Use short-lived OAuth tokens (not permanent API keys) wherever possible.
+- Google integrations use OAuth 2.0 with refresh tokens stored in 1Password. Access tokens expire hourly and are refreshed automatically by application code — no user interaction needed after initial authorization.
 - Principle of least privilege: calendar = read-only, email = read-only, no send-as capability.
 
 ### 4. Authenticate everything
@@ -90,7 +92,9 @@ Processes all untrusted external input: emails, Telegram messages, Plaid transac
 **Web fetch constraint:** The ingestion container fetches URLs only when explicitly instructed by core (user-initiated research requests). It never autonomously follows URLs found in emails, documents, or other ingested content. This breaks the email → URL → prompt injection attack chain. See [ingestion.md](ingestion.md).
 
 **Permissions:**
-- Outbound network access to specific external APIs only (Gmail, Telegram, Plaid, LLM API)
+- Outbound network access to specific external APIs only (Gmail, Telegram, Plaid, LLM API) — enforced by Deno `--allow-net` allowlist and Docker network rules
+- No subprocess execution — Deno `--deny-run` prevents spawning child processes, CLI scripts, or shell commands
+- Read-only filesystem (`docker run --read-only`) with specific writable mount points only
 - No direct database access — emits structured records to a single Postgres table (`ingestion_emissions`) via a database user with INSERT-only permissions on that one table
 - No access to OAuth write tokens, 1Password secrets for other services, or any core system resources
 - Separate Docker network from core — communicates only through the emission table
@@ -98,13 +102,19 @@ Processes all untrusted external input: emails, Telegram messages, Plaid transac
 
 **Emission schema:** Every record the ingestion container emits must conform to a predefined schema — typed fields for entities, facts, events, tasks, embeddings. The core container validates every emission against these schemas before acting on it. Anything that doesn't match is logged and dropped. No free-form text passes through as executable instructions.
 
-**Monitoring:** The core container watches the emission stream for anomalies:
+**Container monitoring:** Core actively watches the ingestion container for signs of compromise or exploitation attempts:
+
+- **Permission denial log watching.** Core tails the ingestion container's stderr via Docker's log API. Deno writes `PermissionDenied` errors when anything attempts an unauthorized action (network call to an unlisted domain, subprocess spawn, filesystem write outside allowed paths). Any permission denial triggers an immediate Telegram alert — it means a prompt injection is actively attempting exploitation.
+- **Network connection auditing.** Core periodically inspects active network connections from the ingestion container via Docker's API. Expected connections: Gmail API, Calendar API, Anthropic API, the Postgres emission table. Any connection to an unexpected destination is flagged and alerted.
+- **Process auditing.** Core periodically checks the ingestion container's process list. Only Deno should be running. Any additional process indicates something bypassed `--deny-run`, which warrants killing the container immediately.
+
+**Emission stream monitoring:** Core also watches the emission data for anomalies:
 - Volume spikes (emission rate far above normal)
 - Schema violations (unexpected fields, malformed types)
 - Content anomalies (emissions containing prompt-like patterns, references to system internals, attempts to modify preferences)
 - Behavioral anomalies (entity creation patterns that don't match normal ingestion)
 
-If anomalies are detected, the core can kill the ingestion container and alert you via Telegram.
+If any monitoring detects anomalies, core kills the ingestion container and alerts you via Telegram.
 
 ### Sandbox container
 
@@ -120,7 +130,9 @@ Executes LLM-generated TypeScript via Deno inside a locked-down Docker container
 
 ### Core container
 
-The only trusted component. Has full database access, coordinates ingestion and sandbox, handles user interactions, calls LLM APIs for reasoning.
+The only trusted component. Coordinates ingestion and sandbox, handles user interactions, calls LLM APIs for reasoning.
+
+**Database permissions enforce append-only at the Postgres level.** Core's database role has SELECT, INSERT, and UPDATE on knowledge graph tables (entities, relationships, facts) — no DELETE, no TRUNCATE. This means "every write is an append" (principle #3 in [vision.md](vision.md)) is enforced by the database, not just application code. UPDATE is needed for setting `valid_until` timestamps on superseded facts. DELETE is granted narrowly only on tables that require it (e.g., `ingestion_emissions` for clearing processed rows). The backup script runs as a separate Postgres superuser role not accessible to the application.
 
 **Core never processes untrusted external content directly.** Web search results and fetched web pages are routed through the ingestion container, not processed by core's LLM calls. Core's Anthropic API calls reason over trusted, already-validated context: knowledge graph data, validated emissions, and user messages. This ensures that prompt injection in web content cannot influence an LLM call with full system privileges. See [ingestion.md](ingestion.md).
 
