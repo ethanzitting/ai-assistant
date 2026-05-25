@@ -29,7 +29,6 @@ Entire server behind a **WireGuard VPN** — nothing exposed to the public inter
 Rich personal context is sent to Anthropic/OpenAI with every query. Mitigations:
 
 - Enable zero data retention on LLM APIs.
-- Consider local models for cost savings on simple operations (classification, triage, extraction) where a large frontier model is overkill.
 - Prompt injection defense is critical — see the dedicated section below.
 
 ### 6. Audit logging and anomaly detection

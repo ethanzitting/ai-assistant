@@ -33,6 +33,7 @@ The goal is a system that remembers, connects dots, and retrieves context intell
 - [ ] Prompt injection defense: structural prompt sandboxing, classifier filter, emission validation in core
 - [ ] Voice memo ingestion: Whisper API transcription → processing pipeline
 - [ ] Conversation memory: assistant remembers past interactions, builds preference profile
+- [ ] Context assembly: four-layer prompt construction (stable prefix, daily prefix, recent prefix, conversation), token-budget compaction, nightly prefix rebuild
 - [ ] Event & cadence engine: recurring reminders, deadline sequences, basic conditional triggers
 - [ ] Task & project engine: task CRUD via Telegram, status tracking, surfacing policy, project grouping
 - [ ] Sandbox container: gVisor runtime, LLM-generated code execution against read-only data slices, PDF parsing
@@ -46,6 +47,7 @@ The goal is a system that gets noticeably better at surfacing the right informat
 
 - [ ] Proactive pattern recognition: detect repeated behaviors, stalled intentions, scheduling conflicts
 - [ ] Financial awareness: at minimum CSV transaction import, ideally Plaid API for balance checking (read-only)
+- [ ] Mid-day event surfacing: proactive notifications and silent context injection for events arriving between daily prefix rebuilds
 - [ ] Multi-channel output: priority/length/context classification for notifications
 - [ ] Smartwatch notifications: Apple Watch as glanceable output channel
 - [ ] Research & fact-checking: web search via ingestion container, file capture, steelman/flaw analysis, living fact-check cache in knowledge graph

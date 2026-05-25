@@ -48,7 +48,7 @@ LLM-powered core that transforms raw information into actionable intelligence. H
 
 Knows not just that three bills total $2,400 and your balance is $1,800, but that *this is a problem requiring your attention*.
 
-Query-time context assembly for this layer is detailed in [data-architecture.md](data-architecture.md).
+This layer's effectiveness depends on getting the right context into the prompt. Query-time retrieval is detailed in [data-architecture.md](data-architecture.md); the full prompt construction model — layered prefixes, caching strategy, and compaction — is in [context-assembly.md](context-assembly.md).
 
 ## 6. The Communication Interface ("the voice")
 

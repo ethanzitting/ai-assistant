@@ -53,6 +53,8 @@ The communication interface layer classifies every outbound notification by:
 
 **Key UX insight:** matching the channel to the message matters more than the channel itself. A watch tap for a one-liner, a Telegram message for something you need to read, a spoken response when your hands are busy. See principle #8 in [vision.md](vision.md).
 
+**Mid-day event surfacing:** when something important happens between daily prefix rebuilds (an urgent email, a calendar change, a financial alert), the agent surfaces it via proactive notification on the appropriate channel. This notification becomes part of the conversation stream, keeping the agent's context current without rebuilding cached prompt layers. Less urgent events are picked up silently on the next user interaction. See [context-assembly.md](context-assembly.md) for the full model.
+
 ## Future: smart glasses
 
 The Even Realities G2 ($599 + $249 R1 ring) is the eventual upgrade path — a green micro-LED HUD in regular-looking glasses. Privacy-first (no camera, no speakers), 36g, prescription-compatible. Even Hub provides an open developer SDK.

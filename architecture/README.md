@@ -12,11 +12,12 @@ For someone new to the project:
    - [event-engine.md](event-engine.md) — scheduling, reminders, recurrence models (split from primitives)
 4. [data-architecture.md](data-architecture.md) — storage layers and retrieval
 5. [data-lifecycle.md](data-lifecycle.md) — how data ages and gets compressed
-6. [ingestion.md](ingestion.md) — what comes in, and what doesn't
-7. [interfaces.md](interfaces.md) — how the assistant talks to you
-8. [infrastructure.md](infrastructure.md) — where it runs and what it costs
-9. [security.md](security.md) — threat model and defenses
-10. [roadmap.md](roadmap.md) — phased build plan
+6. [context-assembly.md](context-assembly.md) — how stored data becomes prompt context
+7. [ingestion.md](ingestion.md) — what comes in, and what doesn't
+8. [interfaces.md](interfaces.md) — how the assistant talks to you
+9. [infrastructure.md](infrastructure.md) — where it runs and what it costs
+10. [security.md](security.md) — threat model and defenses
+11. [roadmap.md](roadmap.md) — phased build plan
 
 Reference material (not load-bearing):
 
@@ -60,3 +61,4 @@ These are flagged now so we don't have to rediscover them:
 - **`primitives.md`** — the remaining primitives (Knowledge Graph, Task & Project Engine, Ingestion, Reasoning, Communication, Feedback Loop) are natural per-file splits once they get designed in detail. Event Engine has already been split to [event-engine.md](event-engine.md).
 - **`vision.md`** — §2's 11 feature domains may each warrant their own file once we start picking which ones to build first.
 - **`ingestion.md`** — per-source integration design (Gmail, Calendar, Telegram, voice memos, OCR) may split out as each is implemented.
+- **`context-assembly.md`** — formatting rules per knowledge type and the compaction pipeline may warrant their own files as implementation details solidify.

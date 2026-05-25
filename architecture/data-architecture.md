@@ -165,13 +165,13 @@ If a better embedding model or entity extraction tool emerges, the entire file s
 
 ## Query-time context assembly
 
-When the assistant receives a query — e.g., *"What's the status of the roof repair?"* — the system:
+When the assistant receives a query — e.g., *"What's the status of the roof repair?"* — the system retrieves from multiple layers:
 
 1. Hits the **structured database**: contractor contact record, related events and deadlines, last action taken. Cheap, fast, zero tokens.
 2. Queries the **knowledge graph tables**: linked entities (contractor, insurance claim, permit), temporal facts about the project. Recursive CTE traversal, no LLM calls.
 3. Does a **vector search**: emails and notes mentioning the roof, filtered by recency, pulling the 3-5 most relevant chunks.
 4. Pulls a **compressed summary** of the project history if one exists.
 
-All assembled into a prompt — maybe 2,000-4,000 tokens of highly relevant context. The LLM reasons over a carefully curated slice, not 100K tokens of raw history.
+These query-specific results are assembled alongside the agent's persistent context layers (stable prefix, daily prefix, recent conversation context) into a prompt — maybe 2,000-4,000 tokens of highly relevant context. The LLM reasons over a carefully curated slice, not 100K tokens of raw history.
 
-This is **context engineering** — the art of getting the right information into the smallest prompt. Principle #9 in [vision.md](vision.md).
+The full prompt construction model — how persistent context layers, caching, and compaction work together — is described in [context-assembly.md](context-assembly.md). This section covers only the per-query retrieval step.

@@ -1,6 +1,6 @@
 # Data Lifecycle
 
-How data ages: ingested at full fidelity, compressed as it gets older, eventually distilled to facts in the knowledge graph. Sister doc to [data-architecture.md](data-architecture.md), which covers where data *lives*; this doc covers what happens to it *over time*.
+How data ages: ingested at full fidelity, compressed as it gets older, eventually distilled to facts in the knowledge graph. Sister doc to [data-architecture.md](data-architecture.md), which covers where data *lives*; this doc covers what happens to it *over time*. See also [context-assembly.md](context-assembly.md) for how aged data is assembled into the agent's prompt — the lifecycle feeds directly into the prompt layers and compaction model.
 
 The archive (object storage) sits outside this lifecycle — originals are retained forever there. What follows is about the active/working storage.
 
