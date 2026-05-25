@@ -34,7 +34,6 @@ This is principle #5 in [vision.md](vision.md), enforced at the integration laye
 | **Physical mail** | Photo capture → OCR | Photos sent to quick-capture bot. OCR extracts text, classifies (bill, legal doc, personal letter), extracts structured data | — |
 | **Meeting takeaways** | Voice memo capture | 60-second post-meeting voice note, transcribed via Whisper API | No recording of actual meetings. Your observations and takeaways only |
 | **Zoom/Slack/Google Meet recordings** | NOT integrated (work data) | Nothing | Everything |
-| **Even Realities G2 Conversate transcripts** | Automated for personal conversations | Transcriptions and AI summaries from the companion app | Not used during work meetings |
 
 ## Quick-capture channels
 

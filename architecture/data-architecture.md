@@ -27,7 +27,7 @@ Two logical partitions within pgvector:
 
 ### Layer 3 — Knowledge graph (Postgres tables)
 
-Handles relationships and temporal reasoning that vector search can't. *"Who does Sarah work with?"* and *"What changed about my finances between January and March?"* require understanding connections between entities and how facts evolve over time.
+Handles structured recall and temporal reasoning that vector search can't. *"What did the landscaper's contract say about cancellation?"* and *"What changed about my finances between January and March?"* require understanding connections between entities and how facts evolve over time.
 
 At the scale of a single-user personal assistant (500–2,000 entities, 5,000–10,000 relationships), Postgres handles graph-shaped queries without meaningful performance issues. A dedicated graph database like Neo4j would add a second database to back up, monitor, and keep patched — operational complexity that isn't justified at this scale.
 
@@ -78,7 +78,7 @@ CREATE TABLE facts (
 );
 ```
 
-When Sarah moves from Denver to Portland, set `valid_until = now()` on the Denver fact and insert a new Portland fact. Query what's true now with `WHERE valid_until IS NULL`. Query what was true at any date with `WHERE valid_from <= $date AND (valid_until IS NULL OR valid_until > $date)`.
+When the landscaper's contract renews at a new rate, set `valid_until = now()` on the old rate fact and insert the new one. Query what's true now with `WHERE valid_until IS NULL`. Query what was true at any date with `WHERE valid_from <= $date AND (valid_until IS NULL OR valid_until > $date)`.
 
 **Graph traversals** use recursive CTEs for multi-hop queries:
 
@@ -148,12 +148,12 @@ If a better embedding model or entity extraction tool emerges, the entire archiv
 
 ## Query-time context assembly
 
-When the assistant receives a query — e.g., *"I'm seeing Sarah next week, help me prepare"* — the system:
+When the assistant receives a query — e.g., *"What's the status of the roof repair?"* — the system:
 
-1. Hits the **structured database**: Sarah's contact record, upcoming events, last interaction date. Cheap, fast, zero tokens.
-2. Queries the **knowledge graph tables**: Sarah's relationships, temporal facts, related entities. Recursive CTE traversal, no LLM calls.
-3. Does a **vector search**: "conversations with Sarah" filtered by recency, pulling the 3-5 most relevant chunks.
-4. Pulls a **compressed summary** of broader history with Sarah if one exists.
+1. Hits the **structured database**: contractor contact record, related events and deadlines, last action taken. Cheap, fast, zero tokens.
+2. Queries the **knowledge graph tables**: linked entities (contractor, insurance claim, permit), temporal facts about the project. Recursive CTE traversal, no LLM calls.
+3. Does a **vector search**: emails and notes mentioning the roof, filtered by recency, pulling the 3-5 most relevant chunks.
+4. Pulls a **compressed summary** of the project history if one exists.
 
 All assembled into a prompt — maybe 2,000-4,000 tokens of highly relevant context. The LLM reasons over a carefully curated slice, not 100K tokens of raw history.
 

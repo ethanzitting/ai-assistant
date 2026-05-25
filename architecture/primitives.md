@@ -6,9 +6,9 @@ This file gives the overview. Each primitive is a candidate to split into its ow
 
 ## 1. The Knowledge Graph ("the memory")
 
-A structured, evolving model of your life. People, places, accounts, preferences, relationships between entities, historical context.
+A structured, evolving model of your life. Entities (people, accounts, contracts, projects), facts about them, and how they connect — with temporal validity so you can query what's true now or what was true at any point.
 
-"Sarah" isn't just a contact — she's your sister, lives in Denver, has two kids (ages 7 and 10), works at a nonprofit, you last spoke May 3rd, and she mentioned thinking about moving. Every other system reads from and writes to this graph.
+The primary value is recall: *"What did the landscaper's contract say about the cancellation clause?"* *"When did I last file that insurance claim, and what was the outcome?"* *"What were the key decisions from last quarter's financial review?"* Emails, contracts, research results, logged actions, and historical events are the core of what gets tracked. Contacts and relationships are part of the graph but not the focus.
 
 Implementation lives in [data-architecture.md](data-architecture.md) — modeled as Postgres tables (entities, relationships, facts) with temporal validity windows.
 
@@ -47,7 +47,7 @@ How the assistant talks to you and how you talk to it. Manages both inbound (you
 
 Critical design decision: modality and timing. Some things are a morning briefing, some are immediate alerts, some wait until asked.
 
-Multiple output channels (G2 glasses, phone, desktop) are detailed in [interfaces.md](interfaces.md).
+Multiple output channels (Telegram, smartwatch, AirPods, desktop) are detailed in [interfaces.md](interfaces.md).
 
 ## 6. The Preference & Feedback Loop ("the learning")
 

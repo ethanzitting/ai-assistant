@@ -24,9 +24,9 @@ Different data types follow different lifecycles. The pruning engine (below) rou
    - *Security-sensitive* (2FA, password resets): Immediately discarded, never stored. See [security.md](security.md) for why this is non-negotiable.
    - *Transactional noise* (shipping, receipts, automated notifications): Extract structured data (tracking number, arrival date), write to event system, discard body.
    - *Informational* (newsletters, announcements): Generate 2-3 sentence summary, extract dates/action items, embed summary, discard original body.
-   - *Relational* (human communication): Full processing — hot storage of full text, entity/fact extraction for knowledge graph, embedding generation, relationship metadata update.
+   - *Relational* (human communication): Full processing — hot storage of full text, entity/fact extraction for knowledge graph, embedding generation.
 2. **Pruning at 2 weeks:** LLM summarization pass. Summary replaces full text. Embedding regenerated from summary.
-3. **Pruning at 6 months:** Further compression into relationship summary documents (*"March 2026: Sarah emailed about new role at [company], seemed excited"*). Individual summary deleted; insight absorbed into relationship summary. Knowledge graph facts persist indefinitely.
+3. **Pruning at 6 months:** Further compression into periodic summary documents (*"March 2026: contractor confirmed start date, insurance claim approved"*). Individual summary deleted; insight absorbed into periodic summary. Knowledge graph facts persist indefinitely.
 
 ### PDFs and documents
 
@@ -34,17 +34,18 @@ Different data types follow different lifecycles. The pruning engine (below) rou
 - **Reference** (manuals, guides, research): Chunked and embedded for vector search. Original kept in archive. If not retrieved in queries for 1+ year, active-index chunks can be pruned.
 - **Ephemeral** (menus, flyers, one-time informational): Extract dates/facts, push to event engine/knowledge graph, discard from active storage after short retention. Archive retains original.
 
-### Transcripts (meetings, conversations, voice notes)
+### Voice memos and notes
+
+These are your own after-the-fact captures — a 60-second voice note after a meeting, a typed note in the Telegram bot. Not recordings of conversations.
 
 1. **Immediate structured extraction** (high-value LLM call):
-   - Meeting summary (high-level overview)
+   - Summary (high-level overview)
    - Action items (who committed to what, by when)
    - Decisions made (anything agreed upon)
    - Key facts and entity updates
-   - Relationship signals (who was present, dynamics, tension, enthusiasm)
-2. Action items → task/event system. Decisions → decisions log. Entity updates → knowledge graph. Summary + full transcript → embedded for vector search.
-3. **Pruning at 1 month:** Compressed summary generated (~500 words from 10,000-word transcript). Verify all action items and decisions already extracted. Delete full transcript from active storage.
-4. **Pruning at 6 months:** Compressed summary folded into periodic summary (*"Q1 2026 project meetings: key themes were X, Y, Z; major decisions included A, B, C"*). Individual summary deleted. Action items and decisions persist as standalone records.
+2. Action items → task/event system. Decisions → decisions log. Entity updates → knowledge graph. Summary + full text → embedded for vector search.
+3. **Pruning at 1 month:** Compressed summary generated. Verify all action items and decisions already extracted. Delete full text from active storage.
+4. **Pruning at 6 months:** Compressed summary folded into periodic summary. Individual summary deleted. Action items and decisions persist as standalone records.
 
 ### LLM interaction logs
 

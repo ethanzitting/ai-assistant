@@ -4,21 +4,19 @@ How much authority the assistant has to act on its own. Every feature in [vision
 
 ## Tier 1 — Observe & Inform
 
-**Default for all features at launch.**
+**The only tier for at least the first year.**
 
-The assistant watches, tracks, analyzes, and tells you things. Zero risk. Covers reminders, information surfacing, pattern recognition, deadline tracking, briefings.
+The assistant watches, tracks, analyzes, and tells you things. Zero risk. Covers reminders, information surfacing, pattern recognition, deadline tracking, briefings. This tier alone delivers the core value proposition — reducing cognitive overhead by connecting dots across domains you can't hold in your head.
 
 Architecturally: integrations are read-only OAuth scopes. No send-as, no write-back, no booking.
 
-## Tier 2 — Draft & Propose
+## Tier 2 — Draft & Propose (not before Year 2)
 
-The assistant prepares actions for your approval. Email drafts, itinerary options, comparison research, meeting prep docs. You pull the trigger.
+The assistant prepares actions for your approval. Email drafts, comparison research, meeting prep docs. You pull the trigger.
 
 Architecturally: the assistant can compose, queue, and present, but a human action (button press, voice confirm, signed approval) is required to actually send/book/commit.
 
-## Tier 3 — Act Autonomously
-
-**Future — requires earned trust.**
+## Tier 3 — Act Autonomously (distant future)
 
 The assistant schedules, sends messages, or takes actions on your behalf. Limited to low-stakes actions initially (confirming appointments, sending pre-approved messages). No financial transactions without explicit per-action approval.
 

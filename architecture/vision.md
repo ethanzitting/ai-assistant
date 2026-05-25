@@ -13,10 +13,9 @@ The goal is to reduce the cognitive overhead of life — tracking the things you
 These are the areas the assistant should eventually cover. They are not all in scope for the first version; see [roadmap.md](roadmap.md) for sequencing. Each domain is a candidate to split into its own file as it gets designed in detail.
 
 ### Relationship management
-- Maintain a rich model of your personal and professional network: who people are, how you relate to them, what you've discussed, what matters to them.
-- Track interaction cadences — when you last spoke to someone, how often you typically connect.
-- Surface proactive nudges: *"You haven't talked to Sarah in 3 weeks. Her birthday is next month. She mentioned possibly moving to Portland."*
-- Gift and occasion logistics: anniversaries, graduations, birthdays with contextual suggestions.
+- Maintain a contact graph: who people are, how you relate to them, and key facts about them.
+- Track birthdays, anniversaries, and occasions. Surface reminders with enough lead time to act.
+- Context will be inherently lightweight — the system learns from emails, calendar events, and what you manually capture, not from recording calls or taking notes during conversations. This is a contacts-plus tool, not a CRM.
 
 ### Calendar & schedule management
 - Unified view across personal and work calendars (work calendar via a separate sharing path — see [ingestion.md](ingestion.md)).
@@ -24,22 +23,16 @@ These are the areas the assistant should eventually cover. They are not all in s
 - Buffer awareness — flagging packed days with no breaks.
 - Meeting preparation: *"You're meeting with James tomorrow. Last time you discussed the Q3 timeline. He had an action item to get back to you on vendor pricing."*
 
-### Communication triage & drafting
+### Communication triage
 - Email triage: flag what's urgent, summarize routine messages, surface buried important items.
-- Follow-up tracking: *"You emailed the contractor 5 days ago and never heard back. Want me to draft a nudge?"*
-- Draft replies for routine correspondence in your voice and tone.
+- Follow-up tracking: *"You emailed the contractor 5 days ago and never heard back."*
+- Drafting and sending on your behalf is a Tier 2/3 capability — out of scope until trust is established over time. See [trust-model.md](trust-model.md).
 
 ### Financial awareness
 - Track upcoming bills and due dates.
 - Conditional alerts: *"Three bills totaling $2,400 land Friday. Checking account balance is $1,800."*
 - Pattern recognition: recurring charges, unusual transactions, late fee risks.
 - No autonomous spending authority — observe and inform only.
-
-### Travel & logistics coordination
-- Research and planning (not booking — that's a later trust tier; see [trust-model.md](trust-model.md)).
-- Itinerary assembly, confirmation tracking.
-- Proactive alerts: passport expiration, visa requirements, schedule conflicts with travel.
-- Preference memory: aisle seats, no layovers, favored airlines.
 
 ### Document & information management
 - *"Where's that contract we signed with the landscaper?"*
@@ -61,10 +54,11 @@ These are the areas the assistant should eventually cover. They are not all in s
 - Stalled intention detection: *"You've been talking about refinancing for 3 months but haven't acted."*
 - Long-arc goal monitoring across life domains.
 
-### Research & decision support
+### Research & decision support (future — Tier 2)
 - Gather options for decisions (phone plans, contractors, schools).
 - Build comparison matrices.
 - Present short lists instead of overwhelming open fields.
+- This requires the assistant to take actions (web searches, API calls to external services) on your behalf — a Tier 2 capability that comes later.
 
 ### Proactive pattern recognition
 - *"You've canceled your gym session 3 weeks in a row — want to move it to a different slot?"*
@@ -78,10 +72,10 @@ These constrain every decision in the rest of the architecture docs. When two de
 1. **Build primitives, not features.** Features are configurations of the [core primitives](primitives.md). Don't bake one-off feature logic into the platform.
 2. **The knowledge system is a cache; the archive is the truth.** Everything derived can be rebuilt from originals. See [data-architecture.md](data-architecture.md).
 3. **Every write is an append.** No destructive updates. Full audit trail. Temporal validity on all facts.
-4. **Trust is earned incrementally.** Start at Tier 1 (observe and inform). Expand only as confidence builds. See [trust-model.md](trust-model.md).
+4. **Trust is earned incrementally.** The system runs at Tier 1 (observe and inform) for at least a year. Tier 2 and 3 are future capabilities that require demonstrated reliability and clear value. See [trust-model.md](trust-model.md).
 5. **Work data stays in work systems.** The assistant knows about work's *impact on your life*, not work's *content*. See [ingestion.md](ingestion.md).
 6. **You are the filter for unstructured input.** Manual capture through frictionless channels, informed by your judgment about what's personal vs. proprietary.
 7. **Security is not an afterthought.** Assume eventual compromise. Minimize stored data, encrypt everything, segment credentials, plan for containment. See [security.md](security.md).
-8. **The glasses change the UX equation.** Proactive surfacing becomes non-intrusive when it's a peripheral glance, not a phone buzz. See [interfaces.md](interfaces.md).
+8. **Non-intrusive output matters.** Optimize for Telegram, smartwatch notifications, and AirPods — channels that surface information without demanding attention. Smart glasses (Even Realities G2) are a future upgrade once the system is generating real daily value. See [interfaces.md](interfaces.md).
 9. **Context engineering matters more than model choice.** Getting the right 3,000 tokens into the prompt beats throwing 100K tokens at a bigger context window.
 10. **The system should get smarter, not just bigger.** Progressive summarization, preference extraction, and pattern recognition mean the assistant improves even as raw data is compressed away.
