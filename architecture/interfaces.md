@@ -21,8 +21,8 @@ The target channels are **Telegram**, **smartwatch**, and **AirPods** — things
 
 ### Key search queries for implementation
 
-- `"Telegram bot long polling Python"` — receiving and processing messages without webhooks
-- `"Telegram bot voice message Python"` — handling voice input via Telegram
+- `"Telegram bot long polling Deno TypeScript"` — receiving and processing messages without webhooks
+- `"Telegram bot voice message Deno TypeScript"` — handling voice input via Telegram
 - `"Pushover API send notification from server"` — one-line curl to push alerts
 - `"ntfy self-hosted push notifications iPhone"` — free Pushover alternative
 - `"Siri Shortcut send Telegram message"` — voice capture via Siri routed through Telegram

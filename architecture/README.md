@@ -13,11 +13,12 @@ For someone new to the project:
 4. [data-architecture.md](data-architecture.md) — storage layers and retrieval
 5. [data-lifecycle.md](data-lifecycle.md) — how data ages and gets compressed
 6. [context-assembly.md](context-assembly.md) — how stored data becomes prompt context
-7. [ingestion.md](ingestion.md) — what comes in, and what doesn't
-8. [interfaces.md](interfaces.md) — how the assistant talks to you
-9. [infrastructure.md](infrastructure.md) — where it runs and what it costs
-10. [security.md](security.md) — threat model and defenses
-11. [roadmap.md](roadmap.md) — phased build plan
+7. [core-loop.md](core-loop.md) — how core runs at runtime: event loop, tools, skills, entity resolution
+8. [ingestion.md](ingestion.md) — what comes in, and what doesn't
+9. [interfaces.md](interfaces.md) — how the assistant talks to you
+10. [infrastructure.md](infrastructure.md) — where it runs and what it costs
+11. [security.md](security.md) — threat model and defenses
+12. [roadmap.md](roadmap.md) — phased build plan
 
 Reference material (not load-bearing):
 

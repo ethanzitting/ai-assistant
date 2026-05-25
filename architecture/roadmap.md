@@ -45,7 +45,7 @@ The goal is a system that remembers across conversations, tracks what you need t
 
 The goal is a system that gets noticeably better at surfacing the right information at the right time.
 
-- [ ] Sandbox container: gVisor runtime, LLM-generated code execution against read-only data slices, PDF parsing
+- [ ] Sandbox container: Deno runtime, LLM-generated code execution against read-only data slices, PDF parsing
 - [ ] Entity enrichment: contacts, projects enriched with extracted facts across all sources
 - [ ] RAG retrieval pipeline: queries search pgvector + knowledge graph tables, assemble context for LLM
 - [ ] Proactive pattern recognition: detect repeated behaviors, stalled intentions, scheduling conflicts
@@ -53,7 +53,7 @@ The goal is a system that gets noticeably better at surfacing the right informat
 - [ ] Ad-hoc data analysis: natural language queries that generate and execute code in the sandbox (e.g., *"show me spending outliers"*)
 - [ ] Mid-day event surfacing: proactive notifications and silent context injection for events arriving between daily prefix rebuilds
 - [ ] Meeting prep surfacing: pulling context from knowledge graph + recent interactions before scheduled meetings
-- [ ] File store integration: Google Drive or GCS as active file system, file cataloging in knowledge graph
+- [ ] File store integration: Google Drive as ingestion source, Backblaze B2 as archive, file cataloging in knowledge graph
 - [ ] Photo OCR pipeline for physical mail
 - [ ] Multi-channel output: priority/length/context classification for notifications
 - [ ] Sensitivity tagging system: normal / confidential classification
