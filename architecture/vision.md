@@ -74,7 +74,7 @@ These constrain every decision in the rest of the architecture docs. When two de
 
 1. **Build primitives, not features.** Features are configurations of the [core primitives](primitives.md). Don't bake one-off feature logic into the platform.
 2. **The knowledge system is a cache; the archive is the truth.** Everything derived can be rebuilt from originals. See [data-architecture.md](data-architecture.md).
-3. **Every write is an append.** No destructive updates. Full audit trail. Temporal validity on all facts.
+3. **Every write is an append.** No destructive updates to the knowledge graph or changelog — facts get `valid_until` timestamps, never deleted. Full audit trail. Active storage tiers prune older data, but originals are retained permanently in the archive.
 4. **Trust is earned incrementally.** Start with observe-and-inform capabilities. More powerful capabilities (drafting, acting on your behalf) get added when the current system is working well and generating real value. See [trust-model.md](trust-model.md).
 5. **Work data stays in work systems.** The assistant knows about work's *impact on your life*, not work's *content*. See [ingestion.md](ingestion.md).
 6. **You are the filter for unstructured input.** Manual capture through frictionless channels, informed by your judgment about what's personal vs. proprietary.

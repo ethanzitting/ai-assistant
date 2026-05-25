@@ -9,7 +9,7 @@ The archive (object storage) sits outside this lifecycle — originals are retai
 | Tier | Age | What's stored |
 |---|---|---|
 | **Hot** | 0–2 weeks | Full-fidelity recent data, stored verbatim |
-| **Warm** | 2 weeks – 6 months | Summarized and distilled. Individual items compressed into meaningful takeaways, raw text deleted |
+| **Warm** | 2 weeks – 6 months | Summarized and distilled. Individual items compressed into meaningful takeaways, raw text removed from active storage |
 | **Cold** | 6+ months | Knowledge graph facts only. Extracted relationships, patterns, decisions — no source material attached. Tiny and structurally important |
 
 Data flows downward through tiers over time, getting smaller and denser. The archive retains originals at full fidelity outside this tier system.
@@ -21,18 +21,18 @@ Different data types follow different lifecycles. The pruning engine (below) rou
 ### Emails
 
 1. **Triage classification** (rule-based + lightweight LLM):
-   - *Security-sensitive* (2FA, password resets): Immediately discarded, never stored. See [security.md](security.md) for why this is non-negotiable.
-   - *Transactional noise* (shipping, receipts, automated notifications): Extract structured data (tracking number, arrival date), write to event system, discard body.
-   - *Informational* (newsletters, announcements): Generate 2-3 sentence summary, extract dates/action items, embed summary, discard original body.
+   - *Security-sensitive* (2FA, password resets): Dropped immediately, never stored. See [security.md](security.md) for why this is non-negotiable.
+   - *Transactional noise* (shipping, receipts, automated notifications): Extract structured data (tracking number, arrival date), write to event system, remove body from active storage.
+   - *Informational* (newsletters, announcements): Generate 2-3 sentence summary, extract dates/action items, embed summary, remove original body from active storage.
    - *Relational* (human communication): Full processing — hot storage of full text, entity/fact extraction for knowledge graph, embedding generation.
 2. **Pruning at 2 weeks:** LLM summarization pass. Summary replaces full text. Embedding regenerated from summary.
-3. **Pruning at 6 months:** Further compression into periodic summary documents (*"March 2026: contractor confirmed start date, insurance claim approved"*). Individual summary deleted; insight absorbed into periodic summary. Knowledge graph facts persist indefinitely.
+3. **Pruning at 6 months:** Further compression into periodic summary documents (*"March 2026: contractor confirmed start date, insurance claim approved"*). Individual summary removed from active storage; insight absorbed into periodic summary. Knowledge graph facts persist indefinitely.
 
 ### PDFs and documents
 
 - **Legal/financial** (contracts, tax forms, insurance): Stored permanently in archive. Key metadata extracted to structured storage. Deadlines fed to event engine. Never pruned.
 - **Reference** (manuals, guides, research): Chunked and embedded for vector search. Original kept in archive. If not retrieved in queries for 1+ year, active-index chunks can be pruned.
-- **Ephemeral** (menus, flyers, one-time informational): Extract dates/facts, push to event engine/knowledge graph, discard from active storage after short retention. Archive retains original.
+- **Ephemeral** (menus, flyers, one-time informational): Extract dates/facts, push to event engine/knowledge graph, remove from active storage after short retention. Archive retains original.
 
 ### Voice memos and notes
 
@@ -44,8 +44,8 @@ These are your own after-the-fact captures — a 60-second voice note after a me
    - Decisions made (anything agreed upon)
    - Key facts and entity updates
 2. Action items → task & project engine. Decisions → decisions log. Entity updates → knowledge graph. Summary + full text → embedded for vector search.
-3. **Pruning at 1 month:** Compressed summary generated. Verify all action items and decisions already extracted. Delete full text from active storage.
-4. **Pruning at 6 months:** Compressed summary folded into periodic summary. Individual summary deleted. Action items and decisions persist as standalone records.
+3. **Pruning at 1 month:** Compressed summary generated. Verify all action items and decisions already extracted. Remove full text from active storage.
+4. **Pruning at 6 months:** Compressed summary folded into periodic summary. Individual summary removed from active storage. Action items and decisions persist as standalone records.
 
 ### Conversations with the assistant
 
@@ -53,8 +53,8 @@ Your messages to the assistant — via Telegram, voice, or any other channel —
 
 1. Full interaction logged: your message, assembled context, prompt, response, feedback.
 2. **Immediate entity and fact extraction.** Every conversation turn is scanned for knowledge graph updates — new entities, facts, relationships, tasks, and events — using the same extraction pipeline as voice memos and emails. This happens at interaction time, not at pruning time, so the assistant's memory updates live.
-3. **Pruning at 1 month:** Classify each interaction. Discard routine ones (*"what's on my calendar today?"*). Keep interactions containing preference signals, corrections, or substantive decisions.
-4. **Preference distillation:** Preference-bearing interactions converted to explicit preference records in the knowledge graph (*"User prefers not to be reminded about gym on weekends, established May 2026"*). Raw conversation deleted; preference is the durable artifact. This feeds the preference & feedback loop primitive in [primitives.md](primitives.md).
+3. **Pruning at 1 month:** Classify each interaction. Remove routine ones from active storage (*"what's on my calendar today?"*). Keep interactions containing preference signals, corrections, or substantive decisions.
+4. **Preference distillation:** Preference-bearing interactions converted to explicit preference records in the knowledge graph (*"User prefers not to be reminded about gym on weekends, established May 2026"*). Raw conversation removed from active storage; preference is the durable artifact. This feeds the preference & feedback loop primitive in [primitives.md](primitives.md).
 5. **Pruning at 6 months:** Retained interactions compressed into periodic summaries, same as voice memos. Extracted entities, facts, preferences, and tasks persist independently in the knowledge graph.
 
 ## Pruning engine
@@ -65,8 +65,8 @@ A scheduled weekly/biweekly job:
 2. Check data type, apply appropriate summarization strategy.
 3. Run LLM summarization, write compressed version to warm storage, update embeddings.
 4. Verify structured extractions exist in knowledge graph.
-5. Move originals to "pending deletion" state (1-week grace period for recovery).
-6. Purge after grace period.
+5. Move originals to "pending removal" state (1-week grace period for recovery).
+6. Remove from active storage after grace period. Originals remain in the archive.
 
 A separate monthly job handles warm → cold transitions and periodic summary aggregation.
 

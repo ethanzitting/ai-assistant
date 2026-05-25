@@ -13,7 +13,7 @@ Docker Compose defines four services:
 - **Postgres** (with pgvector extension): structured data, vector embeddings, and knowledge graph tables. See [data-architecture.md](data-architecture.md).
 - **Core** (Python or Node): trusted orchestration — LLM API calls, tool execution, pruning jobs, user interaction. Has full database access. See [security.md](security.md) for the isolation model.
 - **Ingestion** (Python or Node): isolated container that processes all untrusted external input (emails, Telegram messages, Plaid transactions, web content). Emits structured data to a narrow intake channel. No direct database access beyond its own emission table. See [security.md](security.md).
-- **Sandbox** (Python, gVisor runtime): executes LLM-generated code for ad-hoc analysis, PDF parsing, and computations. Receives a read-only data slice from core, returns structured results. No network access, no secrets, no database connection. Destroyed and recreated per task.
+- **Sandbox** (Deno): executes LLM-generated code for ad-hoc analysis, PDF parsing, and computations. Receives a read-only data slice from core, returns structured results. No network access, no secrets, no database connection. Destroyed and recreated per task.
 
 ### Project layout
 
@@ -22,7 +22,7 @@ project/
 ├── docker-compose.yml
 ├── core/                 # Trusted orchestration server
 ├── ingestion/            # Isolated ingestion pipeline
-├── sandbox/              # Code execution sandbox (gVisor)
+├── sandbox/              # Code execution sandbox (Deno)
 ├── backups/              # Backup scripts
 ├── data/
 │   └── postgres/         # Postgres data volume
@@ -78,17 +78,21 @@ Three tiers of protection:
 
 ## Sandbox container
 
-The sandbox runs LLM-generated code — ad-hoc analysis, PDF parsing, numerical computations, data transformations. It uses **gVisor** (`runsc`) as an alternative Docker runtime. Standard Docker shares the host kernel; gVisor interposes a user-space kernel that intercepts syscalls. On DigitalOcean/Hetzner, gVisor runs in ptrace mode (no nested virtualization).
+The sandbox runs LLM-generated code — ad-hoc analysis, PDF parsing, numerical computations, data transformations. It uses **Deno** (TypeScript) inside a locked-down Docker container. Deno's built-in permission system (`--deny-net`, `--deny-env`, `--allow-read=/input`, `--allow-write=/output`) provides application-level sandboxing, while Docker provides OS-level isolation via seccomp profiles and cgroup resource limits.
+
+> **Decision (2026-05-25):** gVisor removed from the stack. gVisor's syscall-level isolation is designed for multi-tenant environments running untrusted code from the internet. In this system, the sandbox runs LLM-generated code from your own trusted API calls — the threat is "buggy code that runs forever or consumes too many resources," not "adversarial code exploiting a kernel vulnerability." Docker with `--network=none`, memory/CPU limits, seccomp defaults, and a read-only filesystem is sufficient for this threat model. Deno further reduces the attack surface — no C extensions, no `ctypes`, no arbitrary syscalls — making the combination stronger than Python + gVisor for this use case.
 
 **Isolation constraints:**
-- No network access (no outbound connections, no DNS)
+- No network access (`--network=none` at Docker level, `--deny-net` at Deno level)
 - No secrets or database connection string
-- Receives only a read-only data slice prepared by the core container
-- Returns structured results through a mounted output volume
+- No access to environment variables (`--deny-env`)
+- Receives only a read-only data slice prepared by the core container (`--allow-read=/input`)
+- Returns structured results through a mounted output volume (`--allow-write=/output`)
 - Destroyed and recreated per task — no persistent state
-- Resource-limited: CPU time cap, memory cap, disk quota
+- Resource-limited: CPU time cap, memory cap, disk quota (Docker cgroup limits)
+- Default seccomp profile restricts dangerous syscalls
 
-**Execution flow:** Core decides a query needs computation → core extracts the relevant data slice (e.g., transaction CSV, PDF content) → core writes data to a temporary input volume → sandbox runs LLM-generated code against the input → sandbox writes results to output volume → core reads results and validates before acting on them.
+**Execution flow:** Core decides a query needs computation → core extracts the relevant data slice (e.g., transaction CSV, PDF content) → core writes data to a temporary input volume → sandbox runs LLM-generated TypeScript against the input → sandbox writes results to output volume → core reads results and validates before acting on them.
 
 ## Monthly operating costs
 

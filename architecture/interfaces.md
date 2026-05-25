@@ -36,6 +36,22 @@ The target channels are **Telegram**, **smartwatch**, and **AirPods** — things
 | Add Bluetooth button | $10–15 |
 | **Total** | **$5–140** |
 
+## SSH CLI
+
+The server is always accessible via SSH over WireGuard. A CLI tool on the server exposes the full set of agent operations — querying the knowledge graph, managing tasks, triggering briefings, inspecting logs, and running diagnostics. This is the admin interface and the fallback when Telegram is unavailable.
+
+Key commands available on the CLI include:
+- **Kill switch.** Immediately halt all agent tool execution.
+- **Read-only mode.** Reduce agent permissions to observe-only.
+- **Status.** Show agent state, recent actions, emission queue depth, circuit breaker status.
+- **Query.** Run a question through the full context assembly and reasoning pipeline.
+- **Briefing.** Trigger a daily briefing on demand.
+- **Task management.** Create, list, update, and resolve tasks and projects.
+- **Knowledge graph.** Inspect entities, facts, and relationships directly.
+- **Logs.** Tail agent activity, audit log, and anomaly alerts.
+
+This is not a secondary interface — it's the most powerful one. Telegram is the convenient mobile channel; SSH is where you operate and debug the system.
+
 ## Multi-channel output architecture
 
 The communication interface layer classifies every outbound notification by:
@@ -49,6 +65,7 @@ The communication interface layer classifies every outbound notification by:
 | **Smartwatch** | Short, timely, contextual nudges | Calendar reminders, financial alerts, meeting prep one-liners |
 | **Phone (Telegram bot)** | Richer interactions, drafts for review, summaries requiring action | Email triage summaries, drafted replies, comparison research, multi-paragraph briefings |
 | **AirPods (Siri Shortcut)** | Hands-free Q&A, spoken briefings | Morning briefing while getting ready, quick queries while driving |
+| **SSH CLI** | Admin operations, diagnostics, fallback interaction | Kill switch, system status, knowledge graph inspection, task management, on-demand briefings |
 | **Desktop** | Full working sessions, document review, deep research | Complete morning briefings, financial analysis, document management, system administration |
 
 **Key UX insight:** matching the channel to the message matters more than the channel itself. A watch tap for a one-liner, a Telegram message for something you need to read, a spoken response when your hands are busy. See principle #8 in [vision.md](vision.md).

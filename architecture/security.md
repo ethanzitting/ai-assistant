@@ -61,7 +61,7 @@ These are fast, stateless checks — not LLM calls. A few conditionals in the mi
 
 A flag in an external store (a key in 1Password) that the tool-call middleware checks before every execution. When flipped, all tool calls are blocked and the agent session is frozen.
 
-Triggered via a Telegram bot command or by flipping the 1Password flag directly — something executable from a phone in an emergency.
+Triggered via the SSH CLI on the server, a Telegram bot command, or by flipping the 1Password flag directly. The CLI is the most reliable path — it doesn't depend on Telegram or 1Password availability.
 
 ### Graceful degradation
 
@@ -93,12 +93,12 @@ If anomalies are detected, the core can kill the ingestion container and alert y
 
 ### Sandbox container
 
-Executes LLM-generated code for ad-hoc analysis, PDF parsing, and computations. See [infrastructure.md](infrastructure.md) for the gVisor runtime details.
+Executes LLM-generated TypeScript via Deno inside a locked-down Docker container. Two layers of isolation: Deno's permission system (`--deny-net`, `--deny-env`, scoped `--allow-read`/`--allow-write`) at the application level, and Docker's seccomp profiles + cgroup resource limits at the OS level. See [infrastructure.md](infrastructure.md) for the full sandbox design.
 
 **Permissions:**
-- No network access whatsoever
+- No network access (`--network=none` at Docker level, `--deny-net` at Deno level)
 - No database access
-- No access to secrets
+- No access to secrets or environment variables
 - Receives only a read-only data slice prepared by core (e.g., a CSV of transactions, extracted PDF text)
 - Returns structured results via a mounted output volume
 - Destroyed and recreated per task — no persistent state between executions
