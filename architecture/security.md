@@ -94,6 +94,7 @@ Processes all untrusted external input: emails, Telegram messages, Plaid transac
 - No direct database access — emits structured records to a single Postgres table (`ingestion_emissions`) via a database user with INSERT-only permissions on that one table
 - No access to OAuth write tokens, 1Password secrets for other services, or any core system resources
 - Separate Docker network from core — communicates only through the emission table
+- Core discovers new emissions by polling `ingestion_emissions` for unprocessed rows (every 5-10 seconds)
 
 **Emission schema:** Every record the ingestion container emits must conform to a predefined schema — typed fields for entities, facts, events, tasks, embeddings. The core container validates every emission against these schemas before acting on it. Anything that doesn't match is logged and dropped. No free-form text passes through as executable instructions.
 
@@ -142,7 +143,7 @@ Prompt injection is the #1 vulnerability in LLM applications and the threat is e
 
 3. **Output schema validation.** Constrain agent outputs to structured formats (typed tool calls, JSON schemas) wherever possible. Freeform output is where injection payloads produce the most damage.
 
-4. **Classifier filter on ingested content.** Before untrusted content enters any LLM prompt, run a lightweight classifier (a second, cheaper model call or a rule-based filter) to detect common injection patterns. This catches the obvious attacks at low cost.
+4. **Self-hosted injection classifier.** Before untrusted content enters any LLM prompt, run a self-hosted prompt injection classifier (Prompt Guard 2 86M or similar, ~86M params, runs on CPU) to assign a risk score. The classifier does not gate content — it tags it. High-risk content gets processed with a hardened system prompt that treats the content as adversarial and restricts extraction to factual data only. This avoids false-positive drops (security newsletters discussing injection would trigger a binary filter) while giving the ingestion LLM a signal to be more skeptical. A second independently-trained classifier (e.g., ProtectAI deberta-v3-base-prompt-injection-v2) can be added in series to reduce false positives further — risk scores multiply, so two 1% FPR classifiers yield ~0.01% combined FPR.
 
 5. **Emission validation in core.** The core container treats all ingestion emissions as untrusted even after schema validation. Emissions that attempt to create preferences or reference system internals are logged and dropped. All knowledge graph writes are append-only — bad extractions are corrected by superseding the fact, never by deleting it.
 

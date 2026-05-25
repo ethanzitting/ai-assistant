@@ -96,13 +96,38 @@ The sandbox runs LLM-generated code — ad-hoc analysis, PDF parsing, numerical 
 
 ## Monthly operating costs
 
+### Non-LLM infrastructure
+
 | Item | Estimated cost |
 |---|---|
 | VPS (4 vCPU, 8GB RAM) | $15–30 |
 | Object storage (archive + backups) | < $1 |
-| LLM API (Claude/OpenAI, ~10-20 queries/day + briefings + triage) | $10–30 |
-| Embedding API (ingestion + archive indexing) | $2–5 |
+| Embedding API (text-embedding-3-small @ $0.02/MTok) | < $1 |
+| Whisper API (voice memos, ~20 min/month @ $0.006/min) | < $1 |
 | 1Password (existing subscription) | $0 incremental |
-| **Total** | **~$30–60/month** |
+| **Subtotal** | **~$17–32** |
 
-Pruning pipeline costs (~$1-3/month in summarization calls) are included in the LLM line; see [data-lifecycle.md](data-lifecycle.md) for the breakdown.
+### LLM API costs
+
+Assumes Haiku 4.5 ($1/$5 per MTok in/out) for ingestion, Sonnet 4.6 ($3/$15) or Opus 4.7 ($5/$25) for core reasoning. Cached input is 90% cheaper. Prompt caching is critical — the stable prefix (~2K tokens) and daily prefix (~2K tokens) are cached across turns, reducing per-turn input costs substantially.
+
+| Component | Tokens/month (est.) | Sonnet core | Opus core |
+|---|---|---|---|
+| Conversations (15/day, growing context w/ caching) | ~5.5M input, ~225K output | ~$10 | ~$17 |
+| Daily briefing (30/month) | ~240K input, ~30K output | ~$1 | ~$1.50 |
+| Compaction (knowledge extraction from conversation) | ~450K input, ~60K output | ~$2.25 | ~$3.75 |
+| Email triage + extraction (50/week, Haiku) | ~400K input, ~100K output | ~$1 | ~$1 |
+| Web search (~50 searches/month + result processing, Haiku) | ~250K input, ~50K output + $0.50 search fees | ~$1 | ~$1 |
+| Pruning & summarization (weekly, Haiku) | ~50K input, ~10K output | < $1 | < $1 |
+| **LLM subtotal** | | **~$15–16** | **~$25** |
+
+### Total estimates
+
+| Scenario | Monthly cost |
+|---|---|
+| **Normal use, Sonnet core** (15 interactions/day, 50 emails/week) | **~$33–48** |
+| **Normal use, Opus core** | **~$42–57** |
+| **Heavy use, Sonnet core** (30 interactions/day, 100 emails/week, frequent research) | **~$50–65** |
+| **Heavy use, Opus core** | **~$65–80** |
+
+The biggest variable is conversation volume — each additional daily interaction costs ~$0.02 (Sonnet) to ~$0.04 (Opus) with good caching. Proactive analysis sweeps (Month 3) add ~$3–5/month.
