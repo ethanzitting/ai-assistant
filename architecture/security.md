@@ -8,9 +8,13 @@ If the server is compromised, an attacker gains: full relationship graph, financ
 
 The system's value comes from having a complete, permanent record you own — financial transactions, full email archives, research artifacts, conversation history. Minimizing storage undermines the core value proposition and leaves you dependent on third-party retention policies. The security posture is about hardening access to a comprehensive store, not reducing what's there. Container isolation, encryption, and strict access controls are the defense — not data minimization.
 
-### 2. Encrypt data at rest with off-server keys
+### 2. Backup and encrypt off-server
 
-Database volumes encrypted with LUKS. Decryption key stored in a separate secrets manager or fetched from a separate service at boot time. Backups encrypted before leaving the server using a GPG key on your local machine. Even if an attacker compromises both the server and the backup storage, they can't read backups without your local key.
+Postgres runs on the droplet's local disk — no LUKS, no separate encrypted volume. The threat model doesn't justify the operational complexity: the real risks are application-level compromise and SSH access, not physical disk theft.
+
+**Backup strategy:** Regular pg_dump → GPG-encrypt with a local key → push to Backblaze B2. The file archive (emails, documents, research) already lives on B2. Combined with the git repo for application code and 1Password for credentials, a Postgres backup is sufficient for full recovery. Audit logs live in Postgres, so they're captured by pg_dump automatically.
+
+Even if an attacker compromises both the server and B2, they can't read backups without the GPG key on your local machine.
 
 ### 3. Segment credentials and blast radius
 
@@ -33,14 +37,20 @@ Rich personal context is sent to Anthropic/OpenAI with every query. Mitigations:
 
 ### 6. Audit logging and anomaly detection
 
-Every database query, API call, and LLM interaction logged with timestamps. Logs shipped to an external service (separate from the main server) so an attacker can't delete them.
+Every database query, API call, and LLM interaction logged to Postgres with timestamps. Audit logs are structured rows (timestamp, action type, context, outcome) — compact enough that years of single-user activity fit comfortably in the database. Captured by pg_dump alongside everything else, so backups cover the full audit trail.
 
 Anomaly alerts: API calls at unusual hours, spikes in database queries, access from non-VPN IPs.
 
 ### 7. Design for breach containment
 
 - Automatic credential rotation — short-lived OAuth tokens expire automatically if the server goes offline.
-- Documented **breach runbook**: a checklist executable from your phone that revokes every credential and kills the server.
+- **Breach runbook** — a checklist executable from your phone when the server is fully compromised:
+  1. **Kill the droplet** from DigitalOcean's control panel (mobile app or web)
+  2. **Revoke OAuth tokens** — Google security settings for Gmail/Calendar, Telegram for the bot token
+  3. **Revoke the Anthropic API key** — stops LLM usage on your account
+  4. **Rotate the 1Password service account token** — invalidates any cached credentials
+  
+  Each step is independent. The on-server kill switch (SSH CLI, 1Password flag) is useless if the server itself is compromised — these external revocations are the real emergency stop.
 
 ## Agent safety controls
 
@@ -134,7 +144,7 @@ Prompt injection is the #1 vulnerability in LLM applications and the threat is e
 
 4. **Classifier filter on ingested content.** Before untrusted content enters any LLM prompt, run a lightweight classifier (a second, cheaper model call or a rule-based filter) to detect common injection patterns. This catches the obvious attacks at low cost.
 
-5. **Emission validation in core.** The core container treats all ingestion emissions as untrusted even after schema validation. Emissions that attempt to create preferences or reference system internals go to a review queue rather than applying automatically.
+5. **Emission validation in core.** The core container treats all ingestion emissions as untrusted even after schema validation. Emissions that attempt to create preferences or reference system internals are logged and dropped. All knowledge graph writes are append-only — bad extractions are corrected by superseding the fact, never by deleting it.
 
 ### Specific risk: email ingestion
 

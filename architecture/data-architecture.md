@@ -112,11 +112,16 @@ This cuts token costs by 80-90% while potentially improving response quality by 
 
 **Critical architectural principle: the knowledge system is a cache, not a replacement. The files are the source of truth.**
 
-The file store (Google Drive, GCS bucket, or S3/Backblaze B2) is not just a backup destination — it's the agent's **active file system**. Files flow in from multiple sources and the agent can create new ones:
+The file store uses **Backblaze B2** (S3-compatible object storage) as the agent's archive and active file system. **Google Drive** serves as an ingestion source — you drop files there or they're already there, and the agent picks them up for processing. After processing, the agent stores its own copy in B2 alongside all other archived files.
+
+This separation keeps the archive clean (no machine-generated clutter in your Drive) and cheap (B2 is ~$0.005/GB/month vs Drive at ~$0.02/GB/month). Google Drive stays your personal file system; B2 is the agent's.
+
+Files flow in from multiple sources:
 
 - **Ingested files:** email attachments, documents sent via Telegram, OCR'd physical mail, voice memo audio
+- **Google Drive files:** documents from your existing Drive, watched and ingested automatically
 - **Agent-created files:** research summaries saved as PDFs, web pages captured during research, comparison documents, exported analyses
-- **User-uploaded files:** documents dropped into Google Drive or sent to the Telegram bot for processing
+- **User-uploaded files:** sent to the Telegram bot for processing
 
 Every file is cataloged in the knowledge graph as an entity with metadata (source, type, related entities, ingestion date, status). The knowledge graph entry is the index; the file store holds the content.
 

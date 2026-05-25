@@ -11,8 +11,8 @@ Where the system runs, how big it needs to be, and what it costs to operate. Sec
 Docker Compose defines four services:
 
 - **Postgres** (with pgvector extension): structured data, vector embeddings, and knowledge graph tables. See [data-architecture.md](data-architecture.md).
-- **Core** (Python or Node): trusted orchestration — LLM API calls, tool execution, pruning jobs, user interaction. Has full database access. See [security.md](security.md) for the isolation model.
-- **Ingestion** (Python or Node): isolated container that processes all untrusted external input (emails, Telegram messages, Plaid transactions, web content). Emits structured data to a narrow intake channel. No direct database access beyond its own emission table. See [security.md](security.md).
+- **Core** (Deno): trusted orchestration — LLM API calls, tool execution, pruning jobs, user interaction. Has full database access. See [security.md](security.md) for the isolation model.
+- **Ingestion** (Deno): isolated container that processes all untrusted external input (emails, Telegram messages, Plaid transactions, web content). Emits structured data to a narrow intake channel. No direct database access beyond its own emission table. Deno's permission system provides an additional isolation layer — `--allow-net` scoped to specific API domains. See [security.md](security.md).
 - **Sandbox** (Deno): executes LLM-generated code for ad-hoc analysis, PDF parsing, and computations. Receives a read-only data slice from core, returns structured results. No network access, no secrets, no database connection. Destroyed and recreated per task.
 
 ### Project layout

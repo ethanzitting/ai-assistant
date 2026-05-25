@@ -12,7 +12,7 @@ What data comes into the assistant, what doesn't, and how it gets in. Implements
 |---|---|---|---|
 | **Gmail** (custom domain) | Fully automated (OAuth, read-only) | Full pipeline: archive, triage, summarize, embed, knowledge graph | Security-sensitive emails filtered out — see [security.md](security.md) |
 | **Google Calendar** | Fully automated (read-only) | Events feed scheduling engine | — |
-| **Google Drive** | Fully automated (read-only OAuth) | Documents archived and ingested | — |
+| **Google Drive** | Fully automated (read-only OAuth) | Documents watched, ingested, and archived to B2. Primary path for uploading files to the agent | — |
 | **iMessage** | Manual capture | Screenshots or copy-paste of specific conversations via quick-capture channel | No automated ingestion (no clean API; Apple actively prevents it) |
 | **WhatsApp** | Periodic manual export | Chat history text files for important conversations, batch-ingested | No real-time integration |
 | **Signal** | Not integrated | Nothing (by design — Signal conversations are meant to be ephemeral) | Everything |

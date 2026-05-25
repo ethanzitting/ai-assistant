@@ -14,7 +14,7 @@ Chosen technologies and a structured learning path for ramping up on the unfamil
 | **WireGuard** | VPN for server access | New — learn |
 | **S3 / Backblaze B2** | Object storage for archive | Likely known |
 | **1Password CLI / Connect** | Secrets management — all credentials at runtime | Likely known |
-| **Deno** | Sandbox runtime — LLM-generated TypeScript execution with built-in permission system | New — learn |
+| **Deno** | Runtime for all containers (core, ingestion, sandbox) — TypeScript, built-in permission system, npm-compatible | New — learn |
 
 > **Decision (2025-05-25):** Neo4j and Graphiti removed from the stack. The knowledge graph is modeled as Postgres tables (entities, relationships, facts) with temporal validity windows. At the scale of a single-user assistant (500–2,000 entities), recursive CTEs handle graph traversal in single-digit ms. Apache AGE is the escape hatch if Cypher syntax is ever needed. See [data-architecture.md](data-architecture.md).
 
@@ -54,7 +54,8 @@ Chosen technologies and a structured learning path for ramping up on the unfamil
 
 ### Phase 5 — Docker Compose + secrets integration (Day 10–14)
 
-- Search: `"docker compose postgres python app multi-service"`
+- Search: `"docker compose postgres deno app multi-service"`
+- Search: `"deno postgres client tutorial"`
 - Search: `"1password CLI op run docker environment variables"`
 - Search: `"pg_dump automated backup script docker cron"`
 - Get Postgres + core + ingestion containers running locally. Wire secrets through `op run` so no `.env` file touches disk.

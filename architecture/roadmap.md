@@ -78,3 +78,4 @@ These capabilities require the assistant to act on your behalf. They get built w
 - [ ] Email drafting: compose replies in your voice for review before sending
 - [ ] Expand integrations from read-only to draft/propose permissions
 - [ ] Agent-delegated subtasks: agent autonomously picks up research and other tasks from the project engine
+- [ ] Data droplet separation: move Postgres and file archive access behind a rate-limited API on a separate droplet. Kill switch severs the connection from the data side — works even in full agent compromise. Agent becomes a client of the data store, not a direct database user
