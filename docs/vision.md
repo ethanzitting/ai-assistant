@@ -10,7 +10,7 @@ The goal is to reduce the cognitive overhead of life — tracking the things you
 
 ## Feature domains
 
-These are the areas the assistant should eventually cover. They are not all in scope for the first version; see [roadmap.md](roadmap.md) for sequencing. Each domain is a candidate to split into its own file as it gets designed in detail.
+These are the areas the assistant should eventually cover. They are not all in scope for the first version; see [roadmap.md](development/roadmap.md) for sequencing. Each domain is a candidate to split into its own file as it gets designed in detail.
 
 ### Relationship management
 - Maintain a contact graph: who people are, how you relate to them, and key facts about them.

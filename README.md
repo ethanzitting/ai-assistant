@@ -22,7 +22,12 @@ Living architecture and operational docs. Each file covers one concern and is me
 9. [interfaces.md](docs/interfaces.md) — how the assistant talks to you
 10. [infrastructure.md](docs/infrastructure.md) — where it runs and what it costs
 11. [security.md](docs/security.md) — threat model and defenses
-12. [roadmap.md](docs/roadmap.md) — phased build plan
+12. [roadmap.md](docs/development/roadmap.md) — phased build plan
+
+### Development
+
+- [version-one.md](docs/development/version-one.md) — Version 1 implementation plan (8 phases)
+- [version-two.md](docs/development/version-two.md) — Version 2 implementation plan (9 phases)
 
 ### Operational
 
@@ -51,7 +56,7 @@ Where each section of the original brain-dump docs lives now:
 | PLAN §10 Output Channels & G2 | [interfaces.md](docs/interfaces.md) |
 | PLAN §11 Competitive Landscape | [landscape.md](docs/landscape.md) |
 | PLAN §12 Learning Path & Tech Stack | [tech-stack.md](docs/tech-stack.md) |
-| PLAN §13 Implementation Timeline | [roadmap.md](docs/roadmap.md) |
+| PLAN §13 Implementation Timeline | [roadmap.md](docs/development/roadmap.md) |
 | PLAN §14 Key Design Decisions & Principles | [vision.md](docs/vision.md) |
 | INTERFACE.md (prototype I/O) | [interfaces.md](docs/interfaces.md) |
 
