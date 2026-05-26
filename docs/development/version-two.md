@@ -29,6 +29,10 @@ When the raw conversation layer exceeds the token budget, compaction fires inste
 
 The extraction pipeline is the same one that will later process emails and voice memos — build it generically now.
 
+### Compaction logging
+
+During early operation, log compaction inputs and outputs side-by-side for manual review. Each compaction event should produce a "compaction diff" — the raw conversation in, the extractions out (entities, facts, relationships, tasks created or updated), and the condensed narrative. This needs to be glanceable enough to spot obvious misses: a conversation where the user mentioned a new contact but no entity was extracted, or a decision was made but no fact was stored. Archive compaction diffs to B2 alongside the raw transcript. This logging can be reduced once compaction quality is validated, but it should ship from day one.
+
 ### Nightly process
 
 A scheduled job (use the event engine from Version 1) that:
@@ -94,6 +98,10 @@ CREATE TABLE tasks (
     completed_at TIMESTAMPTZ
 );
 ```
+
+### Link events to projects
+
+Add an optional `project_id UUID REFERENCES projects(id)` to the `events` table (already present in the Version 1 schema). This lets deadline events reference their parent project, so the briefing skill can join a deadline with its project's task completion status directly — e.g., "Tax deadline in 5 days, 3 of 11 tasks still open."
 
 ### Tool: `manage_tasks`
 
@@ -166,7 +174,7 @@ Add the ingestion service to Docker Compose:
 ```sql
 CREATE TABLE ingestion_emissions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    type TEXT NOT NULL,                -- 'entity', 'fact', 'relationship', 'event', 'embedding_chunk'
+    type TEXT NOT NULL,                -- 'entity', 'fact', 'relationship', 'event', 'transaction', 'embedding_chunk'
     status TEXT NOT NULL DEFAULT 'pending',  -- 'pending', 'processed', 'rejected', 'awaiting_clarification'
     payload JSONB NOT NULL,
     source_type TEXT NOT NULL,         -- 'email', 'telegram_file', 'voice_memo', 'web_search', 'drive_file'
@@ -177,7 +185,7 @@ CREATE TABLE ingestion_emissions (
 );
 ```
 
-Each emission type has a defined payload schema. Core validates every emission against these schemas before acting on it.
+Each emission type has a defined payload schema. Core validates every emission against these schemas before acting on it. The `transaction` type supports financial data ingestion (CSV imports, receipt OCR, email extraction) — see [workflow-financial-tracking.md](workflow-financial-tracking.md) for the full schema and processing flow.
 
 ### Emission validation in core
 
@@ -188,6 +196,25 @@ Core polls `ingestion_emissions` every 5-10 seconds for rows with `status = 'pen
 3. For entity emissions: run entity resolution (fuzzy matching against knowledge graph). If ambiguous, set status to `awaiting_clarification` and ask the user via Telegram
 4. Write validated data to the appropriate tables
 5. Set status to `processed` (or `rejected` with reason)
+
+### Processing requests table
+
+Core instructs ingestion to do work (file processing, web search, email sync) via a coordination table:
+
+```sql
+CREATE TABLE processing_requests (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    type TEXT NOT NULL,              -- 'file_parse', 'receipt_ocr', 'web_search', 'email_sync'
+    source_type TEXT NOT NULL,       -- 'telegram_file', 'drive_file', 'user_request'
+    file_path TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',  -- 'pending', 'processing', 'completed', 'failed'
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+```
+
+Ingestion has SELECT + UPDATE on this table (to claim and complete requests). This is the narrowest expansion of ingestion's database access — it can read requests and update their status, but still can't read the knowledge graph. This table also serves as the coordination mechanism for web search in Phase 6 (resolving the hand-waved "message queue" from the original design).
 
 ### Container monitoring
 
@@ -378,7 +405,7 @@ The `search_documents` tool combines:
 Anthropic web search runs in the ingestion container. The flow:
 
 1. User asks core a question that requires external research
-2. Core instructs ingestion to search (via a coordination mechanism — a row in a `search_requests` table or a simple message queue)
+2. Core inserts a `processing_request` with `type = 'web_search'` (using the coordination table from Phase 3)
 3. Ingestion runs the Anthropic web search, processes results with its LLM (behind the injection classifier)
 4. Results emitted as structured records through the standard emission flow
 5. Core validates and presents to the user
@@ -415,7 +442,7 @@ Extend the Telegram bot (running in core per [core-loop.md](../core-loop.md)) to
 - **Documents** (PDFs, images, text files): download, forward to ingestion for parsing
 - **Photos:** forward to ingestion for OCR if they appear to be documents/mail, otherwise catalog as images
 
-File forwarding mechanism: core writes the file to a shared volume or temporary storage, inserts a processing request into a coordination table, ingestion picks it up.
+File forwarding mechanism: core writes the file to a shared volume, inserts a row into the `processing_requests` table (from Phase 3) with the file path and type, ingestion picks it up.
 
 ### Whisper transcription
 

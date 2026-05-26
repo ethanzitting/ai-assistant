@@ -43,7 +43,44 @@ This prevents a critical attack vector: if web search ran directly in core, a pr
 1. **Only triggered by explicit user requests routed through core.** The ingestion container never autonomously follows URLs found in emails, documents, or other ingested content. Core decides "user wants this researched" and instructs ingestion to search or fetch. This breaks the email → URL → injection chain. See [security.md](security.md).
 2. **Core never enables web search on its own LLM calls.** Core's Anthropic API calls are for reasoning over trusted, already-validated context (knowledge graph data, validated emissions, user messages). Untrusted web content never enters a privileged LLM call.
 
-Fetched files are stored in the file store and cataloged in the knowledge graph.
+### Research archive policy
+
+Not all web content is worth keeping. The archive policy distinguishes between research artifacts (high-value, keep) and transient web content (extract and discard):
+
+**Always archive:**
+- **Research documents** — the agent produces a structured summary for each research task: findings, source citations, confidence notes, date of research. These are the agent's "notes" and are small, high-value, and permanently archived to B2. They get embedded in `document_chunks` for semantic search and their findings are stored as knowledge graph facts with `source_ref` pointing back to the research document.
+- **Substantive source materials** — PDFs of studies, papers, authoritative reference pages that the agent cited in its findings. Archived alongside the research document when the agent judges the source is worth keeping for future reference.
+
+**Never archive:**
+- Intermediate search result pages, SEO content, navigation pages, generic blog posts. The agent extracts what's useful and discards the raw HTML.
+- Web pages scanned for a single data point (e.g., checking a tax deadline date). The extracted fact goes into the knowledge graph; the page doesn't go into the archive.
+
+The agent's judgment decides the boundary — the system prompt instructs it to archive source material when it's substantive enough that the user might want to revisit it, and to skip everything else. The research document itself is always the primary artifact; source materials are supplementary.
+
+Research findings stored in the knowledge graph should be treated as perishable when they depend on external state (tax laws, regulations, pricing). The system prompt instructs the LLM to re-verify such findings rather than assuming last year's research still holds.
+
+## Core → ingestion coordination
+
+Core instructs ingestion to do work via the `processing_requests` table. When a file arrives via Telegram, core downloads it to a shared volume and inserts a processing request. When the user asks for web research, core inserts a search request. Ingestion polls this table for pending work.
+
+```sql
+CREATE TABLE processing_requests (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    type TEXT NOT NULL,              -- 'file_parse', 'receipt_ocr', 'web_search', 'email_sync'
+    source_type TEXT NOT NULL,       -- 'telegram_file', 'drive_file', 'user_request'
+    file_path TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',  -- 'pending', 'processing', 'completed', 'failed'
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+```
+
+Ingestion has SELECT + UPDATE on this table (to claim and complete requests) but cannot read the knowledge graph or any other table. This is the same coordination pattern used for web search — see [data-architecture.md](data-architecture.md) for the full coordination model.
+
+## Receipt and document processing
+
+Photos of receipts sent via Telegram flow through the same ingestion pipeline as other files. Ingestion runs OCR (Tesseract locally, or a cloud OCR API for difficult receipts), then the ingestion LLM extracts structured data (merchant, date, line items, total, payment method, category). Results are emitted as `transaction` emissions through the standard emission flow, with line items stored as JSONB. See [workflow-financial-tracking.md](development/workflow-financial-tracking.md) for the full receipt processing walkthrough.
 
 ## Architectural constraint
 

@@ -47,6 +47,10 @@ Needs at least N days/weeks/months between occurrences. *"Change furnace filter 
 
 Both types require explicit resolution when missed — the assistant doesn't silently drop anything. The distinction matters for *scheduling*: a missed fixed-schedule event keeps the calendar rhythm intact (next trash day is still Thursday), while a completed interval-from-completion event resets the timer from when you actually did it. Both escalate reminders for unresolved misses based on their priority.
 
+### Computed column: `next_due_at`
+
+The `events` table includes a `next_due_at TIMESTAMPTZ` column that caches the next due date for recurring and deadline events. Application code updates it whenever an event is completed or a recurrence is computed. This makes "what's due this week" a simple `WHERE next_due_at <= $end_of_week` query instead of computing the next occurrence for every active recurring event at query time. The daily briefing skill and event processing loop both benefit from this — it turns an O(N) recurrence computation into an indexed lookup.
+
 ## Conditional triggers
 
 Remind based on state changes, not dates. *"When checking balance drops below $2,000."* *"If I haven't heard back from the contractor in 5 days."*

@@ -35,6 +35,12 @@ Core uses **coarse-grained tools** — each tool does significant work in applic
 
 The exact tool definitions will be designed during implementation. The principle is: if the logic is deterministic (database queries, entity matching, formatting), it belongs in application code behind a tool. The LLM's job is judgment — deciding what's important, what to surface, how to respond.
 
+Version 1 tools: `query_knowledge`, `remember`, `manage_events`, `get_calendar`, `fetch_skill`, `send_message`. See [version-one.md](development/version-one.md) for definitions.
+
+Version 2 adds: `manage_tasks` (task/project CRUD with surfacing policy filtering), `search_documents` (hybrid keyword + vector search). See [version-two.md](development/version-two.md).
+
+Version 3 adds: `query_finances` (aggregation, date-range filtering, category grouping, period comparison, pace projection against the `transactions` table — the tool does the math, not the LLM). See [workflow-financial-tracking.md](development/workflow-financial-tracking.md).
+
 ## Skills
 
 Skills are stored in a database table:
@@ -54,6 +60,14 @@ Skills are how specialized behaviors are configured without code changes. Adding
 When processing ingested content, core handles all entity resolution. Ingestion has no access to the knowledge graph — it emits raw extractions ("person: Sarah, context: leaving Acme for Stripe"). Core matches these against existing entities using application code (name matching, email matching, relationship context).
 
 When core cannot confidently resolve an entity — e.g., a first name that matches multiple contacts — it asks the user via Telegram rather than guessing. The emission enters a **pending** state until the user responds. The user's reply arrives as a high-priority event, and core resumes processing with the clarification.
+
+### Design principle: act on available information
+
+The agent should bias toward getting things done rather than asking questions. Store what you have, refine later. Ask follow-up questions only when the answer would change what you do next — not to fill in every blank.
+
+Example: if the user says "remind me to give my dog a tick chew every month," the agent creates the event and stores a dog entity even without a name. If the user later says "Max needs his tick chew," the agent connects "Max" to the existing unnamed dog entity and updates it. This is a prompt engineering challenge, not a schema one — the system prompt instructs the LLM to watch for opportunities to enrich sparse entities.
+
+Contrast: if the user says "help me file my taxes," the agent *should* ask whether they're filing jointly or separately, because that changes the entire task decomposition.
 
 ## Telegram routing
 

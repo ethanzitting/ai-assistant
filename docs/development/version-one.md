@@ -45,8 +45,10 @@ CREATE TABLE events (
     category TEXT,
     status TEXT NOT NULL DEFAULT 'active',  -- 'active', 'completed', 'missed', 'dropped'
     last_completed_at TIMESTAMPTZ,
+    next_due_at TIMESTAMPTZ,
     properties JSONB DEFAULT '{}',
     entity_id UUID REFERENCES entities(id),
+    project_id UUID REFERENCES projects(id),
     created_at TIMESTAMPTZ DEFAULT now()
 );
 

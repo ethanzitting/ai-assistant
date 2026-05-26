@@ -18,12 +18,12 @@ The goal is a system that gets noticeably better at surfacing the right informat
 - [ ] Entity enrichment: contacts, projects enriched with extracted facts across all sources
 - [ ] RAG retrieval pipeline: queries search pgvector + knowledge graph tables, assemble context for LLM
 - [ ] Proactive pattern recognition: detect repeated behaviors, stalled intentions, scheduling conflicts
-- [ ] Financial awareness: at minimum CSV transaction import, ideally Plaid API for balance checking (read-only)
+- [ ] Financial awareness: dedicated `transactions` table (not knowledge graph facts), `query_finances` tool with aggregation/comparison/projection, CSV import via Telegram, receipt photo OCR with line item extraction, transaction deduplication across sources, LLM-assigned categories with preference learning. Scoped to liquid cash accounts only. Plaid API (read-only) as a later addition. See [workflow-financial-tracking.md](workflow-financial-tracking.md)
 - [ ] Ad-hoc data analysis: natural language queries that generate and execute code in the sandbox (e.g., *"show me spending outliers"*)
 - [ ] Mid-day event surfacing: proactive notifications and silent context injection for events arriving between daily prefix rebuilds
 - [ ] Meeting prep surfacing: pulling context from knowledge graph + recent interactions before scheduled meetings
 - [ ] File store integration: Google Drive as ingestion source, Backblaze B2 as archive, file cataloging in knowledge graph
-- [ ] Photo OCR pipeline for physical mail
+- [ ] Photo OCR pipeline for physical mail and receipts (receipt processing designed in [workflow-financial-tracking.md](workflow-financial-tracking.md))
 - [ ] Multi-channel output: priority/length/context classification for notifications
 - [ ] Sensitivity tagging system: normal / confidential classification
 - [ ] Pruning job v2: warm → cold transitions, periodic summary aggregation

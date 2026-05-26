@@ -12,6 +12,8 @@ Standard relational data: contacts, accounts, recurring events, tasks, projects,
 
 When the assistant needs *"what bills are due this Friday,"* it runs a database query. No AI involved in the retrieval. The LLM reasons about the data once retrieved, not to find it.
 
+**Dedicated tables for structured domains.** The knowledge graph (entities, facts, relationships) handles general-purpose recall — "Sarah works at Stripe," "the landscaper's cancellation policy." But some data types need their own tables because they require numeric aggregation, specialized indexing, or high-volume time-series queries that the TEXT-valued `facts` table can't support efficiently. Financial transactions are the primary example: `SUM()`, `GROUP BY category`, and date-range filtering need a `transactions` table with proper numeric types and indexes. See [workflow-financial-tracking.md](development/workflow-financial-tracking.md) for the full schema and rationale.
+
 ### Layer 2 — Vector store (pgvector)
 
 Stores embeddings — numerical representations of text that capture semantic meaning. Conversations, notes, emails, and documents are chunked, embedded via an embedding model (OpenAI `text-embedding-3-small` or equivalent), and stored with metadata. At query time, the user's question is embedded and compared against stored chunks to find semantically similar content. This is the core of RAG (Retrieval Augmented Generation).
@@ -120,7 +122,7 @@ Files flow in from multiple sources:
 
 - **Ingested files:** email attachments, documents sent via Telegram, OCR'd physical mail, voice memo audio
 - **Google Drive files:** documents from your existing Drive, watched and ingested automatically
-- **Agent-created files:** research summaries saved as PDFs, web pages captured during research, comparison documents, exported analyses
+- **Agent-created files:** research summaries with findings and source citations, substantive source materials (studies, papers, authoritative references), comparison documents, exported analyses. Transient web pages (search results, pages scanned for a single data point) are not archived — see [ingestion.md](ingestion.md) research archive policy
 - **User-uploaded files:** sent to the Telegram bot for processing
 
 Every file is cataloged in the knowledge graph as an entity with metadata (source, type, related entities, ingestion date, status). The knowledge graph entry is the index; the file store holds the content.
@@ -167,6 +169,15 @@ A year of heavy personal use (20,000 emails, 200 PDFs, 100 voice memos, research
 ### Reprocessing capability
 
 If a better embedding model or entity extraction tool emerges, the entire file store can be reprocessed through an improved pipeline. The files are the immutable foundation; everything else is a derived view that can be rebuilt.
+
+## Core-ingestion coordination
+
+The core and ingestion containers communicate through two database tables, not direct network calls:
+
+- **`ingestion_emissions`** — ingestion → core. Structured records (entities, facts, relationships, events, transactions, embeddings) emitted by ingestion after processing external content. Core polls and validates. See [security.md](security.md).
+- **`processing_requests`** — core → ingestion. When core needs ingestion to do work (process a file uploaded via Telegram, run a web search, trigger an email sync), it inserts a request row. Ingestion polls for pending requests, claims them, and processes. See [workflow-financial-tracking.md](development/workflow-financial-tracking.md) for the schema.
+
+Both tables are narrow coordination channels. Ingestion has INSERT-only on `ingestion_emissions` and SELECT+UPDATE on `processing_requests`. It cannot read the knowledge graph or any other table.
 
 ## Query-time context assembly
 
