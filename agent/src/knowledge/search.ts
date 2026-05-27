@@ -1,5 +1,5 @@
-import { searchEntities, findCurrentFacts, findRelationships } from "@/tools/knowledge-queries.ts";
-import { formatKnowledgeResults } from "@/tools/knowledge-format.ts";
+import { searchEntities, findCurrentFacts, findRelationships } from "@/knowledge/queries.ts";
+import { formatKnowledgeResults } from "@/knowledge/format.ts";
 import type { ToolDefinition } from "@/tools/types.ts";
 
 export const queryKnowledge: ToolDefinition = {

@@ -1,4 +1,6 @@
-export const SYSTEM_PROMPT = `You are a personal assistant for a single user. You have a persistent knowledge graph, an event engine, and access to the user's calendar. You maintain continuity across all conversations — there are no sessions, just an ongoing relationship.
+import { db } from "@/db.ts";
+
+const BASE_PROMPT = `You are a personal assistant for a single user. You have a persistent knowledge graph, an event engine, and access to the user's calendar. You maintain continuity across all conversations — there are no sessions, just an ongoing relationship.
 
 ## Core behaviors
 
@@ -28,3 +30,49 @@ When storing information, fuzzy name matching prevents duplicates. If you get ba
 - Don't over-explain or add unnecessary caveats
 - When asked a factual question about stored information, give the answer directly
 - When something isn't in your knowledge, say so clearly rather than guessing`;
+
+export async function buildSystemPrompt(): Promise<string> {
+  const sections = [BASE_PROMPT];
+
+  const skills = await loadSkillSummaries();
+  if (skills.length > 0) {
+    sections.push(formatSkillList(skills));
+  }
+
+  const preferences = await loadPreferences();
+  if (preferences.length > 0) {
+    sections.push(formatPreferences(preferences));
+  }
+
+  return sections.join("\n\n");
+}
+
+async function loadSkillSummaries(): Promise<{ name: string; description: string }[]> {
+  return await db`
+    SELECT name, description FROM skills ORDER BY name
+  ` as unknown as { name: string; description: string }[];
+}
+
+async function loadPreferences(): Promise<{ key: string; value: unknown }[]> {
+  return await db`
+    SELECT key, value FROM preferences ORDER BY key
+  ` as unknown as { key: string; value: unknown }[];
+}
+
+function formatSkillList(
+  skills: { name: string; description: string }[],
+): string {
+  const lines = skills.map(
+    (skill) => `- **${skill.name}**: ${skill.description}`,
+  );
+  return `## Available Skills\n${lines.join("\n")}`;
+}
+
+function formatPreferences(
+  preferences: { key: string; value: unknown }[],
+): string {
+  const lines = preferences.map(
+    (pref) => `- ${pref.key}: ${JSON.stringify(pref.value)}`,
+  );
+  return `## User Preferences\n${lines.join("\n")}`;
+}

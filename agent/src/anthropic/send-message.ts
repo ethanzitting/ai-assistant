@@ -3,8 +3,8 @@ import type {
   Tool,
   Message,
 } from "@anthropic-ai/sdk/resources/messages.mjs";
-import { getClient } from "@/anthropic/client.ts";
-import { callWithRetry } from "@/anthropic/retry.ts";
+import { getClient } from "@/anthropic/create-client.ts";
+import { callWithRetry } from "@/anthropic/call-with-retry.ts";
 
 const MODEL = "claude-sonnet-4-20250514";
 const MAX_OUTPUT_TOKENS = 4096;

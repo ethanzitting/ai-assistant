@@ -1,6 +1,6 @@
 services:
-  core:
+  agent:
     volumes:
-      - ./core/src:/app/src
-      - ./core/deno.json:/app/deno.json
+      - ./agent/src:/app/src
+      - ./agent/deno.json:/app/deno.json
     command: ["deno", "run", "--watch", "--allow-net", "--allow-env", "--allow-read", "src/main.ts"]

@@ -1,10 +1,10 @@
 import type { MessageParam, Message, Tool } from "@/anthropic/mod.ts";
 import { sendMessage } from "@/anthropic/mod.ts";
 import { executeTool } from "@/tools/registry.ts";
-import { persistMessage } from "@/context/conversation.ts";
-import { assembleContext } from "@/context/assemble.ts";
+import { persistMessage } from "@/conversation/messages.ts";
+import { assembleContext } from "@/prompt/assemble.ts";
 import type { EventQueue } from "@/queue.ts";
-import { extractTextContent, getToolUseBlocks } from "@/loop/content-helpers.ts";
+import { extractTextContent, getToolUseBlocks } from "@/engine/helpers.ts";
 
 export async function handleToolUseResponse(
   initialResponse: Message,

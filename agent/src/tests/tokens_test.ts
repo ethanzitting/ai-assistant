@@ -1,5 +1,5 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { estimateTokenCount, truncateToTokenBudget } from "@/context/tokens.ts";
+import { estimateTokenCount, truncateToTokenBudget } from "@/prompt/tokens.ts";
 
 Deno.test("estimateTokenCount uses 4 chars per token", () => {
   assertEquals(estimateTokenCount(""), 0);

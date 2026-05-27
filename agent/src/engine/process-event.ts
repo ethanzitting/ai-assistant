@@ -1,10 +1,10 @@
 import { sendMessage, type TokenUsage } from "@/anthropic/mod.ts";
 import { getToolSchemas } from "@/tools/registry.ts";
-import { persistMessage } from "@/context/conversation.ts";
-import { assembleContext } from "@/context/assemble.ts";
+import { persistMessage } from "@/conversation/messages.ts";
+import { assembleContext } from "@/prompt/assemble.ts";
 import { type QueueEvent, EventQueue } from "@/queue.ts";
-import { handleToolUseResponse } from "@/loop/tool-loop.ts";
-import { extractTextContent, hasToolUse } from "@/loop/content-helpers.ts";
+import { handleToolUseResponse } from "@/engine/tool-loop.ts";
+import { extractTextContent, hasToolUse } from "@/engine/helpers.ts";
 
 export async function processEvent(
   event: QueueEvent,

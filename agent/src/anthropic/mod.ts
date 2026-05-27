@@ -1,5 +1,5 @@
-export { sendMessage } from "@/anthropic/send.ts";
-export type { SendMessageOptions, TokenUsage } from "@/anthropic/send.ts";
+export { sendMessage } from "@/anthropic/send-message.ts";
+export type { SendMessageOptions, TokenUsage } from "@/anthropic/send-message.ts";
 
 export type {
   MessageParam,

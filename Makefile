@@ -22,4 +22,4 @@ backup:
 	@echo "Backup not yet implemented (Phase 8)"
 
 test:
-	cd core && deno test src/tests/
+	cd agent && deno test src/tests/

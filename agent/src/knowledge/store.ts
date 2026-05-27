@@ -1,5 +1,5 @@
 import { db } from "@/db.ts";
-import { findExistingEntity } from "@/tools/remember-resolve.ts";
+import { findExistingEntity } from "@/knowledge/resolve.ts";
 import type { ToolResult } from "@/tools/types.ts";
 
 export async function storeEntity(

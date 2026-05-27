@@ -1,6 +1,6 @@
 import { db } from "@/db.ts";
 import { EventQueue } from "@/queue.ts";
-import { runEventLoop } from "@/loop/run.ts";
+import { runEventLoop } from "@/engine/run.ts";
 
 async function healthCheck(): Promise<void> {
   const result =
@@ -24,7 +24,7 @@ async function healthCheck(): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  console.log("Starting core...");
+  console.log("Starting agent...");
 
   try {
     await healthCheck();

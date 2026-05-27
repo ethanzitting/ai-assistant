@@ -1,5 +1,5 @@
 import { EventQueue } from "@/queue.ts";
-import { processEvent } from "@/loop/process-event.ts";
+import { processEvent } from "@/engine/process-event.ts";
 
 export async function runEventLoop(queue: EventQueue): Promise<void> {
   console.log("Event loop started. Waiting for events...");

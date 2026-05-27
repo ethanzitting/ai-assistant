@@ -5,7 +5,7 @@ import {
   listEvents,
   completeEvent,
   dropEvent,
-} from "@/tools/event-operations.ts";
+} from "@/events/operations.ts";
 
 export const manageEvents: ToolDefinition = {
   schema: {

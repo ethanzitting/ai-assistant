@@ -15,9 +15,9 @@ services:
       timeout: 5s
       retries: 5
 
-  core:
+  agent:
     build:
-      context: ./core
+      context: ./agent
     environment:
       DB_HOST: postgres
       DB_PORT: "5432"

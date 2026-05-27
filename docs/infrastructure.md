@@ -20,7 +20,7 @@ Docker Compose defines four services:
 ```
 project/
 ├── docker-compose.yml
-├── core/                 # Trusted orchestration server
+├── agent/                # Trusted orchestration server
 ├── ingestion/            # Isolated ingestion pipeline
 ├── sandbox/              # Code execution sandbox (Deno)
 ├── backups/              # Backup scripts
@@ -52,9 +52,9 @@ Dev overrides mount the source directories into containers as volumes. Deno runs
 ```yaml
 # docker-compose.dev.yml (example)
 services:
-  core:
+  agent:
     volumes:
-      - ./core/src:/app/src
+      - ./agent/src:/app/src
     command: ["deno", "run", "--watch", "--allow-all", "src/main.ts"]
 ```
 

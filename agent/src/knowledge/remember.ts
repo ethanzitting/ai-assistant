@@ -1,4 +1,4 @@
-import { storeEntity, storeFact, storeRelationship, storePreference } from "@/tools/remember-store.ts";
+import { storeEntity, storeFact, storeRelationship, storePreference } from "@/knowledge/store.ts";
 import type { ToolDefinition, ToolResult } from "@/tools/types.ts";
 
 export const remember: ToolDefinition = {

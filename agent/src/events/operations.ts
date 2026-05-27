@@ -1,5 +1,5 @@
 import { db } from "@/db.ts";
-import { computeNextDueAt } from "@/tools/event-recurrence.ts";
+import { computeNextDueAt } from "@/events/recurrence.ts";
 import type { ToolResult } from "@/tools/types.ts";
 
 export async function createEvent(
