@@ -1,6 +1,6 @@
 import type { ToolDefinition } from "@/tools/toolTypes.ts";
 
-export const getCalendar: ToolDefinition = {
+export const calendarTool: ToolDefinition = {
   schema: {
     name: "get_calendar",
     description:

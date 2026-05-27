@@ -1,4 +1,4 @@
-import { db } from "@/database.ts";
+import { db } from "@/db.ts";
 
 export interface FactRecord {
   entity_id: string;

@@ -1,4 +1,4 @@
-import { db } from "@/database.ts";
+import { db } from "@/db.ts";
 
 export interface RelationshipRecord {
   entity_a_id: string;

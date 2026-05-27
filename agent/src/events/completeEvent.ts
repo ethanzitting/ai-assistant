@@ -1,4 +1,4 @@
-import { db } from "@/database.ts";
+import { db } from "@/db.ts";
 import { computeNextDueAt } from "@/events/computeNextDueAt.ts";
 import type { ToolResult } from "@/tools/toolTypes.ts";
 

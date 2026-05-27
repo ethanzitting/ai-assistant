@@ -1,19 +1,19 @@
 import type { Tool } from "@/anthropic/anthropicExports.ts";
 import type { ToolDefinition, ToolHandler, ToolResult } from "@/tools/toolTypes.ts";
-import { queryKnowledge } from "@/knowledge/queryKnowledgeTool.ts";
-import { remember } from "@/knowledge/rememberTool.ts";
-import { manageEvents } from "@/events/manageEventsTool.ts";
-import { getCalendar } from "@/tools/calendarTool.ts";
-import { fetchSkill } from "@/tools/skillTool.ts";
-import { sendMessage } from "@/tools/messagingTool.ts";
+import { queryKnowledgeTool } from "@/knowledge/queryKnowledgeTool.ts";
+import { rememberTool } from "@/knowledge/rememberTool.ts";
+import { manageEventsTool } from "@/events/manageEventsTool.ts";
+import { calendarTool } from "@/tools/calendarTool.ts";
+import { skillTool } from "@/tools/skillTool.ts";
+import { messagingTool } from "@/tools/messagingTool.ts";
 
 const toolDefinitions: ToolDefinition[] = [
-  queryKnowledge,
-  remember,
-  manageEvents,
-  getCalendar,
-  fetchSkill,
-  sendMessage,
+  queryKnowledgeTool,
+  rememberTool,
+  manageEventsTool,
+  calendarTool,
+  skillTool,
+  messagingTool,
 ];
 
 const handlersByName = new Map<string, ToolHandler>(

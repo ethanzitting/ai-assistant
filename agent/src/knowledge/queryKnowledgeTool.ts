@@ -4,7 +4,7 @@ import { findRelationships } from "@/knowledge/findRelationships.ts";
 import { formatKnowledgeResults } from "@/knowledge/formatKnowledgeResults.ts";
 import type { ToolDefinition } from "@/tools/toolTypes.ts";
 
-export const queryKnowledge: ToolDefinition = {
+export const queryKnowledgeTool: ToolDefinition = {
   schema: {
     name: "query_knowledge",
     description:

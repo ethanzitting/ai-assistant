@@ -1,10 +1,10 @@
 import { Bot } from "grammy";
 import type { EventQueue } from "@/eventQueue.ts";
-import { db } from "@/database.ts";
+import { db } from "@/db.ts";
 
 const OWNER_ID = Deno.env.get("TELEGRAM_OWNER_ID");
 
-export function createBot(queue: EventQueue): Bot {
+export function createTelegramBot(queue: EventQueue): Bot {
   const token = Deno.env.get("TELEGRAM_BOT_TOKEN");
   if (!token) throw new Error("TELEGRAM_BOT_TOKEN is not set");
 

@@ -4,7 +4,7 @@ import { storeRelationship } from "@/knowledge/storeRelationship.ts";
 import { storePreference } from "@/knowledge/storePreference.ts";
 import type { ToolDefinition, ToolResult } from "@/tools/toolTypes.ts";
 
-export const remember: ToolDefinition = {
+export const rememberTool: ToolDefinition = {
   schema: {
     name: "remember",
     description:

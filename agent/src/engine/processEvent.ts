@@ -3,7 +3,7 @@ import { getToolSchemas } from "@/tools/toolRegistry.ts";
 import { persistMessage } from "@/conversation/conversationHistory.ts";
 import { assembleContext } from "@/prompt/assembleContext.ts";
 import { type QueueEvent, EventQueue } from "@/eventQueue.ts";
-import { handleToolUseResponse } from "@/engine/toolLoop.ts";
+import { handleToolUseResponse } from "@/engine/handleToolUseResponse.ts";
 import { extractTextContent, hasToolUse } from "@/engine/parseResponse.ts";
 import { sendTelegramMessage } from "@/telegram/sendTelegramMessage.ts";
 

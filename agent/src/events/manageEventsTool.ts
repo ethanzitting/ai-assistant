@@ -5,7 +5,7 @@ import { listEvents } from "@/events/listEvents.ts";
 import { completeEvent } from "@/events/completeEvent.ts";
 import { dropEvent } from "@/events/dropEvent.ts";
 
-export const manageEvents: ToolDefinition = {
+export const manageEventsTool: ToolDefinition = {
   schema: {
     name: "manage_events",
     description:

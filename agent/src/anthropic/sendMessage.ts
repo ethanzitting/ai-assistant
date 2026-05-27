@@ -3,7 +3,7 @@ import type {
   Tool,
   Message,
 } from "@anthropic-ai/sdk/resources/messages.mjs";
-import { getClient } from "@/anthropic/createClient.ts";
+import { getClient } from "@/anthropic/getClient.ts";
 import { callWithRetry } from "@/anthropic/callWithRetry.ts";
 
 const MODEL = "claude-sonnet-4-20250514";

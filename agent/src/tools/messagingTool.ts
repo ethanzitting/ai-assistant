@@ -1,8 +1,8 @@
 import type { ToolDefinition } from "@/tools/toolTypes.ts";
 import { sendTelegramMessage } from "@/telegram/sendTelegramMessage.ts";
-import { db } from "@/database.ts";
+import { db } from "@/db.ts";
 
-export const sendMessage: ToolDefinition = {
+export const messagingTool: ToolDefinition = {
   schema: {
     name: "send_message",
     description: "Send a proactive message to the user via Telegram.",

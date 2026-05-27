@@ -1,4 +1,4 @@
-import { db } from "@/database.ts";
+import { db } from "@/db.ts";
 import { findExistingEntity } from "@/knowledge/findExistingEntity.ts";
 import type { ToolResult } from "@/tools/toolTypes.ts";
 
