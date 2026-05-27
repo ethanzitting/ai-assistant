@@ -1,6 +1,6 @@
-import { db } from "@/db.ts";
-import { findExistingEntity } from "@/knowledge/resolve.ts";
-import type { ToolResult } from "@/tools/types.ts";
+import { db } from "@/database.ts";
+import { findExistingEntity } from "@/knowledge/findExistingEntity.ts";
+import type { ToolResult } from "@/tools/toolTypes.ts";
 
 export async function storeEntity(
   input: Record<string, unknown>,

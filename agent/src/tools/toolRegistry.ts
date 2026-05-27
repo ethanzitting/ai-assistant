@@ -1,11 +1,11 @@
-import type { Tool } from "@/anthropic/mod.ts";
-import type { ToolDefinition, ToolHandler, ToolResult } from "@/tools/types.ts";
-import { queryKnowledge } from "@/knowledge/search.ts";
-import { remember } from "@/knowledge/remember.ts";
-import { manageEvents } from "@/events/tool.ts";
-import { getCalendar } from "@/tools/calendar.ts";
-import { fetchSkill } from "@/tools/skill.ts";
-import { sendMessage } from "@/tools/messaging.ts";
+import type { Tool } from "@/anthropic/anthropicExports.ts";
+import type { ToolDefinition, ToolHandler, ToolResult } from "@/tools/toolTypes.ts";
+import { queryKnowledge } from "@/knowledge/queryKnowledgeTool.ts";
+import { remember } from "@/knowledge/rememberTool.ts";
+import { manageEvents } from "@/events/manageEventsTool.ts";
+import { getCalendar } from "@/tools/calendarTool.ts";
+import { fetchSkill } from "@/tools/skillTool.ts";
+import { sendMessage } from "@/tools/messagingTool.ts";
 
 const toolDefinitions: ToolDefinition[] = [
   queryKnowledge,

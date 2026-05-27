@@ -1,11 +1,11 @@
-import { sendMessage, type TokenUsage } from "@/anthropic/mod.ts";
-import { getToolSchemas } from "@/tools/registry.ts";
-import { persistMessage } from "@/conversation/messages.ts";
-import { assembleContext } from "@/prompt/assemble.ts";
-import { type QueueEvent, EventQueue } from "@/queue.ts";
+import { sendMessage, type TokenUsage } from "@/anthropic/anthropicExports.ts";
+import { getToolSchemas } from "@/tools/toolRegistry.ts";
+import { persistMessage } from "@/conversation/conversationHistory.ts";
+import { assembleContext } from "@/prompt/assembleContext.ts";
+import { type QueueEvent, EventQueue } from "@/eventQueue.ts";
 import { handleToolUseResponse } from "@/engine/toolLoop.ts";
-import { extractTextContent, hasToolUse } from "@/engine/helpers.ts";
-import { sendTelegramMessage } from "@/telegram/send.ts";
+import { extractTextContent, hasToolUse } from "@/engine/parseResponse.ts";
+import { sendTelegramMessage } from "@/telegram/sendTelegramMessage.ts";
 
 export async function processEvent(
   event: QueueEvent,

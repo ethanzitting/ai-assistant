@@ -1,5 +1,5 @@
-import { storeEntity, storeFact, storeRelationship, storePreference } from "@/knowledge/store.ts";
-import type { ToolDefinition, ToolResult } from "@/tools/types.ts";
+import { storeEntity, storeFact, storeRelationship, storePreference } from "@/knowledge/storeKnowledge.ts";
+import type { ToolDefinition, ToolResult } from "@/tools/toolTypes.ts";
 
 export const remember: ToolDefinition = {
   schema: {

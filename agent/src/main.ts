@@ -1,8 +1,8 @@
-import { db } from "@/db.ts";
-import { EventQueue } from "@/queue.ts";
+import { db } from "@/database.ts";
+import { EventQueue } from "@/eventQueue.ts";
 import { runEventLoop } from "@/engine/runEventLoop.ts";
-import { createBot } from "@/telegram/bot.ts";
-import { setBotInstance } from "@/telegram/send.ts";
+import { createBot } from "@/telegram/createTelegramBot.ts";
+import { setBotInstance } from "@/telegram/sendTelegramMessage.ts";
 
 async function healthCheck(): Promise<void> {
   const result =

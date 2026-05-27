@@ -1,6 +1,6 @@
-import type { MessageParam } from "@/anthropic/mod.ts";
-import { loadRecentMessages } from "@/conversation/messages.ts";
-import { truncateToTokenBudget } from "@/prompt/tokens.ts";
+import type { MessageParam } from "@/anthropic/anthropicExports.ts";
+import { loadRecentMessages } from "@/conversation/conversationHistory.ts";
+import { truncateToTokenBudget } from "@/prompt/tokenEstimation.ts";
 import { buildSystemPrompt } from "@/prompt/systemPrompt.ts";
 
 const CONVERSATION_TOKEN_BUDGET = 20_000;

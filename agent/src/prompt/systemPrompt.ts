@@ -1,4 +1,4 @@
-import { db } from "@/db.ts";
+import { db } from "@/database.ts";
 
 const BASE_PROMPT = `You are a personal assistant for a single user. You have a persistent knowledge graph, an event engine, and access to the user's calendar. You maintain continuity across all conversations — there are no sessions, just an ongoing relationship.
 

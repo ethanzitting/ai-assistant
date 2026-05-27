@@ -1,4 +1,4 @@
-import type { Message } from "@/anthropic/mod.ts";
+import type { Message } from "@/anthropic/anthropicExports.ts";
 
 export function extractTextContent(response: Message): string {
   const textParts: string[] = [];

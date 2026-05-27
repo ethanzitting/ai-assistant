@@ -1,6 +1,6 @@
-import type { ToolDefinition } from "@/tools/types.ts";
-import { sendTelegramMessage } from "@/telegram/send.ts";
-import { db } from "@/db.ts";
+import type { ToolDefinition } from "@/tools/toolTypes.ts";
+import { sendTelegramMessage } from "@/telegram/sendTelegramMessage.ts";
+import { db } from "@/database.ts";
 
 export const sendMessage: ToolDefinition = {
   schema: {

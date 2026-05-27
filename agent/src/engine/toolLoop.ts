@@ -1,11 +1,11 @@
-import type { MessageParam, Message, Tool } from "@/anthropic/mod.ts";
-import { sendMessage } from "@/anthropic/mod.ts";
-import { executeTool } from "@/tools/registry.ts";
-import { persistMessage } from "@/conversation/messages.ts";
-import { assembleContext } from "@/prompt/assemble.ts";
-import type { EventQueue } from "@/queue.ts";
-import { extractTextContent, getToolUseBlocks } from "@/engine/helpers.ts";
-import { sendTelegramMessage } from "@/telegram/send.ts";
+import type { MessageParam, Message, Tool } from "@/anthropic/anthropicExports.ts";
+import { sendMessage } from "@/anthropic/anthropicExports.ts";
+import { executeTool } from "@/tools/toolRegistry.ts";
+import { persistMessage } from "@/conversation/conversationHistory.ts";
+import { assembleContext } from "@/prompt/assembleContext.ts";
+import type { EventQueue } from "@/eventQueue.ts";
+import { extractTextContent, getToolUseBlocks } from "@/engine/parseResponse.ts";
+import { sendTelegramMessage } from "@/telegram/sendTelegramMessage.ts";
 
 export async function handleToolUseResponse(
   initialResponse: Message,

@@ -1,4 +1,4 @@
-import { db } from "@/db.ts";
+import { db } from "@/database.ts";
 
 export interface ConversationRow {
   id: string;

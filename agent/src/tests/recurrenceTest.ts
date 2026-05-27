@@ -1,5 +1,5 @@
 import { assertEquals, assertNotEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { computeNextDueAt } from "@/events/recurrence.ts";
+import { computeNextDueAt } from "@/events/computeNextDueAt.ts";
 
 Deno.test("computeNextDueAt returns dtstart for non-recurring event", () => {
   const result = computeNextDueAt({

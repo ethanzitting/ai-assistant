@@ -1,4 +1,4 @@
-import type { Tool } from "@/anthropic/mod.ts";
+import type { Tool } from "@/anthropic/anthropicExports.ts";
 
 export interface ToolResult {
   content: string;

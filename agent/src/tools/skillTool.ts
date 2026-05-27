@@ -1,5 +1,5 @@
-import { db } from "@/db.ts";
-import type { ToolDefinition } from "@/tools/types.ts";
+import { db } from "@/database.ts";
+import type { ToolDefinition } from "@/tools/toolTypes.ts";
 
 export const fetchSkill: ToolDefinition = {
   schema: {

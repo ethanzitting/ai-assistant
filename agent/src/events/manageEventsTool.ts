@@ -1,11 +1,9 @@
-import type { ToolDefinition, ToolResult } from "@/tools/types.ts";
-import {
-  createEvent,
-  updateEvent,
-  listEvents,
-  completeEvent,
-  dropEvent,
-} from "@/events/operations.ts";
+import type { ToolDefinition, ToolResult } from "@/tools/toolTypes.ts";
+import { createEvent } from "@/events/createEvent.ts";
+import { updateEvent } from "@/events/updateEvent.ts";
+import { listEvents } from "@/events/listEvents.ts";
+import { completeEvent } from "@/events/completeEvent.ts";
+import { dropEvent } from "@/events/dropEvent.ts";
 
 export const manageEvents: ToolDefinition = {
   schema: {
