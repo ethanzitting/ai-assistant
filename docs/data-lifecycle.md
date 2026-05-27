@@ -2,7 +2,7 @@
 
 How data ages: ingested at full fidelity, compressed as it gets older, eventually distilled to facts in the knowledge graph. Sister doc to [data-architecture.md](data-architecture.md), which covers where data *lives*; this doc covers what happens to it *over time*. See also [context-assembly.md](context-assembly.md) for how aged data is assembled into the agent's prompt — the lifecycle feeds directly into the prompt layers and compaction model.
 
-The archive (object storage) sits outside this lifecycle — originals are retained forever there. What follows is about the active/working storage.
+The B2 file archive sits outside this lifecycle — originals are retained forever there. Their embeddings in the archive partition of `document_chunks` are also permanent and never pruned. What follows is about the active/working storage — the archive index is append-only and untouched by pruning.
 
 ## Three-tier memory model
 

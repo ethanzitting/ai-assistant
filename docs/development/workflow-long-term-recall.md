@@ -292,8 +292,8 @@ Everything is intact:
 - The full raw conversation is in the `conversations` table and available in Layer 4 if the user continues the topic
 - All 10 knowledge graph facts are in the `facts` table with `valid_until = NULL`
 - The vitamin stack entity and its relationship to the user are active
-- The conversation is embedded in `document_chunks` for semantic search
-- The raw transcript is also in the B2 archive
+- The conversation is embedded in the active partition of `document_chunks` for semantic search
+- The raw transcript is archived to B2 with a permanent embedding in the archive partition of `document_chunks`
 
 If the user asks "what was that magnesium dosage?" the next day, the answer comes from Layer 4 (raw conversation still present) or a `query_knowledge` call — either way, full fidelity.
 
@@ -303,14 +303,14 @@ The pruning engine runs its weekly pass. The vitamin stack conversation is now 2
 
 1. Runs LLM summarization on the conversation text
 2. Produces a summary: *"User and assistant designed a vitamin/supplement stack targeting energy, sleep quality, and joint health (user is a runner, preventive). Finalized plan: morning (D3 5000 IU, omega-3 2g, glucosamine/chondroitin 1500/1200mg, B-complex) and evening (magnesium glycinate 400mg, L-theanine 200mg, collagen peptides 10g). User declined a follow-up reminder. No medications or allergies."*
-3. Summary replaces the full conversation text in active storage
-4. Embedding regenerated from the summary
+3. Summary replaces the full conversation text in the active partition of `document_chunks`
+4. Active embedding regenerated from the summary
 5. Verifies that all structured extractions exist in the knowledge graph (they do — all 10 facts, the entity, and the relationship)
-6. Full raw transcript remains in B2 archive
+6. Archive embedding and B2 transcript are untouched — permanent
 
-**What's lost from active storage:** the specific back-and-forth reasoning — why magnesium glycinate over oxide, why collagen in the evening, the discussion about cost tiers. These details are in the B2 archive transcript but no longer in any layer of the prompt or active search index.
+**What leaves the fast path:** the specific back-and-forth reasoning — why magnesium glycinate over oxide, why collagen in the evening, the discussion about cost tiers. These are no longer in the active index or any prompt layer, but remain searchable via the archive index.
 
-**What survives in active storage:** the summary (in warm-tier document chunks, searchable via embeddings), and all 10 knowledge graph facts (unchanged, still in the facts table).
+**What stays on the fast path:** the summary (in active `document_chunks`), and all 10 knowledge graph facts (unchanged, still in the facts table).
 
 #### Months 2-5 (warm tier)
 
@@ -323,10 +323,10 @@ The only thing that could change the facts during this period is if the user men
 The monthly pruning job handles warm → cold transitions. The vitamin stack conversation summary is now ~5-6 months old. The pruning engine:
 
 1. Folds the individual summary into a periodic summary for November 2025: *"November 2025: designed vitamin/supplement stack for energy, sleep, and joint health. Set up seven-supplement morning/evening routine. Also discussed [other November topics]."*
-2. The individual conversation summary is removed from active storage
-3. The embedding for the individual summary is removed from `document_chunks`
-4. The periodic summary is embedded and stored as a warm-tier document chunk
-5. **Knowledge graph facts are untouched** — they persist indefinitely, they're in separate tables that pruning never modifies
+2. The individual conversation summary is removed from the active partition of `document_chunks`
+3. The periodic summary is embedded and stored in the active partition
+4. **Knowledge graph facts are untouched** — they persist indefinitely, pruning never modifies them
+5. **Archive embedding is untouched** — the original full-text embedding in the archive partition is permanent
 
 **After the warm → cold transition, what survives in active storage:**
 
@@ -335,8 +335,9 @@ The monthly pruning job handles warm → cold transitions. The vitamin stack con
 | `entities` table | "vitamin stack" entity (type=plan, UUID) | `query_knowledge` tool, entity name search |
 | `facts` table | 10 facts: status, goals, started date, 7 supplements with dosages and timing | `query_knowledge` tool, entity-scoped fact query |
 | `relationships` table | user → owns → vitamin stack | `query_knowledge` tool, relationship traversal |
-| `document_chunks` (warm) | November 2025 periodic summary (mentions the vitamin stack alongside other topics) | Vector search, if semantically relevant to a query |
-| B2 archive | Full raw transcript of the original conversation | `search_documents` tool (if pointed at archive), or manual retrieval via SSH CLI |
+| `document_chunks` (active) | November 2025 periodic summary (mentions the vitamin stack alongside other topics) | Vector search on active index |
+| `document_chunks` (archive) | Original full-text embedding of the November 2025 conversation | Vector search on archive index — never pruned |
+| B2 archive | Full raw transcript of the original conversation | Retrieved when archive index returns a match |
 
 **What's NOT in active storage:**
 
@@ -366,20 +367,27 @@ The event loop assembles the prompt. Critically:
 - **Layer 1 (stable prefix):** System prompt, tool definitions, user preferences. Cached. The user's preference for mid-range supplements might be here if it was stored as a preference (it wasn't in this trace — it was stored as conversational context, not a formal preference).
 - **Layer 2 (daily prefix):** Today's calendar, active tasks. Nothing health-related unless the user has other active health items. Cached.
 - **Layer 3 (recent prefix):** Recent conversation context. The vitamin stack conversation is NOT here — it's six months old, long past any compaction or recent-prefix window.
-- **Layer 4 (raw conversation):** The new user message.
+- **Layer 4 (raw conversation):** The new user message, plus the **pre-fetch teaser** (see below).
 
-**The vitamin stack is not in any prompt layer.** The LLM doesn't automatically "remember" it. The LLM's knowledge of the vitamin stack comes entirely from tool use — it must query the knowledge graph to retrieve the stored facts.
+**Pre-fetch teaser.** Before the message reaches the LLM, application code runs a lightweight match against the knowledge graph using the user's message text. The result is a manifest appended alongside the message — not the facts themselves, just a summary of what's available:
+
+```
+[Knowledge graph context]
+Highly relevant: "vitamin stack" (plan, active since 2025-11-15) — 10 facts
+Moderately relevant: user health baseline — 3 facts
+Archives not searched — may contain additional context. Use search_archives if needed.
+```
+
+The LLM sees this teaser before it starts reasoning. It knows the knowledge graph has detailed vitamin stack information without having to guess or make a speculative tool call. The teaser never includes the actual facts — just enough to inform the LLM's next step.
 
 ### Step 3 — LLM reasons about the request
 
-The LLM reads the user's message: *"remember that vitamin stack we put together?"* The LLM recognizes this as a reference to prior collaborative work. It needs to retrieve the context before it can engage meaningfully.
-
-The LLM's reasoning:
+The LLM reads the user's message and the pre-fetch teaser. It already knows the knowledge graph has a "vitamin stack" plan entity with 10 facts — it doesn't have to guess whether the system remembers. The LLM's reasoning:
 
 - The user is referencing a previous plan we created together
-- I don't have the details in my current context — I need to look it up
+- The teaser shows the knowledge graph has detailed information — I should pull the full facts
 - The user says sleep is working, joints are not — this will involve modifying the stack
-- I need to retrieve the full plan before I can discuss changes
+- I'll call `query_knowledge` to get the complete plan
 
 ### Step 4 — LLM queries the knowledge graph
 
@@ -394,14 +402,14 @@ The LLM's reasoning:
 }
 ```
 
-The `query_knowledge` application code:
+The `query_knowledge` application code searches the active knowledge graph only:
 
 1. **Text search** on entity names: finds the "vitamin stack" entity (type=plan)
 2. **Fact retrieval** for that entity: returns all 10 facts where `valid_until IS NULL`
 3. **Relationship traversal**: confirms user → owns → vitamin stack
 4. **Temporal context**: notes `valid_from = 2025-11-15` on all facts — the plan was created about 6 months ago
 
-The tool formats the results for the LLM:
+The raw results are post-processed by a lightweight LLM call (Haiku) to condense and format them into a scannable summary optimized for the main agent's context window. The formatted result always ends with a nudge:
 
 ```
 Entity: vitamin stack (plan)
@@ -424,9 +432,15 @@ Entity: vitamin stack (plan)
     - User has no medications (current)
     - User has no known allergies (current)
     - User exercise: running, regular
+
+---
+If these results don't answer the question, try a different search query.
+Archives were not searched and may contain additional context (conversation history, reasoning, documents). Use search_archives for deeper retrieval.
 ```
 
-The formatting here is done by the `query_knowledge` tool's application code — it groups facts by the entity, detects the morning/evening structure from the attribute names, and pulls in related user health facts for context. This is the kind of context engineering described in [context-assembly.md](../context-assembly.md): the tool returns structured, scannable information, not raw fact rows.
+The Haiku post-processing groups facts by entity, detects the morning/evening structure from the attribute names, and pulls in related user health facts for context. This is context engineering described in [context-assembly.md](../context-assembly.md) — the tool returns condensed, scannable information, not raw fact rows. The archive nudge at the bottom is always present, regardless of how rich the results are.
+
+A separate **`search_archives`** tool searches the archive index — vector embeddings of every original conversation transcript, email, document, and note ever archived to B2. The LLM calls it explicitly when it needs reasoning, historical context, or content that wasn't extracted as structured facts. Unlike `query_knowledge`, which returns structured knowledge graph data, `search_archives` returns relevant passages from original documents.
 
 ### Step 5 — LLM responds with full recall
 
@@ -572,35 +586,24 @@ This works because the knowledge graph captured the plan as structured facts at 
 
 These facts are as retrievable on day 1 as they are on day 1,000. The knowledge graph doesn't age them — `valid_until IS NULL` means "still true." The only cost is storage, and 10 facts is ~2KB.
 
-### What the warm → cold transition loses
+### What leaves the fast retrieval path
 
-**Reasoning and context.** The _why_ behind each decision doesn't survive as structured facts. After 6 months:
+**Reasoning and context.** The _why_ behind each decision doesn't survive as structured facts in the knowledge graph. After 6 months, these aren't in the active index:
 
-- Gone: "We chose glycinate over oxide because glycinate is better absorbed and the glycinate form specifically helps sleep"
-- Gone: "Collagen in the evening because there's evidence it's better absorbed on a less-full stomach"
-- Gone: "The user wanted mid-range cost, not premium"
-- Gone: "We considered and rejected ashwagandha because [reason]"
+- "We chose glycinate over oxide because glycinate is better absorbed and the glycinate form specifically helps sleep"
+- "Collagen in the evening because there's evidence it's better absorbed on a less-full stomach"
+- "The user wanted mid-range cost, not premium"
+- "We considered and rejected ashwagandha because [reason]"
 
 This information was in the full conversation text (hot tier, weeks 1-2), then in the conversation summary (warm tier, months 1-5), then folded into a periodic summary that only mentions the vitamin stack in passing (cold tier, month 6+).
 
-The raw transcript in B2 has all of it — but B2 is the archive of last resort, not part of normal retrieval. The `search_documents` tool could theoretically search it, but it's not in the embedded search index after the warm → cold transition.
+**But it's always in the archive index.** The original conversation transcript is in B2 with a permanent embedding in the archive partition of `document_chunks`. If the user asks "why did we pick glycinate?" the LLM calls `query_knowledge`, gets back the fact that the user takes glycinate but no reasoning, sees the archive nudge at the bottom of the results, and calls `search_archives` as a follow-up. The archive search finds the original November 2025 conversation, retrieves the relevant passage from B2, and returns it. The reasoning is recoverable — it requires a second tool call, but the nudge makes that decision easy for the LLM.
 
-### Could the LLM have extracted the reasoning as facts?
+### Why reasoning doesn't need to be extracted as facts
 
-Yes — and this is a prompt engineering opportunity. The system prompt could instruct the LLM to extract not just the final plan, but the reasoning behind key decisions:
+The archive index makes this unnecessary. The knowledge graph stores structured outputs (what, how much, when) and the archive stores everything else (why, what alternatives were considered, what tradeoffs were discussed). There's no need to bloat the knowledge graph with reasoning facts like `design_decision_magnesium_form` — the original conversation is always vector-searchable in the archive.
 
-```json
-{
-  "type": "fact",
-  "entity_hint": "vitamin stack",
-  "attribute": "design_decision_magnesium_form",
-  "value": "chose glycinate over oxide — better absorption, glycinate form aids sleep specifically"
-}
-```
-
-But this creates a tradeoff: more facts means more tokens in every `query_knowledge` result that includes this entity. For the vitamin stack, 3-4 reasoning facts are probably worth storing. For every conversation, extracting every reasoning step would bloat the knowledge graph with marginal-value facts.
-
-The system prompt should guide the LLM toward extracting reasoning that the user is likely to ask about later or that would change a future recommendation. "Why glycinate?" is a plausible future question. "Why did we discuss this on a Tuesday?" is not.
+The extraction guidance in the system prompt stays simple: extract the structured output (the plan, the decision, the actionable details) and let the archive handle the rest. The conversation transcript *is* the reasoning store.
 
 ### What if the extraction was poor?
 
@@ -617,15 +620,19 @@ The entire six-month recall hinges on Step 8 — the `remember` call when the us
 }
 ```
 
-Six months later, the user asks about the stack. The `query_knowledge` tool returns: *"User is taking a morning/evening supplement stack for energy, sleep, and joints."* No dosages, no specific supplements, no timing. The agent would have to either admit it doesn't have the details, or retrieve the raw transcript from B2 (expensive and slow).
+Six months later, the user asks about the stack. The pre-fetch teaser shows one relevant fact. The LLM calls `query_knowledge` and gets back only the summary fact — thin results. The archive nudge at the bottom prompts it to call `search_archives`, which finds the original conversation transcript and returns the full details. The LLM can answer with full fidelity, but the response required two tool calls and an archive round-trip that good extraction would have avoided.
 
-This is the difference between a `remember` call that captures the plan as 10 granular facts and one that captures it as a single summary. The extraction quality at conversation time determines recall quality six months later. The system prompt must instruct the LLM to extract at the right granularity — not "user discussed vitamins" and not individual molecular properties of each supplement, but the actionable details: what, how much, when, and why.
+This is the difference between a `remember` call that captures the plan as 10 granular facts and one that captures it as a single summary. Good extraction means `query_knowledge` handles most queries without touching the archive. Poor extraction means the archive catches it, but at the cost of an extra tool call + embedding search + B2 retrieval on every query about that topic. The system prompt should instruct the LLM to extract actionable details: what, how much, when.
 
 **Scenario: LLM forgets to call `remember` at all**
 
-The conversation flows naturally to completion, but the LLM never calls the `remember` tool. All the plan details live only in the raw conversation text. After two weeks, the pruning engine summarizes the conversation — the summary might capture "designed a vitamin stack" but probably not all seven supplements with dosages. After six months, the periodic summary says "November 2025: discussed supplements." The knowledge graph has nothing.
+The conversation flows naturally to completion, but the LLM never calls the `remember` tool. All the plan details live only in the raw conversation text. The knowledge graph has nothing about the vitamin stack — no entity, no facts, no relationships.
 
-This is a system design problem, not a one-off failure. The system prompt must be explicit: **when a conversation produces a plan, decision, or structured output that the user might reference later, always store it in the knowledge graph before concluding the conversation.** This is the "act on available information" principle from [workflow-tasks-and-projects.md](workflow-tasks-and-projects.md), applied to knowledge extraction.
+Six months later, the user asks about the stack. The pre-fetch teaser shows no matching entities — the LLM immediately knows the knowledge graph has nothing. It could call `query_knowledge` anyway (which would confirm zero results and show the archive nudge), or skip straight to `search_archives` based on the teaser's reminder that archives may contain relevant context. Either way, the archive search finds the original conversation via semantic similarity, retrieves the transcript from B2, and returns it. The LLM reads the full conversation and can answer the question. The archive saved it.
+
+But this is still a degraded experience. Every query about the vitamin stack requires an archive search. There's no structured entity to link events to (the August reminder couldn't have been created with an `entity_id`). There's no temporal fact trail — if the user modifies the stack later, there's no `valid_until` closing out old supplements. The knowledge graph's value is in making structured data fast and queryable; the archive is the safety net, not the primary path.
+
+The system prompt must be explicit: **when a conversation produces a plan, decision, or structured output that the user might reference later, always store it in the knowledge graph before concluding the conversation.** This is the "act on available information" principle from [workflow-tasks-and-projects.md](workflow-tasks-and-projects.md), applied to knowledge extraction.
 
 ### Schema observation: plans as entities
 

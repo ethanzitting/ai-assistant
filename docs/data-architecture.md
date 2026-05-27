@@ -24,8 +24,8 @@ pgvector runs as a Postgres extension — no separate database needed.
 
 Two logical partitions:
 
-- **Active index.** Embeddings of current summaries and recent full-text content. Lean, pruned, fast.
-- **Archive index.** Embeddings of every original document chunk, ever. Searched when deeper retrieval is needed.
+- **Active index.** Embeddings of current summaries and recent full-text content. Lean, pruned by the data lifecycle, fast.
+- **Archive index.** Embeddings of every original document chunk, ever. **Never pruned** — append-only and permanent. Every conversation transcript, email, document, and note archived to B2 has a corresponding embedding here. Searched by the `search_archives` tool when the LLM needs historical context, reasoning, or content not captured in the knowledge graph.
 
 ### Layer 3 — Knowledge graph (Postgres tables)
 
