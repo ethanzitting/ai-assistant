@@ -17,7 +17,7 @@ services:
 
   agent:
     build:
-      context: ./agent
+      context: .
     environment:
       DB_HOST: postgres
       DB_PORT: "5432"
