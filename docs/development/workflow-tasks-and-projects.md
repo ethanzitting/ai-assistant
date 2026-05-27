@@ -381,7 +381,7 @@ Before storing new facts, the LLM checks what it already knows about the user's 
 }
 ```
 
-The application code queries entities, facts, and relationships. Let's say it returns:
+The application code queries the active knowledge graph and returns Haiku-formatted results:
 
 ```
 Known facts about user:
@@ -392,9 +392,13 @@ Known facts about user:
 - Property: [no property entities found]
 - Vehicles: [no vehicle entities found]
 - Insurance: [no health insurance facts found]
+
+---
+If these results don't answer the question, try a different search query.
+Archives were not searched and may contain additional context (conversation history, reasoning, documents). Use search_archives for deeper retrieval.
 ```
 
-Some facts already exist (location, employer, family). Others are new (property, vehicles, insurance status).
+Some facts already exist (location, employer, family). Others are new (property, vehicles, insurance status). The archive nudge is present but the LLM doesn't need to search archives here — the user is providing new information, not asking about historical context.
 
 **Tool call 2: `remember`**
 

@@ -513,7 +513,7 @@ Account balances (as of last sync):
 ```json
 {"question": "recent financial facts and pending items"}
 ```
-Returns any recent financial facts from the knowledge graph.
+Returns Haiku-formatted results from the active knowledge graph — any recent financial facts, plus the standard archive nudge. For briefing assembly the archive nudge is irrelevant since the LLM already has structured data from dedicated financial tools.
 
 #### Step 4 — LLM detects the problem
 

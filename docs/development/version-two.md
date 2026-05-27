@@ -324,7 +324,7 @@ Each email is classified by the ingestion LLM (Haiku for cost):
 - **Security-sensitive** (2FA codes, password resets, verification emails): Dropped immediately, never stored, never processed. See [security.md](../security.md).
 - **Transactional** (shipping confirmations, receipts, automated notifications): Extract structured data (amounts, dates, tracking numbers), emit as facts/events, discard body.
 - **Informational** (newsletters, announcements): Generate 2-3 sentence summary, extract dates and action items, emit summary and extracted data.
-- **Relational** (human communication): Full processing — emit entities, facts, relationships. Content stored in hot tier.
+- **Relational** (human communication): Full processing — emit entities, facts, relationships. Content stored in hot tier of active partition; original embedded in archive partition (permanent).
 
 The injection classifier from Phase 4 scores every email before triage. High-risk emails are processed with the hardened prompt.
 
@@ -372,7 +372,8 @@ CREATE TABLE document_chunks (
     source_ref TEXT,
     entity_ids UUID[],
     metadata JSONB DEFAULT '{}',
-    tier TEXT NOT NULL DEFAULT 'hot',  -- 'hot', 'warm'
+    partition TEXT NOT NULL DEFAULT 'active',  -- 'active', 'archive'
+    tier TEXT NOT NULL DEFAULT 'hot',          -- 'hot', 'warm' (active partition only)
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -380,25 +381,34 @@ CREATE INDEX ON document_chunks USING ivfflat (embedding vector_cosine_ops)
     WITH (lists = 100);
 ```
 
+Two logical partitions sharing one table, distinguished by the `partition` column:
+
+- **Active partition** (`partition = 'active'`): pruned by the data lifecycle. Hot-tier content transitions to warm summaries, then to cold periodic summaries. The `tier` column tracks lifecycle stage.
+- **Archive partition** (`partition = 'archive'`): **never pruned** — append-only and permanent. Every conversation, email, document, and note archived to B2 gets a corresponding embedding here at ingestion time. Archive rows have `tier = NULL` since they don't participate in the lifecycle.
+
 ### Embedding generation
 
 When the ingestion container processes content (emails, documents, voice transcripts), it chunks the text and generates embeddings via the embedding API (text-embedding-3-small, $0.02/MTok). Chunks and embeddings are emitted through the standard emission flow.
 
-The agent validates and inserts into `document_chunks`. The embedding generation could happen in the agent container (after receiving the raw text emission) or in ingestion (emitting pre-computed embeddings). Prefer ingestion — it keeps the compute-heavy work in the isolated container.
+The agent validates and inserts into `document_chunks`. Every piece of content gets two embeddings: one in the active partition (subject to pruning) and one in the archive partition (permanent). The embedding generation could happen in the agent container (after receiving the raw text emission) or in ingestion (emitting pre-computed embeddings). Prefer ingestion — it keeps the compute-heavy work in the isolated container.
 
 ### Hybrid search
 
-The `search_documents` tool combines:
+Both retrieval tools use hybrid search internally:
 
 1. **Keyword search** (BM25 or `ts_vector` full-text search in Postgres) for exact matches
 2. **Vector similarity** (cosine distance via pgvector) for semantic matches
 3. Results merged and ranked by a combined score
 
-### Tool: `search_documents`
+### Tool: `search_archives`
+
+Searches the archive partition of `document_chunks` — permanent embeddings of every original document archived to B2. The LLM calls this explicitly when it needs historical context, reasoning behind decisions, or content not captured in the knowledge graph. Guided by the nudge in `query_knowledge` results.
 
 - Input: natural language query, optional filters (source type, date range, entity)
-- Application code: embed the query, run hybrid search, format top results with source attribution
-- Returns: ranked list of relevant content chunks with metadata
+- Application code: embed the query, run hybrid search against `partition = 'archive'`, retrieve relevant passages from B2, format with source attribution
+- Returns: ranked list of relevant content passages with metadata and source links
+
+This is separate from `query_knowledge` (defined in Version 1), which searches the active knowledge graph (entities, facts, relationships) and post-processes results via Haiku. The two tools have distinct roles: `query_knowledge` for structured recall, `search_archives` for full-text historical retrieval.
 
 ### Web search
 
@@ -422,8 +432,10 @@ Integration test: trigger a web search, verify the results flow through the emis
 
 ### Testable at end of phase
 
-- Emails from Phase 5 are embedded and searchable
-- "Search for emails about the roof repair" → returns relevant email chunks
+- Emails from Phase 5 are embedded in both active and archive partitions
+- `query_knowledge` returns active knowledge graph results with Haiku formatting and archive nudge
+- `search_archives` returns relevant archived content from B2 via archive partition embeddings
+- "Search for emails about the roof repair" → `search_archives` returns relevant email chunks
 - "Research the best practices for X" → web search runs, results presented with attribution
 - Verify web search results are emitted through the emission flow, not injected into the agent
 - Hybrid search returns better results than keyword-only or vector-only
@@ -521,19 +533,19 @@ Prevent unbounded growth in the active database. Old data gets summarized and co
 
 ### Pruning engine
 
-A scheduled weekly job:
+A scheduled weekly job. **Only touches the active partition of `document_chunks`** — the archive partition is permanent and never pruned.
 
-1. Scan hot-tier content older than the retention window (2 weeks for emails, 1 month for conversations)
+1. Scan active-partition content with `tier = 'hot'` older than the retention window (2 weeks for emails, 1 month for conversations)
 2. Route each item through the appropriate summarization strategy by data type
-3. Run LLM summarization (Haiku for cost), write compressed version
-4. Regenerate embeddings from the summary
+3. Run LLM summarization (Haiku for cost), write compressed version to active partition with `tier = 'warm'`
+4. Regenerate active embedding from the summary
 5. Verify structured extractions exist in the knowledge graph
 6. Move originals to "pending removal" state (1-week grace period)
-7. After grace period, remove from active storage. Originals remain in B2.
+7. After grace period, remove from active partition. Archive embedding and B2 originals are untouched.
 
 ### Email pruning
 
-Emails older than 2 weeks: LLM generates a 2-3 sentence summary. Summary replaces the full text in active storage. Embedding regenerated from summary. Knowledge graph facts persist — they're in separate tables, untouched by pruning.
+Emails older than 2 weeks: LLM generates a 2-3 sentence summary. Summary replaces the full text in the active partition. Active embedding regenerated from summary. Archive embedding and B2 original are untouched. Knowledge graph facts persist — they're in separate tables, untouched by pruning.
 
 ### Conversation pruning
 

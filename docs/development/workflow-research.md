@@ -40,12 +40,12 @@ queue.push({
 
 The event loop picks up the event and assembles the prompt:
 
-- **Layer 1 (stable prefix):** System prompt, tool definitions (including `manage_tasks`, `search_documents`, `remember`), user preferences. Cached.
+- **Layer 1 (stable prefix):** System prompt, tool definitions (including `manage_tasks`, `search_archives`, `remember`), user preferences. Cached.
 - **Layer 2 (daily prefix):** Today's calendar, active tasks, pending items. Cached. Nothing financial or calendar-related is relevant here, but if the user has a prior research project on theology, those tasks would appear.
 - **Layer 3 (recent prefix):** Recent conversation context. If the user has discussed theology, ethics, or biblical topics recently, that condensed context appears here.
 - **Layer 4 (raw conversation):** The new user message.
 
-The LLM sees tool definitions for `manage_tasks` (project/task creation), `search_documents` (semantic search over archived content), `remember` (knowledge graph writes), and critically, the system prompt instructions about how to trigger web research through the ingestion container.
+The LLM sees tool definitions for `manage_tasks` (project/task creation), `search_archives` (semantic search over archived content), `remember` (knowledge graph writes), and critically, the system prompt instructions about how to trigger web research through the ingestion container.
 
 ### Step 3 — LLM reasons about the request
 
@@ -82,22 +82,25 @@ Before starting fresh research, the LLM checks whether the knowledge graph alrea
 }
 ```
 
-The application code queries entities, facts, and relationships. Assuming this is a new topic for the user:
+The application code queries the active knowledge graph — entities, facts, and relationships. Assuming this is a new topic for the user:
 
 ```
 No relevant entities or facts found for: biblical ethics, death penalty, just war, capital punishment.
+
+---
+If these results don't answer the question, try a different search query.
+Archives were not searched and may contain additional context (conversation history, reasoning, documents). Use search_archives for deeper retrieval.
 ```
 
-**Tool call 2: `search_documents`**
+**Tool call 2: `search_archives`**
 
-The LLM also checks the document archive for any previously ingested content on this topic:
+Prompted by the archive nudge, the LLM checks whether any previously ingested content on this topic exists in the archive:
 
 ```json
 {
-  "tool": "search_documents",
+  "tool": "search_archives",
   "input": {
-    "query": "biblical support death penalty war just war theology",
-    "source_types": ["document", "email", "research"]
+    "query": "biblical support death penalty war just war theology"
   }
 }
 ```
@@ -435,7 +438,7 @@ After the first batch of emissions are processed, the tool loop returns results 
 }
 ```
 
-The application code returns a formatted summary of everything stored so far, organized by position:
+The application code queries the active knowledge graph and returns Haiku-formatted results:
 
 ```
 Research findings for "biblical basis for death penalty in war":
@@ -457,6 +460,10 @@ CONTEXTUAL / FRAMEWORK:
 
 Sources archived: 3 (Hamilton article, Augustine/Aquinas lecture, early church pacifism article)
 Sources extracted only: 4 (encyclopedia pages, blog compilations)
+
+---
+If these results don't answer the question, try a different search query.
+Archives were not searched and may contain additional context (conversation history, reasoning, documents). Use search_archives for deeper retrieval.
 ```
 
 The LLM identifies gaps:
@@ -650,7 +657,7 @@ The LLM also produces the full research document text, which the agent archives 
 files/2026/05/research/2026-05-26_biblical-death-penalty-in-war-analysis.md
 ```
 
-This is the primary research artifact — a self-contained document with both arguments, source citations, scripture references, and the list of archived primary sources. It gets embedded in `document_chunks` for future semantic search.
+This is the primary research artifact — a self-contained document with both arguments, source citations, scripture references, and the list of archived primary sources. It gets embedded in both the active and archive partitions of `document_chunks` — active for near-term semantic search, archive for permanent retrieval.
 
 ### Step 16 — LLM updates project and delivers results
 
@@ -738,7 +745,7 @@ VALUES ('complete_research_project',
 The LLM receives this as a new user message. Layer 2 (daily prefix) or Layer 3 (recent prefix) contains the research project context. The LLM:
 
 1. Calls `query_knowledge` to find the Augustine source entity and its findings
-2. Calls `search_documents` to pull the embedded chunks from the archived Augustine *City of God* Book 19 document
+2. Calls `search_archives` to pull the embedded chunks from the archived Augustine *City of God* Book 19 document
 3. Returns the relevant passages with page/section references
 
 The archived source material makes this possible. Without archival, the agent would only have the extracted findings (summaries). With archival, it can go back to the primary text and pull exact quotes.

@@ -93,10 +93,16 @@ Every message (user and assistant) is persisted to the `conversations` table for
 
 Coarse-grained tools for Version 1. Each tool does significant work in application code — the LLM says what, the code figures out how. Implementation: `agent/src/tools/`.
 
-**`query_knowledge`** — search the knowledge graph. Implementation: `agent/src/knowledge/search.ts`.
+**`query_knowledge`** — search the active knowledge graph. Implementation: `agent/src/knowledge/search.ts`.
 - Input: natural language question or structured filter (entity type, name pattern, date range)
-- Application code: translates to SQL queries across entities, relationships, and facts tables. Handles temporal filtering (`WHERE valid_until IS NULL` for current state, date-range queries for historical).
-- Returns: formatted results (entities with their current facts, relationships)
+- Application code: translates to SQL queries across entities, relationships, and facts tables. Handles temporal filtering (`WHERE valid_until IS NULL` for current state, date-range queries for historical). Does not search the archive index.
+- Results are post-processed by a lightweight LLM call (Haiku) to condense and format them into a scannable summary.
+- Returns: formatted results (entities with their current facts, relationships) plus a nudge to try different queries and a reminder that archives were not searched. The nudge is always present regardless of result quality.
+
+**`search_archives`** — search the archive index for historical context. *(Not yet implemented — Version 2.)*
+- Input: natural language query
+- Application code: embeds the query and runs a similarity search against the archive partition of `document_chunks` (permanent embeddings of every conversation, email, document, and note archived to B2).
+- Returns: relevant passages from original documents. Used when `query_knowledge` results are insufficient — the LLM decides to call this explicitly, guided by the nudge in `query_knowledge` results.
 
 **`remember`** — store information from the conversation. Implementation: `agent/src/knowledge/remember.ts`.
 - Input: structured extraction (entity, fact, relationship, or preference)
@@ -135,7 +141,8 @@ Unit test the SQL generation for "what's true now" vs "what was true at date X" 
 
 - Hardcode a user message event, watch the LLM process it
 - LLM can call `remember` and data appears in the knowledge graph
-- LLM can call `query_knowledge` and retrieve what it stored
+- LLM can call `query_knowledge` and retrieve what it stored — results are Haiku-formatted and include the archive nudge
+- Pre-fetch teaser appears alongside the user message (knowledge graph manifest with entity names and fact counts)
 - Conversation history persists across multiple events
 - Prompt caching is working (check token usage — cached input tokens should be cheap)
 
@@ -330,7 +337,7 @@ When the daily briefing event fires, the event loop:
 1. Loads the `daily_briefing` skill via `fetch_skill`
 2. Calls `get_calendar` for today and the next few days
 3. Calls `manage_events` to list pending reminders and overdue items
-4. Calls `query_knowledge` for any recent facts
+4. Calls `query_knowledge` for any recent facts (active knowledge graph only — the archive nudge in results is irrelevant for briefings since the LLM already has structured data)
 5. The LLM synthesizes these tool results into a formatted briefing
 6. Delivers via `send_message`
 
