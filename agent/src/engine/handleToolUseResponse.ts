@@ -24,12 +24,12 @@ export async function handleToolUseResponse(
       break;
     }
     const toolResults = await executeAllToolCalls(currentResponse);
-    const interruptContext = drainHighPriorityContext(queue);
+    const highPriorityInterruptText = drainHighPriorityContext(queue);
 
     await persistToolCallRecord(currentResponse);
 
     const { messages } = await assembleContext();
-    appendToolResults(messages, currentResponse, toolResults, interruptContext);
+    appendToolResults(messages, currentResponse, toolResults, highPriorityInterruptText);
 
     const { response: nextResponse } = await sendMessage({
       systemPrompt,
@@ -75,7 +75,7 @@ function appendToolResults(
   messages: MessageParam[],
   assistantResponse: Message,
   toolResults: ToolCallResult[],
-  interruptContext: string | null,
+  highPriorityInterruptText: string | null,
 ): void {
   messages.push({ role: "assistant", content: assistantResponse.content });
 
@@ -85,9 +85,9 @@ function appendToolResults(
     content: result.content,
   }));
 
-  if (interruptContext && resultBlocks.length > 0) {
+  if (highPriorityInterruptText && resultBlocks.length > 0) {
     const lastBlock = resultBlocks[resultBlocks.length - 1];
-    lastBlock.content += `\n\n[While you were working, new events arrived: ${interruptContext}]`;
+    lastBlock.content += `\n\n[While you were working, new events arrived: ${highPriorityInterruptText}]`;
   }
 
   messages.push({ role: "user", content: resultBlocks });

@@ -10,9 +10,9 @@ export interface FactRecord {
 
 export async function findCurrentFacts(
   entityIds: string[],
-  includeHistorical: boolean,
+  shouldIncludeHistorical: boolean,
 ): Promise<FactRecord[]> {
-  if (includeHistorical) {
+  if (shouldIncludeHistorical) {
     return db`
       SELECT entity_id, attribute, value, valid_from, valid_until
       FROM facts

@@ -38,7 +38,7 @@ async function handleQueryKnowledge(
 ): Promise<{ content: string; isError?: boolean }> {
   const searchQuery = input.query as string;
   const entityType = input.entity_type as string | undefined;
-  const includeHistorical = (input.include_historical as boolean) ?? false;
+  const shouldIncludeHistorical = (input.include_historical as boolean) ?? false;
 
   const matchingEntities = await searchEntities(searchQuery, entityType);
   if (matchingEntities.length === 0) {
@@ -46,7 +46,7 @@ async function handleQueryKnowledge(
   }
 
   const entityIds = matchingEntities.map((entity) => entity.id);
-  const facts = await findCurrentFacts(entityIds, includeHistorical);
+  const facts = await findCurrentFacts(entityIds, shouldIncludeHistorical);
   const relationships = await findRelationships(entityIds);
 
   return { content: formatKnowledgeResults(matchingEntities, facts, relationships) };
