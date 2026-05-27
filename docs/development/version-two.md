@@ -1,6 +1,6 @@
 # Version 2 — Memory, Email & Safety
 
-A system that remembers across conversations, processes your email, and has real security boundaries. Builds on the running Version 1 chatbot — the core container, knowledge graph, event engine, calendar sync, and Telegram bot are already working.
+A system that remembers across conversations, processes your email, and has real security boundaries. Builds on the running Version 1 chatbot — the agent container, knowledge graph, event engine, calendar sync, and Telegram bot are already working.
 
 Context assembly design lives in [context-assembly.md](../context-assembly.md). Container isolation and safety controls live in [security.md](../security.md). Email processing pipelines live in [data-lifecycle.md](../data-lifecycle.md). The ingestion architecture lives in [ingestion.md](../ingestion.md). This doc covers the implementation sequence and Version 2-specific decisions.
 
@@ -166,7 +166,7 @@ Set up the ingestion container with strict isolation. This is the foundation for
 Add the ingestion service to Docker Compose:
 
 - Deno runtime with locked-down permissions: `--allow-net` scoped to specific API domains, `--deny-run`, `--deny-env`, read-only filesystem with specific writable mount points
-- Separate Docker network from core — ingestion cannot reach core's network
+- Separate Docker network from the agent — ingestion cannot reach the agent's network
 - Dedicated Postgres role with INSERT-only permissions on `ingestion_emissions` table, nothing else
 
 ### Emission schema
@@ -185,11 +185,11 @@ CREATE TABLE ingestion_emissions (
 );
 ```
 
-Each emission type has a defined payload schema. Core validates every emission against these schemas before acting on it. The `transaction` type supports financial data ingestion (CSV imports, receipt OCR, email extraction) — see [workflow-financial-tracking.md](workflow-financial-tracking.md) for the full schema and processing flow.
+Each emission type has a defined payload schema. The agent validates every emission against these schemas before acting on it. The `transaction` type supports financial data ingestion (CSV imports, receipt OCR, email extraction) — see [workflow-financial-tracking.md](workflow-financial-tracking.md) for the full schema and processing flow.
 
-### Emission validation in core
+### Emission validation in the agent
 
-Core polls `ingestion_emissions` every 5-10 seconds for rows with `status = 'pending'`. For each emission:
+The agent polls `ingestion_emissions` every 5-10 seconds for rows with `status = 'pending'`. For each emission:
 
 1. Validate payload against the type-specific schema — reject and log if malformed
 2. Check for suspicious patterns: emissions attempting to create preferences, reference system internals, or contain prompt-like patterns
@@ -199,7 +199,7 @@ Core polls `ingestion_emissions` every 5-10 seconds for rows with `status = 'pen
 
 ### Processing requests table
 
-Core instructs ingestion to do work (file processing, web search, email sync) via a coordination table:
+The agent instructs ingestion to do work (file processing, web search, email sync) via a coordination table:
 
 ```sql
 CREATE TABLE processing_requests (
@@ -218,7 +218,7 @@ Ingestion has SELECT + UPDATE on this table (to claim and complete requests). Th
 
 ### Container monitoring
 
-Core watches the ingestion container for signs of compromise:
+The agent watches the ingestion container for signs of compromise:
 
 - **Permission denial log watching.** Tail ingestion's stderr via Docker log API. Deno writes `PermissionDenied` on unauthorized actions. Any denial triggers a Telegram alert.
 - **Network connection auditing.** Periodically inspect active connections. Flag anything outside the expected API domains.
@@ -232,9 +232,9 @@ Unit test the emission validation logic. Cases: valid entity emission is process
 
 - Ingestion container starts, connects to Postgres, can INSERT into `ingestion_emissions`
 - Ingestion container cannot read any other table (verify permission denied)
-- Ingestion container cannot reach core's Docker network
-- Manually insert a well-formed emission → core picks it up, validates, writes to knowledge graph
-- Manually insert a malformed emission → core rejects and logs
+- Ingestion container cannot reach the agent's Docker network
+- Manually insert a well-formed emission → the agent picks it up, validates, writes to knowledge graph
+- Manually insert a malformed emission → the agent rejects and logs
 - Permission denial in ingestion → Telegram alert fires
 
 ---
@@ -332,7 +332,7 @@ The injection classifier from Phase 4 scores every email before triage. High-ris
 
 The ingestion LLM extracts structured data from emails and emits through the standard emission flow:
 
-- New contacts → entity emissions (core runs entity resolution)
+- New contacts → entity emissions (the agent runs entity resolution)
 - Facts about existing contacts → fact emissions with entity references
 - Dates and deadlines → event emissions
 - Action items → task emissions (if the task engine from Phase 2 is ready)
@@ -384,7 +384,7 @@ CREATE INDEX ON document_chunks USING ivfflat (embedding vector_cosine_ops)
 
 When the ingestion container processes content (emails, documents, voice transcripts), it chunks the text and generates embeddings via the embedding API (text-embedding-3-small, $0.02/MTok). Chunks and embeddings are emitted through the standard emission flow.
 
-Core validates and inserts into `document_chunks`. The embedding generation could happen in core (after receiving the raw text emission) or in ingestion (emitting pre-computed embeddings). Prefer ingestion — it keeps the compute-heavy work in the isolated container.
+The agent validates and inserts into `document_chunks`. The embedding generation could happen in the agent container (after receiving the raw text emission) or in ingestion (emitting pre-computed embeddings). Prefer ingestion — it keeps the compute-heavy work in the isolated container.
 
 ### Hybrid search
 
@@ -404,13 +404,13 @@ The `search_documents` tool combines:
 
 Anthropic web search runs in the ingestion container. The flow:
 
-1. User asks core a question that requires external research
-2. Core inserts a `processing_request` with `type = 'web_search'` (using the coordination table from Phase 3)
+1. User asks the agent a question that requires external research
+2. The agent inserts a `processing_request` with `type = 'web_search'` (using the coordination table from Phase 3)
 3. Ingestion runs the Anthropic web search, processes results with its LLM (behind the injection classifier)
 4. Results emitted as structured records through the standard emission flow
-5. Core validates and presents to the user
+5. The agent validates and presents to the user
 
-Core never enables web search on its own LLM calls. Untrusted web content never enters a privileged LLM call.
+The agent never enables web search on its own LLM calls. Untrusted web content never enters a privileged LLM call.
 
 ### Tests: embedding retrieval
 
@@ -418,14 +418,14 @@ Integration test: embed a set of documents, query with a semantically similar qu
 
 ### Tests: web search isolation
 
-Integration test: trigger a web search, verify the results flow through the emission table (not directly into core's LLM context). Verify the injection classifier scores the web content before it enters the ingestion LLM.
+Integration test: trigger a web search, verify the results flow through the emission table (not directly into the agent's LLM context). Verify the injection classifier scores the web content before it enters the ingestion LLM.
 
 ### Testable at end of phase
 
 - Emails from Phase 5 are embedded and searchable
 - "Search for emails about the roof repair" → returns relevant email chunks
 - "Research the best practices for X" → web search runs, results presented with attribution
-- Verify web search results are emitted through the emission flow, not injected into core
+- Verify web search results are emitted through the emission flow, not injected into the agent
 - Hybrid search returns better results than keyword-only or vector-only
 
 ---
@@ -436,13 +436,13 @@ Accept files and voice messages through the Telegram bot, process them through i
 
 ### Telegram file routing
 
-Extend the Telegram bot (running in core per [core-loop.md](../core-loop.md)) to handle non-text messages:
+Extend the Telegram bot (running in the agent container per the [event loop](../agent/src/engine/)) to handle non-text messages:
 
 - **Voice messages:** download the audio file, forward to ingestion for Whisper transcription
 - **Documents** (PDFs, images, text files): download, forward to ingestion for parsing
 - **Photos:** forward to ingestion for OCR if they appear to be documents/mail, otherwise catalog as images
 
-File forwarding mechanism: core writes the file to a shared volume, inserts a row into the `processing_requests` table (from Phase 3) with the file path and type, ingestion picks it up.
+File forwarding mechanism: the agent writes the file to a shared volume, inserts a row into the `processing_requests` table (from Phase 3) with the file path and type, ingestion picks it up.
 
 ### Whisper transcription
 
@@ -469,7 +469,7 @@ All uploaded files are archived to B2 and cataloged in the knowledge graph.
 - Send a PDF to the bot → text extracted, knowledge graph updated
 - Send a photo of a letter to the bot → OCR'd, classified, structured data extracted
 - Verify all uploaded files are archived to B2
-- Verify file processing goes through the emission flow (not directly into core's knowledge graph)
+- Verify file processing goes through the emission flow (not directly into the agent's knowledge graph)
 
 ---
 

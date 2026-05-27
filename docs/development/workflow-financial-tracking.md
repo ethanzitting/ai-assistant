@@ -29,7 +29,7 @@ Each path enters through a different ingestion channel but produces the same out
 
 #### Step 1 — File arrives via Telegram
 
-You send the CSV file to the Telegram bot. grammY (running in core) receives the message:
+You send the CSV file to the Telegram bot. grammY (running in the agent container) receives the message:
 
 ```
 message.document: {
@@ -39,17 +39,17 @@ message.document: {
 }
 ```
 
-Core's Telegram handler recognizes this as a file attachment, not a text message. Per [core-loop.md](../core-loop.md), file attachments are forwarded to the ingestion container for processing.
+The agent's Telegram handler recognizes this as a file attachment, not a text message. Per the event loop in `agent/src/engine/`, file attachments are forwarded to the ingestion container for processing.
 
-#### Step 2 — Core downloads and stages the file
+#### Step 2 — The agent downloads and stages the file
 
-Core calls the Telegram Bot API to download the file using the `file_id`. It writes the raw CSV to a shared volume mount that ingestion can read:
+The agent calls the Telegram Bot API to download the file using the `file_id`. It writes the raw CSV to a shared volume mount that ingestion can read:
 
 ```
 /shared/incoming/2026-05-26T14:32:00Z_telegram_chase-sapphire-may-2026.csv
 ```
 
-Core then inserts a processing request into the coordination table so ingestion knows there's work to do:
+The agent then inserts a processing request into the coordination table so ingestion knows there's work to do:
 
 ```sql
 INSERT INTO processing_requests (type, source_type, file_path, status, metadata)
@@ -59,7 +59,7 @@ VALUES ('file_parse', 'telegram_file',
         '{"original_filename": "chase-sapphire-may-2026.csv", "mime_type": "text/csv", "chat_id": 12345}');
 ```
 
-Core sends an immediate Telegram reply: *"Got it — processing your CSV now."*
+The agent sends an immediate Telegram reply: *"Got it — processing your CSV now."*
 
 #### Step 3 — Ingestion picks up the file
 
@@ -129,9 +129,9 @@ files/2026/05/transactions/chase-sapphire-may-2026.csv
 
 The file is now permanently archived regardless of what happens next.
 
-#### Step 8 — Core polls and validates emissions
+#### Step 8 — The agent polls and validates emissions
 
-Core's emission polling loop (every 5-10 seconds) picks up the new `pending` emissions. For each one:
+The agent's emission polling loop (every 5-10 seconds) picks up the new `pending` emissions. For each one:
 
 **Transaction emissions:**
 
@@ -147,7 +147,7 @@ Core's emission polling loop (every 5-10 seconds) picks up the new `pending` emi
 2. If no match, create the new entity.
 3. If ambiguous match, set emission to `awaiting_clarification` and ask the user.
 
-#### Step 9 — Core writes to the transactions table
+#### Step 9 — The agent writes to the transactions table
 
 Each validated transaction becomes a row:
 
@@ -166,9 +166,9 @@ VALUES (
 );
 ```
 
-#### Step 10 — Core updates knowledge graph facts
+#### Step 10 — The agent updates knowledge graph facts
 
-After processing all transactions, core updates derived facts:
+After processing all transactions, the agent updates derived facts:
 
 ```sql
 -- Update the account's "last_statement_date" fact
@@ -184,11 +184,11 @@ WHERE entity_id = 'uuid-chase-sapphire'
   AND id != (the new fact id);
 ```
 
-Core might also compute and store aggregate facts like monthly spending by category — or defer that to query time. The tradeoff: precomputing makes queries fast but means more stored facts that can go stale; computing at query time is always fresh but costs a SQL query.
+The agent might also compute and store aggregate facts like monthly spending by category — or defer that to query time. The tradeoff: precomputing makes queries fast but means more stored facts that can go stale; computing at query time is always fresh but costs a SQL query.
 
-#### Step 11 — Core confirms to user
+#### Step 11 — The agent confirms to user
 
-Core sends a Telegram message summarizing the import:
+The agent sends a Telegram message summarizing the import:
 
 *"Processed 87 transactions from Chase Sapphire (May 2026). Total spending: $3,241.18. Largest categories: Groceries ($412), Restaurants ($287), Gas ($198). 3 new merchants added. Ready to answer questions about your May spending."*
 
@@ -213,9 +213,9 @@ Core sends a Telegram message summarizing the import:
 
 #### Step 1 — Photo arrives via Telegram
 
-grammY receives a `message.photo` event. Telegram provides multiple photo resolutions; core downloads the largest one.
+grammY receives a `message.photo` event. Telegram provides multiple photo resolutions; the agent downloads the largest one.
 
-#### Step 2 — Core stages the file
+#### Step 2 — The agent stages the file
 
 Same as CSV: write to shared volume, insert a `processing_request` with `type = 'receipt_ocr'`. Send an immediate Telegram reply: *"Got the receipt — processing it now."*
 
@@ -298,13 +298,13 @@ Plus a merchant entity emission if Blue Plate Cafe is new.
 
 The raw image is archived to B2 before any emissions are written.
 
-#### Step 7 — Core validates, resolves, writes
+#### Step 7 — The agent validates, resolves, writes
 
-Same as CSV walkthrough steps 8-9. Core resolves the account (`Visa ****4821` → matches the Chase Sapphire entity by the last-four-digits fact). Resolves the merchant. Writes the transaction.
+Same as CSV walkthrough steps 8-9. The agent resolves the account (`Visa ****4821` → matches the Chase Sapphire entity by the last-four-digits fact). Resolves the merchant. Writes the transaction.
 
 **Key difference from CSV:** receipt transactions include line items, stored as JSONB in the `properties` column.
 
-#### Step 8 — Core confirms
+#### Step 8 — The agent confirms
 
 *"Receipt from Blue Plate Cafe — $33.67 (restaurant). 4 items including a $6.99 kombucha. Logged to Chase Sapphire."*
 
@@ -335,9 +335,9 @@ queue.push({
 });
 ```
 
-#### Step 2 — Core loop picks up the event
+#### Step 2 — The event loop picks up the event
 
-The core loop drains the queue and picks the highest-priority event. It's a user message, so it goes through the full context assembly pipeline.
+The event loop drains the queue and picks the highest-priority event. It's a user message, so it goes through the full context assembly pipeline.
 
 #### Step 3 — Context assembly builds the prompt
 
@@ -429,7 +429,7 @@ This is context engineering — the tool doesn't just return raw data. It comput
 
 The LLM receives the tool result and composes a response. The daily prefix and recent prefix give it additional context — maybe you mentioned wanting to cut spending, or there's a bill coming Friday.
 
-#### Step 7 — Core delivers response via Telegram
+#### Step 7 — The agent delivers response via Telegram
 
 ```
 You've spent $534 eating out this month across 28 transactions.
@@ -471,11 +471,11 @@ queue.push({
 });
 ```
 
-#### Step 2 — Core loop picks up the event and loads the skill
+#### Step 2 — The event loop picks up the event and loads the skill
 
-The core loop processes the event. It calls `fetch_skill("daily_briefing")` to load the skill body, which contains instructions for what to include.
+The event loop processes the event. It calls `fetch_skill("daily_briefing")` to load the skill body, which contains instructions for what to include.
 
-#### Step 3 — Core calls tools to gather briefing data
+#### Step 3 — The agent calls tools to gather briefing data
 
 The LLM, guided by the skill instructions, makes several tool calls:
 
@@ -603,9 +603,9 @@ VALUES ('fact', 'pending', '{
 }', 'email', '/archive/2026/05/emails/2026-05-26T08:00:00Z_from-chase_balance-alert.json', 0.03);
 ```
 
-#### Step 7 — Core validates and writes
+#### Step 7 — The agent validates and writes
 
-Core picks up the emission, resolves `Chase Checking` to the entity, and supersedes the old balance fact:
+The agent picks up the emission, resolves `Chase Checking` to the entity, and supersedes the old balance fact:
 
 ```sql
 -- Close out the old balance
@@ -665,7 +665,7 @@ CREATE INDEX idx_transactions_type ON transactions (transaction_type);
 
 Scope: liquid cash accounts only (checking, savings, credit cards). Investment accounts are out of scope.
 
-The `transaction_type` column distinguishes real spending from money moving between accounts. When ingestion sees `PAYMENT THANK YOU` on a credit card or `TRANSFER TO SAVINGS` on checking, it emits the transaction as type `transfer`. Core auto-links the two sides when amounts match across accounts on the same date using `linked_transaction_id`. Spending summaries filter to `transaction_type = 'expense'` so transfers don't inflate totals.
+The `transaction_type` column distinguishes real spending from money moving between accounts. When ingestion sees `PAYMENT THANK YOU` on a credit card or `TRANSFER TO SAVINGS` on checking, it emits the transaction as type `transfer`. The agent auto-links the two sides when amounts match across accounts on the same date using `linked_transaction_id`. Spending summaries filter to `transaction_type = 'expense'` so transfers don't inflate totals.
 
 This table is **not append-only** in the knowledge-graph sense — transactions can be corrected (wrong category, wrong merchant match). But the audit log captures every change, and the raw source (CSV, receipt image) is in the archive.
 
@@ -735,7 +735,7 @@ The emission schema in [version-two.md](version-two.md) Phase 3 lists `entity`, 
 
 #### Processing request coordination
 
-Walkthroughs 1 and 2 both require a coordination mechanism between core and ingestion for file processing. This is the same gap identified in [RISKS.md](RISKS.md) (Risk #10). The `processing_requests` table used here needs to be designed alongside the `search_requests` table for web search — they're the same pattern (core tells ingestion to do work, ingestion reads the request).
+Walkthroughs 1 and 2 both require a coordination mechanism between the agent and ingestion for file processing. This is a known design gap. The `processing_requests` table used here needs to be designed alongside the `search_requests` table for web search — they're the same pattern (the agent tells ingestion to do work, ingestion reads the request).
 
 ```sql
 CREATE TABLE processing_requests (
@@ -769,14 +769,14 @@ The same purchase can enter the system through multiple paths — a receipt phot
 
 **Detection strategy:**
 
-When core processes a new transaction emission, it checks for existing transactions that match on:
+When the agent processes a new transaction emission, it checks for existing transactions that match on:
 
 1. **Amount** — exact match on `amount`
 2. **Date** — within a ±3 day window (post dates often differ from transaction dates by 1-2 days)
 3. **Account** — same `account_id` (or same account inferred from last-four-digits matching)
 4. **Merchant** — fuzzy match on merchant name (receipt says "Blue Plate Cafe", CSV says "BLUE PLATE CAFE SLC")
 
-If all four match, it's a probable duplicate. Core's behavior:
+If all four match, it's a probable duplicate. The agent's behavior:
 
 - **High confidence duplicate** (exact amount + same date + same merchant after normalization): auto-merge silently. Keep the richer record — the receipt version has line items, the CSV version has the bank's metadata. Merge both into a single transaction with combined `properties`. Log the merge in the audit log.
 - **Medium confidence** (amount matches but date is off by 2-3 days, or merchant name is ambiguous): ask the user via Telegram. *"Is this $33.67 at Blue Plate Cafe from your receipt the same as the $33.67 BLUE PLATE CAFE charge on your Chase statement?"*

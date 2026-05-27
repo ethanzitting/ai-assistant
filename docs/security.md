@@ -89,18 +89,18 @@ The system runs as three application containers with strict network and permissi
 
 Processes all untrusted external input: emails, Telegram messages, Plaid transactions, web-fetched content, OCR'd documents. This is the highest-risk component — it directly handles attacker-controlled content.
 
-**Web fetch constraint:** The ingestion container fetches URLs only when explicitly instructed by core (user-initiated research requests). It never autonomously follows URLs found in emails, documents, or other ingested content. This breaks the email → URL → prompt injection attack chain. See [ingestion.md](ingestion.md).
+**Web fetch constraint:** The ingestion container fetches URLs only when explicitly instructed by the agent (user-initiated research requests). It never autonomously follows URLs found in emails, documents, or other ingested content. This breaks the email → URL → prompt injection attack chain. See [ingestion.md](ingestion.md).
 
 **Permissions:**
 - Outbound network access to specific external APIs only (Gmail, Telegram, Plaid, LLM API) — enforced by Deno `--allow-net` allowlist and Docker network rules
 - No subprocess execution — Deno `--deny-run` prevents spawning child processes, CLI scripts, or shell commands
 - Read-only filesystem (`docker run --read-only`) with specific writable mount points only
 - No direct database access — emits structured records to a single Postgres table (`ingestion_emissions`) via a database user with INSERT-only permissions on that one table
-- No access to OAuth write tokens, 1Password secrets for other services, or any core system resources
-- Separate Docker network from core — communicates only through the emission table
-- Core discovers new emissions by polling `ingestion_emissions` for unprocessed rows (every 5-10 seconds)
+- No access to OAuth write tokens, 1Password secrets for other services, or any agent system resources
+- Separate Docker network from the agent — communicates only through the emission table
+- The agent discovers new emissions by polling `ingestion_emissions` for unprocessed rows (every 5-10 seconds)
 
-**Emission schema:** Every record the ingestion container emits must conform to a predefined schema — typed fields for entities, facts, events, tasks, embeddings. The core container validates every emission against these schemas before acting on it. Anything that doesn't match is logged and dropped. No free-form text passes through as executable instructions.
+**Emission schema:** Every record the ingestion container emits must conform to a predefined schema — typed fields for entities, facts, events, tasks, embeddings. The agent validates every emission against these schemas before acting on it. Anything that doesn't match is logged and dropped. No free-form text passes through as executable instructions.
 
 **Container monitoring:** Core actively watches the ingestion container for signs of compromise or exploitation attempts:
 
@@ -114,7 +114,7 @@ Processes all untrusted external input: emails, Telegram messages, Plaid transac
 - Content anomalies (emissions containing prompt-like patterns, references to system internals, attempts to modify preferences)
 - Behavioral anomalies (entity creation patterns that don't match normal ingestion)
 
-If any monitoring detects anomalies, core kills the ingestion container and alerts you via Telegram.
+If any monitoring detects anomalies, the agent kills the ingestion container and alerts you via Telegram.
 
 ### Sandbox container
 
@@ -124,17 +124,17 @@ Executes LLM-generated TypeScript via Deno inside a locked-down Docker container
 - No network access (`--network=none` at Docker level, `--deny-net` at Deno level)
 - No database access
 - No access to secrets or environment variables
-- Receives only a read-only data slice prepared by core (e.g., a CSV of transactions, extracted PDF text)
+- Receives only a read-only data slice prepared by the agent (e.g., a CSV of transactions, extracted PDF text)
 - Returns structured results via a mounted output volume
 - Destroyed and recreated per task — no persistent state between executions
 
-### Core container
+### Agent container
 
 The only trusted component. Coordinates ingestion and sandbox, handles user interactions, calls LLM APIs for reasoning.
 
-**Database permissions enforce append-only at the Postgres level.** Core's database role has SELECT, INSERT, and UPDATE on knowledge graph tables (entities, relationships, facts) — no DELETE, no TRUNCATE. This means "every write is an append" (principle #3 in [vision.md](vision.md)) is enforced by the database, not just application code. UPDATE is needed for setting `valid_until` timestamps on superseded facts. DELETE is granted narrowly only on tables that require it (e.g., `ingestion_emissions` for clearing processed rows). The backup script runs as a separate Postgres superuser role not accessible to the application.
+**Database permissions enforce append-only at the Postgres level.** The agent's database role has SELECT, INSERT, and UPDATE on knowledge graph tables (entities, relationships, facts) — no DELETE, no TRUNCATE. This means "every write is an append" (principle #3 in [vision.md](vision.md)) is enforced by the database, not just application code. UPDATE is needed for setting `valid_until` timestamps on superseded facts. DELETE is granted narrowly only on tables that require it (e.g., `ingestion_emissions` for clearing processed rows). The backup script runs as a separate Postgres superuser role not accessible to the application.
 
-**Core never processes untrusted external content directly.** Web search results and fetched web pages are routed through the ingestion container, not processed by core's LLM calls. Core's Anthropic API calls reason over trusted, already-validated context: knowledge graph data, validated emissions, and user messages. This ensures that prompt injection in web content cannot influence an LLM call with full system privileges. See [ingestion.md](ingestion.md).
+**The agent never processes untrusted external content directly.** Web search results and fetched web pages are routed through the ingestion container, not processed by the agent's LLM calls. The agent's Anthropic API calls reason over trusted, already-validated context: knowledge graph data, validated emissions, and user messages. This ensures that prompt injection in web content cannot influence an LLM call with full system privileges. See [ingestion.md](ingestion.md).
 
 **Sole authority for:**
 - Database writes (beyond the ingestion emission table)
@@ -157,7 +157,7 @@ Prompt injection is the #1 vulnerability in LLM applications and the threat is e
 
 4. **Self-hosted injection classifier.** Before untrusted content enters any LLM prompt, run a self-hosted prompt injection classifier (Prompt Guard 2 86M or similar, ~86M params, runs on CPU) to assign a risk score. The classifier does not gate content — it tags it. High-risk content gets processed with a hardened system prompt that treats the content as adversarial and restricts extraction to factual data only. This avoids false-positive drops (security newsletters discussing injection would trigger a binary filter) while giving the ingestion LLM a signal to be more skeptical. A second independently-trained classifier (e.g., ProtectAI deberta-v3-base-prompt-injection-v2) can be added in series to reduce false positives further — risk scores multiply, so two 1% FPR classifiers yield ~0.01% combined FPR.
 
-5. **Emission validation in core.** The core container treats all ingestion emissions as untrusted even after schema validation. Emissions that attempt to create preferences or reference system internals are logged and dropped. All knowledge graph writes are append-only — bad extractions are corrected by superseding the fact, never by deleting it.
+5. **Emission validation in the agent.** The agent treats all ingestion emissions as untrusted even after schema validation. Emissions that attempt to create preferences or reference system internals are logged and dropped. All knowledge graph writes are append-only — bad extractions are corrected by superseding the fact, never by deleting it.
 
 ### Specific risk: email ingestion
 

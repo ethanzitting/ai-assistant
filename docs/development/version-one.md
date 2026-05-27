@@ -2,7 +2,7 @@
 
 A conversational agent on Digital Ocean that knows your calendar, can set reminders, and holds context across a conversation. Each phase builds on the previous one and produces something testable.
 
-Schema definitions live in [data-architecture.md](../data-architecture.md). The event loop design lives in [core-loop.md](../core-loop.md). Event engine design lives in [event-engine.md](../event-engine.md). Setup procedures live in [setup.md](../setup.md). This doc covers the implementation sequence and Version 1-specific decisions — not the architecture itself.
+Schema definitions live in [data-architecture.md](../data-architecture.md) and `migrations/`. The event loop implementation lives in `agent/src/engine/`. Event engine design lives in [event-engine.md](../event-engine.md). Setup procedures live in [setup.md](../setup.md). This doc covers the implementation sequence and Version 1-specific decisions — not the architecture itself.
 
 ## Phase 1 — Infrastructure & Database
 
@@ -12,14 +12,14 @@ Get a working dev environment with a database and secrets management. Nothing AI
 
 Two compose files (see [infrastructure.md](../infrastructure.md) for the full dev environment design):
 
-- `docker-compose.yml` — base configuration. Postgres with pgvector, core container, shared volumes, networks.
-- `docker-compose.dev.yml` — dev overrides. Source directory mounted into the core container, Deno runs with `--watch` for hot-reloading.
+- `docker-compose.yml` — base configuration. Postgres with pgvector, agent container, shared volumes, networks.
+- `docker-compose.dev.yml` — dev overrides. Source directory mounted into the agent container, Deno runs with `--watch` for hot-reloading.
 
 `make dev` starts the dev stack. `make up` starts production-like (no hot-reload).
 
 ### Postgres
 
-The `pgvector/pgvector:pg16` image. One database, one schema. Core connects with a role that has SELECT, INSERT, UPDATE on all tables — no DELETE on knowledge graph tables (see [security.md](../security.md), core container section). A separate superuser role exists for migrations and backups.
+The `pgvector/pgvector:pg16` image. One database, one schema. The agent connects with a role that has SELECT, INSERT, UPDATE on all tables — no DELETE on knowledge graph tables (see [security.md](../security.md), agent container section). A separate superuser role exists for migrations and backups.
 
 ### Migration system
 
@@ -27,77 +27,7 @@ A `migrations/` directory with numbered SQL files. The Postgres entrypoint runs 
 
 ### Database schema
 
-All tables created via migrations. Knowledge graph tables (entities, relationships, facts) use the schema defined in [data-architecture.md](../data-architecture.md). Additional tables for Version 1:
-
-**Event engine tables** (implements [event-engine.md](../event-engine.md)):
-
-```sql
-CREATE TABLE events (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    title TEXT NOT NULL,
-    type TEXT NOT NULL,              -- 'fixed', 'deadline', 'fixed_recurring', 'interval_recurring'
-    priority TEXT NOT NULL DEFAULT 'medium',  -- 'high', 'medium', 'low'
-    dtstart TIMESTAMPTZ,
-    dtend TIMESTAMPTZ,
-    deadline TIMESTAMPTZ,
-    lead_time_days INTEGER,
-    recurrence_rule JSONB,           -- interval, unit, anchor_date, from_completion
-    category TEXT,
-    status TEXT NOT NULL DEFAULT 'active',  -- 'active', 'completed', 'missed', 'dropped'
-    last_completed_at TIMESTAMPTZ,
-    next_due_at TIMESTAMPTZ,
-    properties JSONB DEFAULT '{}',
-    entity_id UUID REFERENCES entities(id),
-    -- project_id added via migration in Version 2 Phase 2 (requires projects table)
-    created_at TIMESTAMPTZ DEFAULT now()
-);
-
-CREATE TABLE reminders (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    event_id UUID REFERENCES events(id),
-    remind_at TIMESTAMPTZ NOT NULL,
-    status TEXT NOT NULL DEFAULT 'pending',  -- 'pending', 'sent', 'acknowledged'
-    created_at TIMESTAMPTZ DEFAULT now()
-);
-```
-
-**Skills, preferences, audit log, and conversation log:**
-
-```sql
-CREATE TABLE skills (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name TEXT NOT NULL UNIQUE,
-    description TEXT NOT NULL,
-    body TEXT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT now(),
-    updated_at TIMESTAMPTZ DEFAULT now()
-);
-
-CREATE TABLE preferences (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    key TEXT NOT NULL UNIQUE,
-    value JSONB NOT NULL,
-    source TEXT,                      -- 'explicit', 'inferred'
-    created_at TIMESTAMPTZ DEFAULT now(),
-    updated_at TIMESTAMPTZ DEFAULT now()
-);
-
-CREATE TABLE audit_log (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    action TEXT NOT NULL,
-    context JSONB DEFAULT '{}',
-    outcome JSONB DEFAULT '{}',
-    created_at TIMESTAMPTZ DEFAULT now()
-);
-
-CREATE TABLE conversations (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    role TEXT NOT NULL,               -- 'user', 'assistant', 'system', 'tool_call', 'tool_result'
-    content TEXT NOT NULL,
-    metadata JSONB DEFAULT '{}',
-    created_at TIMESTAMPTZ DEFAULT now()
-);
-```
+All tables created via migrations. Knowledge graph tables (entities, relationships, facts) defined in `migrations/002_knowledge_graph.sql`. Event engine tables defined in `migrations/003_events.sql`. Skills, preferences, audit log, and conversation tables defined in `migrations/004_skills_and_config.sql`. The `next_due_at` column added in `migrations/005_events_next_due_at.sql`.
 
 ### 1Password integration
 
@@ -105,14 +35,14 @@ All secrets injected via `op run` — see [setup.md](../setup.md) for the full v
 
 ### Testable at end of phase
 
-- `make dev` starts Postgres and the core container
+- `make dev` starts Postgres and the agent container
 - `make db` opens a psql shell, all tables exist
 - `make migrate` runs cleanly with no errors
-- Core container starts, connects to Postgres, logs a health check
+- Agent container starts, connects to Postgres, logs a health check
 
 ---
 
-## Phase 2 — Anthropic API & Core Loop
+## Phase 2 — Anthropic API & Event Loop
 
 Get the agentic loop running. By the end of this phase, you can hardcode a message into the event queue and watch the LLM reason about it and call tools.
 
@@ -142,9 +72,9 @@ interface Event {
 
 No database table needed for the queue — it's ephemeral. Events arrive, get processed, and are done. The knowledge graph is where durable state lives.
 
-### Core event loop
+### Event loop
 
-Implements the design from [core-loop.md](../core-loop.md). Key Version 1 behaviors:
+Implementation: `agent/src/engine/`. Key Version 1 behaviors:
 
 - Between every tool call, drain high-priority events from the queue and append them as context
 - Normal-priority events wait until the current task completes
@@ -161,34 +91,34 @@ Every message (user and assistant) is persisted to the `conversations` table for
 
 ### Tool definitions
 
-Coarse-grained tools for Version 1. Each tool does significant work in application code — the LLM says what, the code figures out how. See [core-loop.md](../core-loop.md) for the design rationale.
+Coarse-grained tools for Version 1. Each tool does significant work in application code — the LLM says what, the code figures out how. Implementation: `agent/src/tools/`.
 
-**`query_knowledge`** — search the knowledge graph.
+**`query_knowledge`** — search the knowledge graph. Implementation: `agent/src/knowledge/search.ts`.
 - Input: natural language question or structured filter (entity type, name pattern, date range)
 - Application code: translates to SQL queries across entities, relationships, and facts tables. Handles temporal filtering (`WHERE valid_until IS NULL` for current state, date-range queries for historical).
 - Returns: formatted results (entities with their current facts, relationships)
 
-**`remember`** — store information from the conversation.
+**`remember`** — store information from the conversation. Implementation: `agent/src/knowledge/remember.ts`.
 - Input: structured extraction (entity, fact, relationship, or preference)
-- Application code: inserts into the appropriate table. For entities, does fuzzy name matching first and returns candidates if ambiguous — the LLM picks the right one or creates a new entity. See [core-loop.md](../core-loop.md) entity resolution section.
+- Application code: inserts into the appropriate table. For entities, does fuzzy name matching first and returns candidates if ambiguous — the LLM picks the right one or creates a new entity. Entity resolution logic: `agent/src/knowledge/resolve.ts`.
 - Returns: confirmation of what was stored
 
-**`manage_events`** — create, update, list, and resolve events and reminders.
+**`manage_events`** — create, update, list, and resolve events and reminders. Implementation: `agent/src/events/tool.ts`.
 - Input: action (create/update/list/complete/drop) with event details
 - Application code: CRUD operations on the events and reminders tables. Handles recurrence logic per [event-engine.md](../event-engine.md). Computes next reminder times.
 - Returns: confirmation or list of matching events
 
-**`get_calendar`** — fetch Google Calendar events for a date range.
+**`get_calendar`** — fetch Google Calendar events for a date range. Implementation: `agent/src/tools/calendar.ts`.
 - Input: start date, end date
 - Application code: queries locally synced calendar events from Postgres (no API call per question)
 - Returns: formatted list of events with time, title, location
 
-**`fetch_skill`** — load a skill's full body.
+**`fetch_skill`** — load a skill's full body. Implementation: `agent/src/tools/skill.ts`.
 - Input: skill name
 - Application code: `SELECT body FROM skills WHERE name = $1`
 - Returns: the skill body text, which the LLM incorporates into its reasoning
 
-**`send_message`** — send a proactive Telegram message.
+**`send_message`** — send a proactive Telegram message. Implementation: `agent/src/tools/messaging.ts`.
 - Input: message text
 - Application code: calls the Telegram bot API to send the message
 - Returns: confirmation
@@ -219,11 +149,11 @@ Wire up real user input. By the end of this phase, you can text the bot and have
 
 Use the [grammY](https://grammy.dev) framework — it runs natively on Deno, supports long polling, and handles message parsing, reply formatting, and error recovery.
 
-Long polling means the bot makes outbound HTTPS requests to Telegram's servers and holds the connection open until a message arrives. No webhooks, no public endpoints. See [core-loop.md](../core-loop.md) Telegram routing section.
+Long polling means the bot makes outbound HTTPS requests to Telegram's servers and holds the connection open until a message arrives. No webhooks, no public endpoints.
 
 ### Message routing
 
-Telegram text messages → high-priority event in the queue → core loop processes → response sent back via Telegram.
+Telegram text messages → high-priority event in the queue → event loop processes → response sent back via Telegram.
 
 ```typescript
 bot.on("message:text", (ctx) => {
@@ -239,7 +169,7 @@ bot.on("message:text", (ctx) => {
 });
 ```
 
-The core loop's `deliver()` function sends the LLM's response back to the originating chat via `bot.api.sendMessage()`.
+The event loop's `deliver()` function sends the LLM's response back to the originating chat via `bot.api.sendMessage()`.
 
 ### User validation
 
@@ -343,12 +273,12 @@ A periodic job (every 60 seconds) that:
 
 1. Queries the `reminders` table for reminders where `remind_at <= now()` and `status = 'pending'`
 2. For each due reminder, pushes a normal-priority event into the queue with the reminder context
-3. The core loop processes these: the LLM decides how to notify you (Telegram message with appropriate urgency)
+3. The event loop processes these: the LLM decides how to notify you (Telegram message with appropriate urgency)
 4. After delivery, marks the reminder as `sent`
 
 ### Recurrence logic
 
-Implements the two recurrence models from [event-engine.md](../event-engine.md): fixed-schedule (calendar-anchored, missed occurrences become unresolved items) and interval-from-completion (timer resets from actual completion date).
+Implements the two recurrence models from [event-engine.md](../event-engine.md): fixed-schedule (calendar-anchored, missed occurrences become unresolved items) and interval-from-completion (timer resets from actual completion date). Implementation: `agent/src/events/recurrence.ts`.
 
 ### Conversational event creation
 
@@ -362,7 +292,7 @@ The LLM parses the intent; the tool handles the database operations and recurren
 
 ### Daily briefing trigger
 
-A scheduled event that fires every morning at your preferred briefing time. The event processing loop detects it, pushes it into the queue, and the core loop processes it using the `daily_briefing` skill.
+A scheduled event that fires every morning at your preferred briefing time. The event processing loop detects it, pushes it into the queue, and the event loop processes it using the `daily_briefing` skill.
 
 ### Tests: recurrence logic
 
@@ -395,7 +325,7 @@ The skill instructs the LLM to be concise — a briefing should be glanceable on
 
 ### Assembly
 
-When the daily briefing event fires, the core loop:
+When the daily briefing event fires, the event loop:
 
 1. Loads the `daily_briefing` skill via `fetch_skill`
 2. Calls `get_calendar` for today and the next few days

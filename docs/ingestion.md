@@ -34,14 +34,14 @@ The Telegram bot is also the primary inbound interface during the prototype phas
 
 ## Web search and fetching (research flows)
 
-All web interaction — Anthropic web search and direct URL fetching — runs through the ingestion container, never core. Web search results and fetched pages are untrusted external content, just like emails and documents, so they belong behind the same isolation boundary: processed by the ingestion LLM, emitted as structured records through the schema-validated emission channel, validated by core before acting on them.
+All web interaction — Anthropic web search and direct URL fetching — runs through the ingestion container, never the agent. Web search results and fetched pages are untrusted external content, just like emails and documents, so they belong behind the same isolation boundary: processed by the ingestion LLM, emitted as structured records through the schema-validated emission channel, validated by the agent before acting on them.
 
-This prevents a critical attack vector: if web search ran directly in core, a prompt injection in a search result could influence an LLM call with full system privileges (database writes, knowledge graph updates, preference changes). Routing through ingestion means a successful injection can only produce schema-valid emissions — the same constrained blast radius as a compromised email.
+This prevents a critical attack vector: if web search ran directly in the agent, a prompt injection in a search result could influence an LLM call with full system privileges (database writes, knowledge graph updates, preference changes). Routing through ingestion means a successful injection can only produce schema-valid emissions — the same constrained blast radius as a compromised email.
 
 **Two constraints on web fetching:**
 
-1. **Only triggered by explicit user requests routed through core.** The ingestion container never autonomously follows URLs found in emails, documents, or other ingested content. Core decides "user wants this researched" and instructs ingestion to search or fetch. This breaks the email → URL → injection chain. See [security.md](security.md).
-2. **Core never enables web search on its own LLM calls.** Core's Anthropic API calls are for reasoning over trusted, already-validated context (knowledge graph data, validated emissions, user messages). Untrusted web content never enters a privileged LLM call.
+1. **Only triggered by explicit user requests routed through the agent.** The ingestion container never autonomously follows URLs found in emails, documents, or other ingested content. The agent decides "user wants this researched" and instructs ingestion to search or fetch. This breaks the email → URL → injection chain. See [security.md](security.md).
+2. **The agent never enables web search on its own LLM calls.** The agent's Anthropic API calls are for reasoning over trusted, already-validated context (knowledge graph data, validated emissions, user messages). Untrusted web content never enters a privileged LLM call.
 
 ### Research archive policy
 
@@ -59,9 +59,9 @@ The agent's judgment decides the boundary — the system prompt instructs it to 
 
 Research findings stored in the knowledge graph should be treated as perishable when they depend on external state (tax laws, regulations, pricing). The system prompt instructs the LLM to re-verify such findings rather than assuming last year's research still holds.
 
-## Core → ingestion coordination
+## Agent → ingestion coordination
 
-Core instructs ingestion to do work via the `processing_requests` table. When a file arrives via Telegram, core downloads it to a shared volume and inserts a processing request. When the user asks for web research, core inserts a search request. Ingestion polls this table for pending work.
+The agent instructs ingestion to do work via the `processing_requests` table. When a file arrives via Telegram, the agent downloads it to a shared volume and inserts a processing request. When the user asks for web research, the agent inserts a search request. Ingestion polls this table for pending work.
 
 ```sql
 CREATE TABLE processing_requests (
@@ -84,7 +84,7 @@ Photos of receipts sent via Telegram flow through the same ingestion pipeline as
 
 ## Architectural constraint
 
-The ingestion pipeline runs as a **separate container** from the core system, with strict isolation. It processes all untrusted external content (emails, Telegram messages, web pages, documents) and can only emit structured records through a schema-validated channel. It cannot read the knowledge graph, modify preferences, trigger actions, or access secrets beyond its own API keys. This prevents prompt injection in ingested content from causing unintended side effects. See [security.md](security.md) for the full isolation model.
+The ingestion pipeline runs as a **separate container** from the agent, with strict isolation. It processes all untrusted external content (emails, Telegram messages, web pages, documents) and can only emit structured records through a schema-validated channel. It cannot read the knowledge graph, modify preferences, trigger actions, or access secrets beyond its own API keys. This prevents prompt injection in ingested content from causing unintended side effects. See [security.md](security.md) for the full isolation model.
 
 ## Sensitivity tagging
 

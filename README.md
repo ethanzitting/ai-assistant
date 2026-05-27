@@ -6,7 +6,7 @@ A personal AI assistant that understands the full context of your life, proactiv
 
 ## Docs
 
-Living architecture and operational docs. Each file covers one concern and is meant to be refined independently. `PLAN.md` and `INTERFACE.md` are the original brain-dump; `docs/` is the structured version we build on.
+Living architecture and operational docs. Each file covers one concern and is meant to be refined independently.
 
 ### Reading order
 
@@ -17,12 +17,11 @@ Living architecture and operational docs. Each file covers one concern and is me
 4. [data-architecture.md](docs/data-architecture.md) — storage layers and retrieval
 5. [data-lifecycle.md](docs/data-lifecycle.md) — how data ages and gets compressed
 6. [context-assembly.md](docs/context-assembly.md) — how stored data becomes prompt context
-7. [core-loop.md](docs/core-loop.md) — how core runs at runtime: event loop, tools, skills, entity resolution
-8. [ingestion.md](docs/ingestion.md) — what comes in, and what doesn't
-9. [interfaces.md](docs/interfaces.md) — how the assistant talks to you
-10. [infrastructure.md](docs/infrastructure.md) — where it runs and what it costs
-11. [security.md](docs/security.md) — threat model and defenses
-12. [roadmap.md](docs/development/roadmap.md) — phased build plan
+7. [ingestion.md](docs/ingestion.md) — what comes in, and what doesn't
+8. [interfaces.md](docs/interfaces.md) — how the assistant talks to you
+9. [infrastructure.md](docs/infrastructure.md) — where it runs and what it costs
+10. [security.md](docs/security.md) — threat model and defenses
+11. [roadmap.md](docs/development/roadmap.md) — phased build plan
 
 ### Development
 
@@ -35,30 +34,11 @@ Living architecture and operational docs. Each file covers one concern and is me
 
 ### Reference
 
-- [tech-stack.md](docs/tech-stack.md) — chosen technologies + learning notes
 - [landscape.md](docs/landscape.md) — competitive context
 
-## Source mapping
+### Code
 
-Where each section of the original brain-dump docs lives now:
-
-| Source | Destination |
-|---|---|
-| PLAN §1 Vision | [vision.md](docs/vision.md) |
-| PLAN §2 Feature Domains | [vision.md](docs/vision.md) |
-| PLAN §3 Trust & Autonomy | [trust-model.md](docs/trust-model.md) |
-| PLAN §4 Core Architectural Primitives | [primitives.md](docs/primitives.md) |
-| PLAN §5 Technical Architecture | [data-architecture.md](docs/data-architecture.md) |
-| PLAN §6 Data Lifecycle | [data-lifecycle.md](docs/data-lifecycle.md) |
-| PLAN §7 Hosting & Infrastructure | [infrastructure.md](docs/infrastructure.md) |
-| PLAN §8 Security Architecture | [security.md](docs/security.md) |
-| PLAN §9 Realistic Data Inputs | [ingestion.md](docs/ingestion.md) |
-| PLAN §10 Output Channels & G2 | [interfaces.md](docs/interfaces.md) |
-| PLAN §11 Competitive Landscape | [landscape.md](docs/landscape.md) |
-| PLAN §12 Learning Path & Tech Stack | [tech-stack.md](docs/tech-stack.md) |
-| PLAN §13 Implementation Timeline | [roadmap.md](docs/development/roadmap.md) |
-| PLAN §14 Key Design Decisions & Principles | [vision.md](docs/vision.md) |
-| INTERFACE.md (prototype I/O) | [interfaces.md](docs/interfaces.md) |
+- [agent/README.md](agent/README.md) — agent container architecture and directory map
 
 ## Shipping changes
 
@@ -68,7 +48,7 @@ Where each section of the original brain-dump docs lives now:
 2. Commit and push
 3. On the droplet: `git pull && make up`
 
-Docker Compose recreates the core container with the new code. Postgres data is on a persistent volume — restarting containers doesn't touch it. The in-memory event queue is lost on restart, but pending reminders and events are in Postgres and will be picked up when the event processing loop starts again.
+Docker Compose recreates the agent container with the new code. Postgres data is on a persistent volume — restarting containers doesn't touch it. The in-memory event queue is lost on restart, but pending reminders and events are in Postgres and will be picked up when the event processing loop starts again.
 
 ### Database schema changes
 
@@ -116,4 +96,3 @@ The daily backup runs once per day. If you deploy twice in a day and the second 
 - Cross-link with relative markdown links so refactors are cheap.
 - Mark unresolved questions with `> **Open question:** ...` blockquotes so they're easy to grep.
 - Mark decisions with `> **Decision (YYYY-MM-DD):** ...` so the rationale survives.
-- Leave the original PLAN.md and INTERFACE.md untouched — they're the historical brain-dump, not living docs.

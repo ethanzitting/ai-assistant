@@ -27,7 +27,7 @@ queue.push({
 
 ### Step 2 — Context assembly
 
-The core loop picks up the event and assembles the prompt:
+The event loop picks up the event and assembles the prompt:
 
 - **Layer 1 (stable prefix):** System prompt, tool definitions (including `manage_events` and `remember`), user preferences. Cached.
 - **Layer 2 (daily prefix):** Today's calendar, active tasks, pending items. Cached.
@@ -150,7 +150,7 @@ The LLM sends a Telegram message:
 
 The user replies: *"I gave him one about two weeks ago."*
 
-This arrives as a new high-priority event. The core loop picks it up. The LLM has the previous conversation in Layer 4, so it has full context.
+This arrives as a new high-priority event. The event loop picks it up. The LLM has the previous conversation in Layer 4, so it has full context.
 
 The LLM interprets "about two weeks ago" as approximately May 12 (if today is May 26). It calls `manage_events` again:
 
@@ -231,7 +231,7 @@ queue.push({
 });
 ```
 
-The core loop picks this up. The LLM sees the reminder context and sends a Telegram message:
+The event loop picks this up. The LLM sees the reminder context and sends a Telegram message:
 
 *"Time to give your dog his tick chew — last one was May 12."*
 
@@ -699,7 +699,7 @@ Tax filing (due April 15):
 
 **When a W-2 email arrives:**
 
-If email ingestion (V2) is running, a W-2 notification email from the employer is classified as `transactional`, and the extraction pipeline recognizes it as tax-relevant. The ingestion LLM emits a fact: `"W-2 available from Acres Capital"`. Core processes the emission, links it to the tax project, and potentially updates the task status. The daily briefing reflects the change:
+If email ingestion (V2) is running, a W-2 notification email from the employer is classified as `transactional`, and the extraction pipeline recognizes it as tax-relevant. The ingestion LLM emits a fact: `"W-2 available from Acres Capital"`. The agent processes the emission, links it to the tax project, and potentially updates the task status. The daily briefing reflects the change:
 
 ```
 - ✅ Gather W-2 from Acres Capital — received Jan 28
@@ -713,7 +713,7 @@ The event engine fires the 60-day reminder. The LLM sends a Telegram message:
 
 **When you upload a document:**
 
-If you send a photo of your property tax bill to the bot, it flows through the receipt/document OCR pipeline (same as [workflow-financial-tracking.md](workflow-financial-tracking.md)). The ingestion LLM extracts the property tax amount, emits it as a fact. Core could auto-complete the "Gather property tax records" task if it recognizes the document type.
+If you send a photo of your property tax bill to the bot, it flows through the receipt/document OCR pipeline (same as [workflow-financial-tracking.md](workflow-financial-tracking.md)). The ingestion LLM extracts the property tax amount, emits it as a fact. The agent could auto-complete the "Gather property tax records" task if it recognizes the document type.
 
 ### What's in the database after this workflow
 

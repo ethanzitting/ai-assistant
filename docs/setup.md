@@ -2,6 +2,8 @@
 
 Everything needed to get the system running locally or recover from a catastrophic loss. Written for future-you who has forgotten the details.
 
+> **Note:** This guide covers the full target setup. Items marked *(not yet implemented)* are documented for future reference — the current system runs Phases 1-2 only (Postgres, agent container, knowledge graph, event engine). See [version-one.md](development/version-one.md) for phase status.
+
 ## Prerequisites
 
 Install these before anything else:
@@ -27,7 +29,7 @@ Create a vault (or use an existing one) with these items:
 | **B2 Admin Key** | `key_id`, `application_key` — full permissions including delete. Never available to the application, used only for manual maintenance |
 | **Kill Switch** | `enabled` (boolean flag polled by the agent) |
 
-The exact item names and vault are referenced in `docker-compose.yml` via `op run` environment variable mappings. If you rename items, update the compose file to match. The application only has access to the **B2 App Key** — the admin key is for your use only.
+The exact 1Password item names and vault paths are defined in `.env.tpl` — that file is the source of truth for how secrets map to environment variables. If you rename items, update `.env.tpl` to match. The application only has access to the **B2 App Key** — the admin key is for your use only.
 
 ## Google OAuth
 
@@ -73,13 +75,13 @@ make dev
 This runs `docker compose -f docker-compose.yml -f docker-compose.dev.yml up` with secrets injected via `op run`. On first start:
 
 1. Postgres container initializes and runs all migrations from `migrations/`
-2. Core container starts with `--watch` for hot-reloading
-3. Telegram bot begins long-polling
+2. Agent container starts with `--watch` for hot-reloading
+3. Telegram bot begins long-polling *(not yet implemented — Phase 3)*
 
 Verify it works:
 - Check logs: `make logs`
 - Open a psql shell: `make db`
-- Send a message to your Telegram bot — it should respond
+- Send a message to your Telegram bot — it should respond *(not yet implemented — Phase 3)*
 
 ## Database migrations
 
@@ -133,7 +135,7 @@ This catches failures that daily metrics can't: corrupted GPG output, truncated 
 
 ### Manual
 
-Run `make backup` to trigger a backup immediately.
+Run `make backup` to trigger a backup immediately. *(Not yet implemented — Phase 8.)*
 
 ### Restoring from backup
 
@@ -153,7 +155,7 @@ logs:         # Tail all container logs
 db:           # Open psql shell
 migrate:      # Run pending migrations
 backup:       # Manual backup trigger
-auth-google:  # Run Google OAuth flow, store refresh token
+auth-google:  # Run Google OAuth flow, store refresh token (not yet implemented)
 test:         # Run test suite
 ```
 

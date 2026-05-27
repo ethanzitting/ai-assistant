@@ -8,12 +8,12 @@ Where the system runs, how big it needs to be, and what it costs to operate. Sec
 
 **Recommended:** DigitalOcean droplet — 4 vCPUs, 8GB RAM, 80-160GB SSD. $15-30/month. Hetzner is a viable alternative at similar specs.
 
-Docker Compose defines four services — see `docker-compose.yml` for the actual definitions:
+Docker Compose defines the services — see `docker-compose.yml` for the actual definitions. Version 1 runs Postgres and Agent only. Ingestion and Sandbox containers are added in Version 2 and Version 3 respectively.
 
 - **Postgres** (with pgvector): structured data, vector embeddings, knowledge graph tables.
 - **Agent** (Deno): trusted orchestration — LLM API calls, tool execution, pruning jobs, user interaction. Full database access.
-- **Ingestion** (Deno): isolated container for untrusted external input. Emits structured data to a narrow intake channel. See [security.md](security.md).
-- **Sandbox** (Deno): executes LLM-generated code. No network, no secrets, no database. Destroyed per task.
+- **Ingestion** (Deno) *(Version 2)*: isolated container for untrusted external input. Emits structured data to a narrow intake channel. See [security.md](security.md).
+- **Sandbox** (Deno) *(Version 3)*: executes LLM-generated code. No network, no secrets, no database. Destroyed per task.
 
 **No `.env` files.** All secrets live in 1Password and are retrieved at runtime via `op run`. See [security.md](security.md).
 

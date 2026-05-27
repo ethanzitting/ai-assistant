@@ -57,7 +57,7 @@ Every file is cataloged in the knowledge graph as an entity with metadata (sourc
 
 **Reprocessing capability:** If a better embedding model or extraction tool emerges, the entire file store can be reprocessed. Files are the immutable foundation; everything else is a derived view.
 
-## Core-ingestion coordination
+## Agent-ingestion coordination
 
 The agent and ingestion containers communicate through two database tables, not direct network calls:
 
