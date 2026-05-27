@@ -29,7 +29,7 @@ Every prompt is assembled from four layers, ordered for cache efficiency. The fi
 └─────────────────────────────────┘
 ```
 
-**Currently implemented:** Layer 1 (system prompt in `agent/src/prompt/system-prompt.ts`) and Layer 4 (conversation messages in `agent/src/conversation/messages.ts`) with simple token-based truncation (`agent/src/prompt/tokens.ts`). Layers 2 and 3 are designed but not yet built.
+**Currently implemented:** Layer 1 (system prompt in `agent/src/prompt/buildSystemPrompt.ts`) and Layer 4 (conversation messages in `agent/src/conversationHistory.ts`) with simple token-based truncation (`agent/src/prompt/tokenEstimation.ts`). Layers 2 and 3 are designed but not yet built.
 
 ### Layer 1 — Stable prefix (cached across all turns)
 

@@ -26,7 +26,7 @@ If an event has neither, it falls back to a global default based on its priority
 
 ## Recurring event types
 
-Two distinct recurrence models — implementation in `agent/src/events/recurrence.ts`:
+Two distinct recurrence models — implementation in `agent/src/events/computeNextDueAt.ts`:
 
 ### Fixed-schedule recurring
 

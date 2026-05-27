@@ -94,7 +94,7 @@ Every message (user and assistant) is persisted to the `conversations` table for
 
 Coarse-grained tools for Version 1. Each tool does significant work in application code — the LLM says what, the code figures out how. Implementation: `agent/src/tools/`.
 
-**`query_knowledge`** — search the active knowledge graph. Implementation: `agent/src/knowledge/search.ts`.
+**`query_knowledge`** — search the active knowledge graph. Implementation: `agent/src/knowledge/queryKnowledgeTool.ts`.
 - Input: natural language question or structured filter (entity type, name pattern, date range)
 - Application code: translates to SQL queries across entities, relationships, and facts tables. Handles temporal filtering (`WHERE valid_until IS NULL` for current state, date-range queries for historical). Does not search the archive index.
 - Results are post-processed by a lightweight LLM call (Haiku) to condense and format them into a scannable summary.
@@ -105,28 +105,28 @@ Coarse-grained tools for Version 1. Each tool does significant work in applicati
 - Application code: embeds the query and runs a similarity search against the archive partition of `document_chunks` (permanent embeddings of every conversation, email, document, and note archived to B2).
 - Returns: relevant passages from original documents. Used when `query_knowledge` results are insufficient — the LLM decides to call this explicitly, guided by the nudge in `query_knowledge` results.
 
-**`remember`** — store information from the conversation. Implementation: `agent/src/knowledge/remember.ts`.
+**`remember`** — store information from the conversation. Implementation: `agent/src/knowledge/rememberTool.ts`.
 - Input: structured extraction (entity, fact, relationship, or preference)
-- Application code: inserts into the appropriate table. For entities, does fuzzy name matching first and returns candidates if ambiguous — the LLM picks the right one or creates a new entity. Entity resolution logic: `agent/src/knowledge/resolve.ts`.
+- Application code: inserts into the appropriate table. For entities, does fuzzy name matching first and returns candidates if ambiguous — the LLM picks the right one or creates a new entity. Entity resolution logic: `agent/src/knowledge/findExistingEntity.ts`.
 - Deduplication: before inserting a fact, checks for an existing current fact (where `valid_until IS NULL`) with the same entity and attribute. If the value is identical, returns "Already known" without writing. If a different value exists, supersedes it by setting `valid_until = now()` on the old fact before inserting the new one. Relationships use the same pattern — identical relationships return "Already known". This prevents the LLM from looping on repeated storage attempts.
 - Returns: confirmation of what was stored, updated, or already known
 
-**`manage_events`** — create, update, list, and resolve events and reminders. Implementation: `agent/src/events/tool.ts`.
+**`manage_events`** — create, update, list, and resolve events and reminders. Implementation: `agent/src/events/manageEventsTool.ts`.
 - Input: action (create/update/list/complete/drop) with event details
 - Application code: CRUD operations on the events and reminders tables. Handles recurrence logic per [event-engine.md](../event-engine.md). Computes next reminder times.
 - Returns: confirmation or list of matching events
 
-**`get_calendar`** — fetch Google Calendar events for a date range. Implementation: `agent/src/tools/calendar.ts`.
+**`get_calendar`** — fetch Google Calendar events for a date range. Implementation: `agent/src/tools/calendarTool.ts`.
 - Input: start date, end date
 - Application code: queries locally synced calendar events from Postgres (no API call per question)
 - Returns: formatted list of events with time, title, location
 
-**`fetch_skill`** — load a skill's full body. Implementation: `agent/src/tools/skill.ts`.
+**`fetch_skill`** — load a skill's full body. Implementation: `agent/src/tools/skillTool.ts`.
 - Input: skill name
 - Application code: `SELECT body FROM skills WHERE name = $1`
 - Returns: the skill body text, which the LLM incorporates into its reasoning
 
-**`send_message`** — send a proactive Telegram message. Implementation: `agent/src/tools/messaging.ts`.
+**`send_message`** — send a proactive Telegram message. Implementation: `agent/src/telegram/messagingTool.ts`.
 - Input: message text
 - Application code: calls the Telegram bot API to send the message
 - Returns: confirmation
@@ -162,7 +162,7 @@ Long polling means the bot makes outbound HTTPS requests to Telegram's servers a
 
 ### Message routing
 
-Telegram text messages → high-priority event in the queue → event loop processes → response sent back via Telegram. Implementation: `agent/src/telegram/bot.ts`.
+Telegram text messages → high-priority event in the queue → event loop processes → response sent back via Telegram. Implementation: `agent/src/telegram/createTelegramBot.ts`.
 
 ```typescript
 bot.on("message:text", async (ctx) => {
@@ -183,7 +183,7 @@ Response delivery flows through two paths:
 - **Reactive:** `process-event.ts` extracts `chat_id` from the event payload and passes it through the tool loop. The final assistant response is sent back to that chat via `sendTelegramMessage()`.
 - **Proactive:** The `send_message` tool retrieves the persisted `chat_id` from the preferences table, enabling the LLM to send messages outside of a direct user interaction (e.g., reminders, briefings).
 
-The bot instance is initialized once in `main.ts` and shared via a singleton (`agent/src/telegram/send.ts`) so both paths use the same bot API connection.
+The bot instance is initialized once in `main.ts` and shared via a singleton (`agent/src/telegram/sendTelegramMessage.ts`) so both paths use the same bot API connection.
 
 ### Chat ID persistence
 
@@ -296,7 +296,7 @@ A periodic job (every 60 seconds) that:
 
 ### Recurrence logic
 
-Implements the two recurrence models from [event-engine.md](../event-engine.md): fixed-schedule (calendar-anchored, missed occurrences become unresolved items) and interval-from-completion (timer resets from actual completion date). Implementation: `agent/src/events/recurrence.ts`.
+Implements the two recurrence models from [event-engine.md](../event-engine.md): fixed-schedule (calendar-anchored, missed occurrences become unresolved items) and interval-from-completion (timer resets from actual completion date). Implementation: `agent/src/events/computeNextDueAt.ts`.
 
 ### Conversational event creation
 
