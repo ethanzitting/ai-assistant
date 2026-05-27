@@ -6,73 +6,22 @@ Where the system runs, how big it needs to be, and what it costs to operate. Sec
 
 **Single VPS, Docker Compose.** Everything runs on one machine.
 
-**Recommended:** DigitalOcean droplet — 4 vCPUs, 8GB RAM, 80-160GB SSD. $15-30/month. Hetzner is a viable alternative at similar specs. More than sufficient for a single-user workload.
+**Recommended:** DigitalOcean droplet — 4 vCPUs, 8GB RAM, 80-160GB SSD. $15-30/month. Hetzner is a viable alternative at similar specs.
 
-Docker Compose defines four services:
+Docker Compose defines four services — see `docker-compose.yml` for the actual definitions:
 
-- **Postgres** (with pgvector extension): structured data, vector embeddings, and knowledge graph tables. See [data-architecture.md](data-architecture.md).
-- **Core** (Deno): trusted orchestration — LLM API calls, tool execution, pruning jobs, user interaction. Has full database access. See [security.md](security.md) for the isolation model.
-- **Ingestion** (Deno): isolated container that processes all untrusted external input (emails, Telegram messages, Plaid transactions, web content). Emits structured data to a narrow intake channel. No direct database access beyond its own emission table. Deno's permission system provides an additional isolation layer — `--allow-net` scoped to specific API domains. See [security.md](security.md).
-- **Sandbox** (Deno): executes LLM-generated code for ad-hoc analysis, PDF parsing, and computations. Receives a read-only data slice from core, returns structured results. No network access, no secrets, no database connection. Destroyed and recreated per task.
+- **Postgres** (with pgvector): structured data, vector embeddings, knowledge graph tables.
+- **Agent** (Deno): trusted orchestration — LLM API calls, tool execution, pruning jobs, user interaction. Full database access.
+- **Ingestion** (Deno): isolated container for untrusted external input. Emits structured data to a narrow intake channel. See [security.md](security.md).
+- **Sandbox** (Deno): executes LLM-generated code. No network, no secrets, no database. Destroyed per task.
 
-### Project layout
+**No `.env` files.** All secrets live in 1Password and are retrieved at runtime via `op run`. See [security.md](security.md).
 
-```
-project/
-├── docker-compose.yml
-├── agent/                # Trusted orchestration server
-├── ingestion/            # Isolated ingestion pipeline
-├── sandbox/              # Code execution sandbox (Deno)
-├── backups/              # Backup scripts
-├── data/
-│   └── postgres/         # Postgres data volume
-```
-
-**No `.env` files.** All secrets (API keys, DB credentials, OAuth tokens) live in 1Password and are retrieved at runtime via the 1Password CLI (`op run`) or Connect server. See [security.md](security.md).
-
-The LLM reasoning layer is **not hosted** — it's API calls to Claude or OpenAI. No GPU needed. The server is an orchestrator: receives trigger, gathers context from the database, assembles prompt, sends to LLM API, processes response.
+The LLM reasoning layer is **not hosted** — it's API calls to Claude or OpenAI. No GPU needed. The server is an orchestrator.
 
 ## Development environment
 
-Dev and production use the same Docker Compose stack. The goal is that developing locally is as close to production as possible — same containers, same Postgres, same secrets path. The repo README documents everything needed to set the system up from scratch, written for a future reader who has forgotten the details.
-
-### Docker Compose structure
-
-```
-docker-compose.yml          # Base: Postgres, container definitions, networks, volumes
-docker-compose.dev.yml      # Dev overrides: volume mounts for hot-reload, relaxed resource limits
-```
-
-`docker compose up` runs production-like defaults. `docker compose -f docker-compose.yml -f docker-compose.dev.yml up` adds dev overrides. A `Makefile` wraps common operations.
-
-### Hot-reloading
-
-Dev overrides mount the source directories into containers as volumes. Deno runs with `--watch`, restarting on file changes. Code changes take effect without rebuilding containers.
-
-```yaml
-# docker-compose.dev.yml (example)
-services:
-  agent:
-    volumes:
-      - ./agent/src:/app/src
-    command: ["deno", "run", "--watch", "--allow-all", "src/main.ts"]
-```
-
-### Database initialization
-
-SQL migration files in a `migrations/` directory, run in order on first start. The Postgres container's entrypoint runs pending migrations. See the root [README.md](../README.md) for migration rules and deployment procedures.
-
-### Secrets in development
-
-Same 1Password path locally and in production. `op run` injects secrets as environment variables — the application code doesn't know or care whether it's running locally or on the droplet. The setup guide documents which 1Password items need to exist and what fields they contain.
-
-### Makefile
-
-See [setup.md](setup.md) for the full Makefile reference and setup instructions.
-
-### Network access
-
-No public-facing HTTP endpoints. In the target architecture, the server is accessed exclusively via SSH and WireGuard VPN (VPN is a Version 2 deliverable — Version 1 uses DO console SSH). Ingestion happens through outbound polling (Gmail API, Google Calendar API) and the Telegram bot API (long polling, not webhooks — no inbound connections needed). See [security.md](security.md).
+Dev and production use the same Docker Compose stack. `docker-compose.dev.yml` adds volume mounts for hot-reload and relaxed resource limits. `Makefile` wraps common operations. See [setup.md](setup.md) for the full reference.
 
 ## Storage sizing
 
@@ -95,42 +44,32 @@ Everything is in one Postgres database — one backup strategy covers relational
 
 ### Infrastructure failure
 
-- Automated daily backups: `pg_dump` → compressed → encrypted with GPG key stored off-server → shipped to object storage (different provider than hosting). Each backup includes a metrics snapshot (entity/fact/event counts, file size, hash) for comparison.
-- Weekly backup verification: restore the latest backup to a temporary Docker container, compare metrics, tear down. Catches silent corruption. See [setup.md](setup.md) for the full procedure.
-- VPS provider volume snapshots enabled as belt-and-suspenders.
-- Recovery: spin up new VPS, pull docker-compose repo, retrieve secrets from 1Password, restore from latest backup. **Max data loss: 24 hours** (or less with more frequent dumps).
+- Automated daily backups: `pg_dump` → compressed → encrypted → shipped to object storage (different provider than hosting). Each backup includes a metrics snapshot for comparison.
+- Weekly backup verification: restore to a temporary Docker container, compare metrics, tear down.
+- VPS provider volume snapshots as belt-and-suspenders.
+- Recovery: spin up new VPS, pull docker-compose repo, retrieve secrets from 1Password, restore from latest backup. **Max data loss: 24 hours.**
 
 ### Agent knowledge corruption
 
-Two tiers of protection:
-
-1. **Audit log.** Every agent action that modifies state is logged with full context — what it read, what it concluded, what it changed.
-2. **Weekly knowledge snapshots.** Full `pg_dump` labeled as restore points (*"the system as it was on Sunday night"*). Verified against metrics snapshots.
+1. **Audit log.** Every agent action that modifies state is logged with full context.
+2. **Weekly knowledge snapshots.** Full `pg_dump` labeled as restore points. Verified against metrics snapshots.
 
 ### Architectural safeguard
 
-- Every write the agent makes is an append, never a destructive update. (Principle #3 in [vision.md](vision.md).)
-- Changelog table in Postgres: old value, new value, timestamp, reason, triggering LLM call.
-- The facts table's temporal model tracks validity windows — old facts get `valid_until` set, never deleted. Surgical rollback of specific facts without touching anything else. See schema in [data-architecture.md](data-architecture.md).
-- **Nuclear option:** nuke the knowledge graph tables and rebuild from the archive. (The archive is the source of truth.)
+- Every write is an append, never a destructive update. (Principle #3 in [vision.md](vision.md).)
+- Changelog table: old value, new value, timestamp, reason, triggering LLM call.
+- Temporal facts model tracks validity windows — surgical rollback of specific facts without touching anything else. Schema: `migrations/002_knowledge_graph.sql`.
+- **Nuclear option:** nuke the knowledge graph tables and rebuild from the archive.
 
 ## Sandbox container
 
-The sandbox runs LLM-generated code — ad-hoc analysis, PDF parsing, numerical computations, data transformations. It uses **Deno** (TypeScript) inside a locked-down Docker container. Deno's built-in permission system (`--deny-net`, `--deny-env`, `--allow-read=/input`, `--allow-write=/output`) provides application-level sandboxing, while Docker provides OS-level isolation via seccomp profiles and cgroup resource limits.
+The sandbox runs LLM-generated code inside a locked-down Docker container with Deno. Deno's permission system provides application-level sandboxing; Docker provides OS-level isolation via seccomp and cgroup limits.
 
-> **Decision (2026-05-25):** gVisor removed from the stack. gVisor's syscall-level isolation is designed for multi-tenant environments running untrusted code from the internet. In this system, the sandbox runs LLM-generated code from your own trusted API calls — the threat is "buggy code that runs forever or consumes too many resources," not "adversarial code exploiting a kernel vulnerability." Docker with `--network=none`, memory/CPU limits, seccomp defaults, and a read-only filesystem is sufficient for this threat model. Deno further reduces the attack surface — no C extensions, no `ctypes`, no arbitrary syscalls — making the combination stronger than Python + gVisor for this use case.
+> **Decision (2026-05-25):** gVisor removed. Docker + Deno is sufficient for the threat model (buggy code, not adversarial kernel exploits). See full rationale in git history.
 
-**Isolation constraints:**
-- No network access (`--network=none` at Docker level, `--deny-net` at Deno level)
-- No secrets or database connection string
-- No access to environment variables (`--deny-env`)
-- Receives only a read-only data slice prepared by the core container (`--allow-read=/input`)
-- Returns structured results through a mounted output volume (`--allow-write=/output`)
-- Destroyed and recreated per task — no persistent state
-- Resource-limited: CPU time cap, memory cap, disk quota (Docker cgroup limits)
-- Default seccomp profile restricts dangerous syscalls
+**Isolation constraints:** No network (`--network=none` + `--deny-net`), no secrets, no env vars, read-only input volume, write-only output volume, destroyed per task, CPU/memory/disk limits, default seccomp profile.
 
-**Execution flow:** Core decides a query needs computation → core extracts the relevant data slice (e.g., transaction CSV, PDF content) → core writes data to a temporary input volume → sandbox runs LLM-generated TypeScript against the input → sandbox writes results to output volume → core reads results and validates before acting on them.
+**Execution flow:** Agent prepares data slice → writes to temp input volume → sandbox runs TypeScript → writes results to output volume → agent reads and validates.
 
 ## Monthly operating costs
 
@@ -140,32 +79,19 @@ The sandbox runs LLM-generated code — ad-hoc analysis, PDF parsing, numerical 
 |---|---|
 | VPS (4 vCPU, 8GB RAM) | $15–30 |
 | Object storage (archive + backups) | < $1 |
-| Embedding API (text-embedding-3-small @ $0.02/MTok) | < $1 |
-| Whisper API (voice memos, ~20 min/month @ $0.006/min) | < $1 |
-| 1Password (existing subscription) | $0 incremental |
+| Embedding API (text-embedding-3-small) | < $1 |
+| Whisper API (voice memos) | < $1 |
 | **Subtotal** | **~$17–32** |
 
 ### LLM API costs
 
-Assumes Haiku 4.5 ($1/$5 per MTok in/out) for ingestion, Sonnet 4.6 ($3/$15) or Opus 4.7 ($5/$25) for core reasoning. Cached input is 90% cheaper. Prompt caching is critical — the stable prefix (~2K tokens) and daily prefix (~2K tokens) are cached across turns, reducing per-turn input costs substantially.
-
-| Component | Tokens/month (est.) | Sonnet core | Opus core |
-|---|---|---|---|
-| Conversations (15/day, growing context w/ caching) | ~5.5M input, ~225K output | ~$10 | ~$17 |
-| Daily briefing (30/month) | ~240K input, ~30K output | ~$1 | ~$1.50 |
-| Compaction (knowledge extraction from conversation) | ~450K input, ~60K output | ~$2.25 | ~$3.75 |
-| Email triage + extraction (50/week, Haiku) | ~400K input, ~100K output | ~$1 | ~$1 |
-| Web search (~50 searches/month + result processing, Haiku) | ~250K input, ~50K output + $0.50 search fees | ~$1 | ~$1 |
-| Pruning & summarization (weekly, Haiku) | ~50K input, ~10K output | < $1 | < $1 |
-| **LLM subtotal** | | **~$15–16** | **~$25** |
-
-### Total estimates
+Assumes Haiku 4.5 for ingestion, Sonnet 4.6 or Opus 4.7 for reasoning. Prompt caching is critical — stable prefix and daily prefix are cached across turns.
 
 | Scenario | Monthly cost |
 |---|---|
 | **Normal use, Sonnet core** (15 interactions/day, 50 emails/week) | **~$33–48** |
 | **Normal use, Opus core** | **~$42–57** |
-| **Heavy use, Sonnet core** (30 interactions/day, 100 emails/week, frequent research) | **~$50–65** |
+| **Heavy use, Sonnet core** (30 interactions/day, 100 emails/week) | **~$50–65** |
 | **Heavy use, Opus core** | **~$65–80** |
 
-The biggest variable is conversation volume — each additional daily interaction costs ~$0.02 (Sonnet) to ~$0.04 (Opus) with good caching. Proactive analysis sweeps (Version 3) add ~$3–5/month.
+The biggest variable is conversation volume — each additional daily interaction costs ~$0.02 (Sonnet) to ~$0.04 (Opus) with good caching.
