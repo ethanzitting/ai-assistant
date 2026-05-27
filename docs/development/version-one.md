@@ -48,7 +48,7 @@ CREATE TABLE events (
     next_due_at TIMESTAMPTZ,
     properties JSONB DEFAULT '{}',
     entity_id UUID REFERENCES entities(id),
-    project_id UUID REFERENCES projects(id),
+    -- project_id added via migration in Version 2 Phase 2 (requires projects table)
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
