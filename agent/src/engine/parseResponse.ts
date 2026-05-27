@@ -1,4 +1,4 @@
-import type { Message } from "@/anthropic/anthropicExports.ts";
+import type { Message } from "@anthropic-ai/sdk/resources/messages.mjs";
 
 export function extractTextContent(response: Message): string {
   const textParts: string[] = [];

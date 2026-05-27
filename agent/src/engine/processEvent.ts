@@ -1,8 +1,8 @@
-import { sendMessage, type TokenUsage } from "@/anthropic/anthropicExports.ts";
+import { sendMessage, type TokenUsage } from "@/anthropic/sendMessage.ts";
 import { getToolSchemas } from "@/tools/toolRegistry.ts";
-import { persistMessage } from "@/conversation/conversationHistory.ts";
+import { persistMessage } from "@/conversationHistory.ts";
 import { assembleContext } from "@/prompt/assembleContext.ts";
-import { type QueueEvent, EventQueue } from "@/eventQueue.ts";
+import { type QueueEvent, EventQueue } from "@/engine/eventQueue.ts";
 import { handleToolUseResponse } from "@/engine/handleToolUseResponse.ts";
 import { extractTextContent, hasToolUse } from "@/engine/parseResponse.ts";
 import { sendTelegramMessage } from "@/telegram/sendTelegramMessage.ts";

@@ -1,5 +1,5 @@
-import type { MessageParam } from "@/anthropic/anthropicExports.ts";
-import { loadRecentMessages } from "@/conversation/conversationHistory.ts";
+import type { MessageParam } from "@anthropic-ai/sdk/resources/messages.mjs";
+import { loadRecentMessages } from "@/conversationHistory.ts";
 import { truncateToTokenBudget } from "@/prompt/tokenEstimation.ts";
 import { buildSystemPrompt } from "@/prompt/buildSystemPrompt.ts";
 

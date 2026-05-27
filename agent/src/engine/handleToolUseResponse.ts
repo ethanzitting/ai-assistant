@@ -1,9 +1,9 @@
-import type { MessageParam, Message, Tool } from "@/anthropic/anthropicExports.ts";
-import { sendMessage } from "@/anthropic/anthropicExports.ts";
+import type { MessageParam, Message, Tool } from "@anthropic-ai/sdk/resources/messages.mjs";
+import { sendMessage } from "@/anthropic/sendMessage.ts";
 import { executeTool } from "@/tools/toolRegistry.ts";
-import { persistMessage } from "@/conversation/conversationHistory.ts";
+import { persistMessage } from "@/conversationHistory.ts";
 import { assembleContext } from "@/prompt/assembleContext.ts";
-import type { EventQueue } from "@/eventQueue.ts";
+import type { EventQueue } from "@/engine/eventQueue.ts";
 import { extractTextContent, getToolUseBlocks } from "@/engine/parseResponse.ts";
 import { sendTelegramMessage } from "@/telegram/sendTelegramMessage.ts";
 

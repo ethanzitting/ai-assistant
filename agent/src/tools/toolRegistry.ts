@@ -1,11 +1,11 @@
-import type { Tool } from "@/anthropic/anthropicExports.ts";
+import type { Tool } from "@anthropic-ai/sdk/resources/messages.mjs";
 import type { ToolDefinition, ToolHandler, ToolResult } from "@/tools/toolTypes.ts";
 import { queryKnowledgeTool } from "@/knowledge/queryKnowledgeTool.ts";
 import { rememberTool } from "@/knowledge/rememberTool.ts";
 import { manageEventsTool } from "@/events/manageEventsTool.ts";
 import { calendarTool } from "@/tools/calendarTool.ts";
 import { skillTool } from "@/tools/skillTool.ts";
-import { messagingTool } from "@/tools/messagingTool.ts";
+import { messagingTool } from "@/telegram/messagingTool.ts";
 
 const toolDefinitions: ToolDefinition[] = [
   queryKnowledgeTool,

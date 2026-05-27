@@ -1,5 +1,5 @@
 import { Bot } from "grammy";
-import type { EventQueue } from "@/eventQueue.ts";
+import type { EventQueue } from "@/engine/eventQueue.ts";
 import { db } from "@/db.ts";
 
 const OWNER_ID = Deno.env.get("TELEGRAM_OWNER_ID");

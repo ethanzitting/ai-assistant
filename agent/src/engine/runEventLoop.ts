@@ -1,4 +1,4 @@
-import { EventQueue } from "@/eventQueue.ts";
+import { EventQueue } from "@/engine/eventQueue.ts";
 import { processEvent } from "@/engine/processEvent.ts";
 
 export async function runEventLoop(queue: EventQueue): Promise<void> {

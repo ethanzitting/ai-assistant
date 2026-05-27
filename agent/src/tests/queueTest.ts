@@ -1,5 +1,5 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { EventQueue } from "@/eventQueue.ts";
+import { EventQueue } from "@/engine/eventQueue.ts";
 
 function makeEvent(
   priority: "high" | "normal",

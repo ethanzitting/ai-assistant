@@ -1,4 +1,4 @@
-import type { Tool } from "@/anthropic/anthropicExports.ts";
+import type { Tool } from "@anthropic-ai/sdk/resources/messages.mjs";
 
 export interface ToolResult {
   content: string;
