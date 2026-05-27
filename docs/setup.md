@@ -2,7 +2,7 @@
 
 Everything needed to get the system running locally or recover from a catastrophic loss. Written for future-you who has forgotten the details.
 
-> **Note:** This guide covers the full target setup. Items marked *(not yet implemented)* are documented for future reference — the current system runs Phases 1-2 only (Postgres, agent container, knowledge graph, event engine). See [version-one.md](development/version-one.md) for phase status.
+> **Note:** This guide covers the full target setup. Items marked *(not yet implemented)* are documented for future reference — the current system runs Phases 1-3 (Postgres, agent container, knowledge graph, event engine, Telegram bot). See [version-one.md](development/version-one.md) for phase status.
 
 ## Prerequisites
 
@@ -76,12 +76,12 @@ This runs `docker compose -f docker-compose.yml -f docker-compose.dev.yml up` wi
 
 1. Postgres container initializes and runs all migrations from `migrations/`
 2. Agent container starts with `--watch` for hot-reloading
-3. Telegram bot begins long-polling *(not yet implemented — Phase 3)*
+3. Telegram bot begins long-polling and listens for messages
 
 Verify it works:
 - Check logs: `make logs`
 - Open a psql shell: `make db`
-- Send a message to your Telegram bot — it should respond *(not yet implemented — Phase 3)*
+- Send a message to your Telegram bot — it should respond
 
 ## Database migrations
 

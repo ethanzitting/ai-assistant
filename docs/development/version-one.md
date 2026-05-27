@@ -79,6 +79,7 @@ Implementation: `agent/src/engine/`. Key Version 1 behaviors:
 - Between every tool call, drain high-priority events from the queue and append them as context
 - Normal-priority events wait until the current task completes
 - Every tool call passes through middleware that checks circuit breakers (stubbed in Version 1 — passes all calls through. Real implementation in Version 2)
+- The tool loop caps at 15 iterations to prevent infinite loops (e.g., the LLM repeatedly calling the same tool). If hit, the loop breaks and delivers whatever response the LLM has produced so far
 
 ### Conversation management
 
@@ -107,7 +108,8 @@ Coarse-grained tools for Version 1. Each tool does significant work in applicati
 **`remember`** — store information from the conversation. Implementation: `agent/src/knowledge/remember.ts`.
 - Input: structured extraction (entity, fact, relationship, or preference)
 - Application code: inserts into the appropriate table. For entities, does fuzzy name matching first and returns candidates if ambiguous — the LLM picks the right one or creates a new entity. Entity resolution logic: `agent/src/knowledge/resolve.ts`.
-- Returns: confirmation of what was stored
+- Deduplication: before inserting a fact, checks for an existing current fact (where `valid_until IS NULL`) with the same entity and attribute. If the value is identical, returns "Already known" without writing. If a different value exists, supersedes it by setting `valid_until = now()` on the old fact before inserting the new one. Relationships use the same pattern — identical relationships return "Already known". This prevents the LLM from looping on repeated storage attempts.
+- Returns: confirmation of what was stored, updated, or already known
 
 **`manage_events`** — create, update, list, and resolve events and reminders. Implementation: `agent/src/events/tool.ts`.
 - Input: action (create/update/list/complete/drop) with event details
@@ -160,31 +162,40 @@ Long polling means the bot makes outbound HTTPS requests to Telegram's servers a
 
 ### Message routing
 
-Telegram text messages → high-priority event in the queue → event loop processes → response sent back via Telegram.
+Telegram text messages → high-priority event in the queue → event loop processes → response sent back via Telegram. Implementation: `agent/src/telegram/bot.ts`.
 
 ```typescript
-bot.on("message:text", (ctx) => {
+bot.on("message:text", async (ctx) => {
+  await persistChatId(ctx.chat.id);
   queue.push({
     type: "user_message",
     priority: "high",
     payload: {
       text: ctx.message.text,
       chat_id: ctx.chat.id,
-      from: ctx.from,
     },
   });
 });
 ```
 
-The event loop's `deliver()` function sends the LLM's response back to the originating chat via `bot.api.sendMessage()`.
+Response delivery flows through two paths:
+
+- **Reactive:** `process-event.ts` extracts `chat_id` from the event payload and passes it through the tool loop. The final assistant response is sent back to that chat via `sendTelegramMessage()`.
+- **Proactive:** The `send_message` tool retrieves the persisted `chat_id` from the preferences table, enabling the LLM to send messages outside of a direct user interaction (e.g., reminders, briefings).
+
+The bot instance is initialized once in `main.ts` and shared via a singleton (`agent/src/telegram/send.ts`) so both paths use the same bot API connection.
+
+### Chat ID persistence
+
+The bot persists the owner's `chat_id` to the `preferences` table on every incoming message (INSERT ... ON CONFLICT DO NOTHING). This enables proactive messaging — the `send_message` tool looks up the stored chat_id to deliver messages even when no user message triggered the interaction.
 
 ### User validation
 
-Single-user system. Hardcode your Telegram user ID (or store it as a preference). Reject messages from anyone else — log and ignore.
+Single-user system. The `TELEGRAM_OWNER_ID` environment variable (set in `.env.tpl`) contains the owner's Telegram user ID. Messages from other users are rejected and logged. If the variable is not set, all messages are accepted with a warning logged — useful during initial setup to discover your user ID.
 
 ### Message formatting
 
-Telegram supports Markdown. The LLM's responses should be formatted for Telegram's MarkdownV2 parser. Keep responses concise — this is a mobile chat interface, not a document viewer.
+Messages are currently sent as plain text. MarkdownV2 formatting is a future enhancement — keep responses concise since this is a mobile chat interface.
 
 ### Testable at end of phase
 
