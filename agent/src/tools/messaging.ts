@@ -1,4 +1,6 @@
 import type { ToolDefinition } from "@/tools/types.ts";
+import { sendTelegramMessage } from "@/telegram/send.ts";
+import { db } from "@/db.ts";
 
 export const sendMessage: ToolDefinition = {
   schema: {
@@ -17,9 +19,22 @@ export const sendMessage: ToolDefinition = {
   },
   handle: async (input) => {
     const messageText = input.text as string;
-    console.log(`[send_message] Would send: ${messageText}`);
-    return {
-      content: "Telegram is not yet configured (Phase 3). Message logged to console.",
-    };
+    const chatId = await getOwnerChatId();
+
+    if (!chatId) {
+      console.log(`[send_message] No owner chat ID known yet. Message: ${messageText}`);
+      return { content: "Cannot send — no Telegram chat established yet." };
+    }
+
+    await sendTelegramMessage(chatId, messageText);
+    return { content: "Message sent." };
   },
 };
+
+async function getOwnerChatId(): Promise<number | null> {
+  const rows = await db`
+    SELECT value FROM preferences WHERE key = 'telegram_chat_id' LIMIT 1
+  `;
+  if (rows.length === 0) return null;
+  return rows[0].value as number;
+}

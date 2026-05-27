@@ -43,18 +43,32 @@ export async function storeFact(
   }
 
   const entityId = candidates[0].id;
+  const name = candidates[0].name;
 
-  await db`
-    UPDATE facts SET valid_until = now()
+  const existing = await db`
+    SELECT value FROM facts
     WHERE entity_id = ${entityId} AND attribute = ${attribute} AND valid_until IS NULL
+    LIMIT 1
   `;
+
+  if (existing.length > 0 && existing[0].value === value) {
+    return { content: `Already known: ${name}.${attribute} = "${value}". No changes made.` };
+  }
+
+  if (existing.length > 0) {
+    await db`
+      UPDATE facts SET valid_until = now()
+      WHERE entity_id = ${entityId} AND attribute = ${attribute} AND valid_until IS NULL
+    `;
+  }
 
   await db`
     INSERT INTO facts (entity_id, attribute, value)
     VALUES (${entityId}, ${attribute}, ${value})
   `;
 
-  return { content: `Stored fact: ${candidates[0].name}.${attribute} = "${value}"` };
+  const verb = existing.length > 0 ? "Updated" : "Stored";
+  return { content: `${verb} fact: ${name}.${attribute} = "${value}"` };
 }
 
 export async function storeRelationship(
@@ -69,6 +83,16 @@ export async function storeRelationship(
 
   if (entityA.length !== 1 || entityB.length !== 1) {
     return { content: `Could not uniquely resolve both entities. Entity A matches: ${entityA.length}, Entity B matches: ${entityB.length}. Please be more specific.`, isError: true };
+  }
+
+  const existing = await db`
+    SELECT id FROM relationships
+    WHERE entity_a_id = ${entityA[0].id} AND entity_b_id = ${entityB[0].id} AND type = ${relationshipType}
+    LIMIT 1
+  `;
+
+  if (existing.length > 0) {
+    return { content: `Already known: ${entityA[0].name} → ${relationshipType} → ${entityB[0].name}. No changes made.` };
   }
 
   await db`

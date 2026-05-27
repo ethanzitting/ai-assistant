@@ -1,6 +1,8 @@
 import { db } from "@/db.ts";
 import { EventQueue } from "@/queue.ts";
 import { runEventLoop } from "@/engine/run.ts";
+import { createBot } from "@/telegram/bot.ts";
+import { setBotInstance } from "@/telegram/send.ts";
 
 async function healthCheck(): Promise<void> {
   const result =
@@ -35,14 +37,10 @@ async function main(): Promise<void> {
   }
 
   const queue = new EventQueue();
+  const bot = createBot(queue);
+  setBotInstance(bot);
 
-  queue.push({
-    id: crypto.randomUUID(),
-    type: "user_message",
-    priority: "high",
-    payload: { text: "Hello! What can you do?" },
-    createdAt: new Date(),
-  });
+  bot.start({ onStart: () => console.log("Telegram bot started. Listening for messages...") });
 
   await runEventLoop(queue);
 }

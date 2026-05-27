@@ -5,16 +5,24 @@ import { persistMessage } from "@/conversation/messages.ts";
 import { assembleContext } from "@/prompt/assemble.ts";
 import type { EventQueue } from "@/queue.ts";
 import { extractTextContent, getToolUseBlocks } from "@/engine/helpers.ts";
+import { sendTelegramMessage } from "@/telegram/send.ts";
 
 export async function handleToolUseResponse(
   initialResponse: Message,
   systemPrompt: string,
   tools: Tool[],
   queue: EventQueue,
+  chatId: number | null = null,
 ): Promise<void> {
+  const MAX_TOOL_ITERATIONS = 15;
   let currentResponse = initialResponse;
+  let iteration = 0;
 
   while (currentResponse.stop_reason === "tool_use") {
+    if (++iteration > MAX_TOOL_ITERATIONS) {
+      console.warn(`[tool-loop] Hit max iterations (${MAX_TOOL_ITERATIONS}), forcing stop.`);
+      break;
+    }
     const toolResults = await executeAllToolCalls(currentResponse);
     const interruptContext = drainHighPriorityContext(queue);
 
@@ -35,6 +43,7 @@ export async function handleToolUseResponse(
   const finalText = extractTextContent(currentResponse);
   await persistMessage("assistant", finalText);
   console.log(`[assistant] ${finalText}`);
+  if (chatId) await sendTelegramMessage(chatId, finalText);
 }
 
 interface ToolCallResult {
