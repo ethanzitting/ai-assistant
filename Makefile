@@ -22,4 +22,4 @@ backup:
 	@echo "Backup not yet implemented (Phase 8)"
 
 test:
-	@echo "Tests not yet implemented (Phase 2)"
+	cd core && deno test src/tests/

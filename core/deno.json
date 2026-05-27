@@ -1,6 +1,8 @@
 {
   "imports": {
-    "postgres": "npm:postgres@^3.4"
+    "@/": "./src/",
+    "postgres": "npm:postgres@^3.4",
+    "@anthropic-ai/sdk": "npm:@anthropic-ai/sdk@^0.39"
   },
   "compilerOptions": {
     "strict": true

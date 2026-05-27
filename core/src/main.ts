@@ -1,4 +1,6 @@
-import { db } from "./db.ts";
+import { db } from "@/db.ts";
+import { EventQueue } from "@/queue.ts";
+import { runEventLoop } from "@/loop/run.ts";
 
 async function healthCheck(): Promise<void> {
   const result =
@@ -17,7 +19,7 @@ async function healthCheck(): Promise<void> {
   if (tables.length === 0) {
     console.warn("No tables found — run 'make migrate' to apply migrations.");
   } else {
-    console.log(`Tables: ${tables.map((t) => t.table_name).join(", ")}`);
+    console.log(`Tables: ${tables.map((row) => row.table_name).join(", ")}`);
   }
 }
 
@@ -26,14 +28,23 @@ async function main(): Promise<void> {
 
   try {
     await healthCheck();
-    console.log("Health check passed. Core is running.");
+    console.log("Health check passed.");
   } catch (error) {
     console.error("Health check failed:", error);
     Deno.exit(1);
   }
 
-  // Keep the process alive — the event loop will go here in Phase 2
-  await new Promise(() => {});
+  const queue = new EventQueue();
+
+  queue.push({
+    id: crypto.randomUUID(),
+    type: "user_message",
+    priority: "high",
+    payload: { text: "Hello! What can you do?" },
+    createdAt: new Date(),
+  });
+
+  await runEventLoop(queue);
 }
 
 main();

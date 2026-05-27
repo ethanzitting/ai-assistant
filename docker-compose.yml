@@ -24,6 +24,7 @@ services:
       DB_USER: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       DB_NAME: ${POSTGRES_DB}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
     depends_on:
       postgres:
         condition: service_healthy
