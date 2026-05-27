@@ -1,4 +1,7 @@
-import { storeEntity, storeFact, storeRelationship, storePreference } from "@/knowledge/storeKnowledge.ts";
+import { storeEntity } from "@/knowledge/storeEntity.ts";
+import { storeFact } from "@/knowledge/storeFact.ts";
+import { storeRelationship } from "@/knowledge/storeRelationship.ts";
+import { storePreference } from "@/knowledge/storePreference.ts";
 import type { ToolDefinition, ToolResult } from "@/tools/toolTypes.ts";
 
 export const remember: ToolDefinition = {

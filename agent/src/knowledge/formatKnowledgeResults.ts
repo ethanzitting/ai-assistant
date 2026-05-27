@@ -1,4 +1,6 @@
-import type { EntityRecord, FactRecord, RelationshipRecord } from "@/knowledge/knowledgeQueries.ts";
+import type { EntityRecord } from "@/knowledge/searchEntities.ts";
+import type { FactRecord } from "@/knowledge/findCurrentFacts.ts";
+import type { RelationshipRecord } from "@/knowledge/findRelationships.ts";
 
 export function formatKnowledgeResults(
   entities: EntityRecord[],
