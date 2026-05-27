@@ -1,7 +1,7 @@
 import type { MessageParam } from "@/anthropic/mod.ts";
 import { loadRecentMessages } from "@/conversation/messages.ts";
 import { truncateToTokenBudget } from "@/prompt/tokens.ts";
-import { buildSystemPrompt } from "@/prompt/system-prompt.ts";
+import { buildSystemPrompt } from "@/prompt/systemPrompt.ts";
 
 const CONVERSATION_TOKEN_BUDGET = 20_000;
 const MAX_RECENT_MESSAGES = 200;

@@ -1,6 +1,6 @@
 import { db } from "@/db.ts";
 import { EventQueue } from "@/queue.ts";
-import { runEventLoop } from "@/engine/run.ts";
+import { runEventLoop } from "@/engine/runEventLoop.ts";
 import { createBot } from "@/telegram/bot.ts";
 import { setBotInstance } from "@/telegram/send.ts";
 
