@@ -39,7 +39,7 @@ message.document: {
 }
 ```
 
-The agent's Telegram handler recognizes this as a file attachment, not a text message. Per the event loop in `agent/src/engine/`, file attachments are forwarded to the ingestion container for processing.
+The agent's Telegram handler recognizes this as a file attachment, not a text message. Per the event loop in `src/engine/`, file attachments are forwarded to the ingestion container for processing.
 
 #### Step 2 — The agent downloads and stages the file
 

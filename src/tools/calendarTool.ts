@@ -21,6 +21,6 @@ export const calendarTool: ToolDefinition = {
     },
   },
   handle: async () => ({
-    content: "Calendar sync is not yet configured (Phase 5). No calendar data available.",
+    content: "Calendar sync is not yet configured (Version 2). No calendar data available.",
   }),
 };

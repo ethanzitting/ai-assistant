@@ -2,7 +2,7 @@
 
 Everything needed to get the system running locally or recover from a catastrophic loss. Written for future-you who has forgotten the details.
 
-> **Note:** This guide covers the full target setup. Items marked *(not yet implemented)* are documented for future reference — the current system runs Phases 1-3 (Postgres, agent container, knowledge graph, event engine, Telegram bot). See [version-one.md](development/version-one.md) for phase status.
+> **Note:** This guide covers the full target setup. Items marked *(not yet implemented)* are documented for future reference — the current system runs Phases 1-3 and 5 (Postgres, agent container, knowledge graph, event engine, Telegram bot, audio/video transcription via Deepgram, B2 archival). See [version-one.md](development/version-one.md) for phase status.
 
 ## Prerequisites
 
@@ -93,7 +93,7 @@ Schema changes are numbered SQL files in `migrations/`, run in order on startup.
 After first run, populate the system with baseline data:
 
 - **Contacts:** seed your key relationships into the knowledge graph (entities + relationships + facts). A seed script or SQL file for this.
-- **Calendar:** trigger the first Google Calendar sync to pull in upcoming events.
+- **Calendar:** trigger the first Google Calendar sync to pull in upcoming events. *(Version 2 — not yet implemented.)*
 - **Skills:** insert initial skills into the skills table.
 - **Test events:** create a few reminders and recurring events to verify the event engine.
 
@@ -104,7 +104,7 @@ After first run, populate the system with baseline data:
 3. Install the 1Password CLI and configure a service account token (different from your personal token — scoped to the vault the app uses)
 4. Clone the repo
 5. Run `make up` (production mode — no hot-reload, no dev overrides)
-6. Verify: check logs, send a Telegram message, confirm calendar sync
+6. Verify: check logs, send a Telegram message, confirm event engine runs
 7. Set up the backup cron job (see below)
 
 Access is via SSH through the DO console initially; WireGuard VPN replaces this in Version 2.
@@ -136,7 +136,7 @@ This catches failures that daily metrics can't: corrupted GPG output, truncated 
 
 ### Manual
 
-Run `make backup` to trigger a backup immediately. *(Not yet implemented — Phase 8.)*
+Run `make backup` to trigger a backup immediately. *(Not yet implemented — Phase 7.)*
 
 ### Restoring from backup
 

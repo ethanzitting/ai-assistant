@@ -4,7 +4,7 @@ Phased implementation plan. Version 1 is deliberately minimal — get it working
 
 ## Version 1 — Talking Chatbot
 
-A conversational agent on Digital Ocean that knows your calendar, can set reminders, and holds context across a conversation. Barely useful, but running and generating real feedback. Detailed plan: [version-one.md](version-one.md).
+A conversational agent on Digital Ocean that can set reminders, transcribe voice and video messages, remember facts, and hold context across a conversation. Running locally and generating real feedback — Phases 1-3 and 5 complete, knowledge graph seeding in progress through organic conversation. Detailed plan: [version-one.md](version-one.md).
 
 ## Version 2 — Memory, Email & Safety
 
@@ -22,7 +22,7 @@ The goal is a system that gets noticeably better at surfacing the right informat
 - [ ] Ad-hoc data analysis: natural language queries that generate and execute code in the sandbox (e.g., *"show me spending outliers"*)
 - [ ] Mid-day event surfacing: proactive notifications and silent context injection for events arriving between daily prefix rebuilds
 - [ ] Meeting prep surfacing: pulling context from knowledge graph + recent interactions before scheduled meetings
-- [ ] File store integration: Google Drive as ingestion source, Backblaze B2 as archive, file cataloging in knowledge graph
+- [ ] File store integration: Google Drive as ingestion source, file cataloging in knowledge graph (B2 archival already operational from V1)
 - [ ] Photo OCR pipeline for physical mail and receipts (receipt processing designed in [workflow-financial-tracking.md](workflow-financial-tracking.md))
 - [ ] Multi-channel output: priority/length/context classification for notifications
 - [ ] Sensitivity tagging system: normal / confidential classification

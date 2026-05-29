@@ -1,6 +1,6 @@
 # Event & Cadence Engine
 
-The "clock" primitive — handles scheduling, reminders, and recurring tasks. Overview in [primitives.md](primitives.md). Implementation: `agent/src/events/`.
+The "clock" primitive — handles scheduling, reminders, and recurring tasks. Overview in [primitives.md](primitives.md). Implementation: `src/events/`.
 
 ## Priority system
 
@@ -26,7 +26,7 @@ If an event has neither, it falls back to a global default based on its priority
 
 ## Recurring event types
 
-Two distinct recurrence models — implementation in `agent/src/events/computeNextDueAt.ts`:
+Two distinct recurrence models — implementation in `src/events/computeNextDueAt.ts`:
 
 ### Fixed-schedule recurring
 

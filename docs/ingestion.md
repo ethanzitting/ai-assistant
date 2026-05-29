@@ -19,8 +19,8 @@ What data comes into the assistant, what doesn't, and how it gets in. Implements
 | **Telegram** | Potentially automated (has full API) | Messages from personal conversations | — |
 | **Discord** | Potentially automated (gray area) | Read-only personal server messages | — |
 | **Physical mail** | Photo capture → OCR | Photos sent to quick-capture bot. OCR extracts text, classifies (bill, legal doc, personal letter), extracts structured data | — |
-| **Meeting takeaways** | Voice memo capture | 60-second post-meeting voice note, transcribed via Whisper API | Your observations and takeaways |
-| **Audio/video files** | Deepgram transcription | Full audio or video files (MP4, WebM, WAV, MP3) transcribed with speaker diarization via Deepgram API. Transcript flows through standard extraction pipeline. Version 1: handled directly in the agent container via Telegram voice/audio messages. Version 2: moves to the ingestion container with full isolation. | Raw media files archived to B2 |
+| **Meeting takeaways** | Voice memo capture | 60-second post-meeting voice note, transcribed via Deepgram API | Your observations and takeaways |
+| **Audio/video files** | Deepgram transcription | Full audio or video files (MP4, WebM, WAV, MP3, OGG) transcribed via Deepgram API (Nova-2). Version 1: handled directly in the agent container via Telegram voice, audio, video, and video note messages. Transcript flows through the event loop as a regular user message. Version 2: moves to the ingestion container with full isolation and adds speaker diarization. | Raw media files and companion transcripts archived to B2 |
 | **Conversations with the assistant** | Always on | Every message you send is scanned for entities, facts, tasks, intentions, and preferences — extracted to knowledge graph in real time | Routine queries pruned after 1 month; see [data-lifecycle.md](data-lifecycle.md) |
 
 ## Quick-capture channels
@@ -29,7 +29,7 @@ For data sources that can't or shouldn't be automated, three frictionless input 
 
 1. **Telegram bot** (or simple mobile-friendly web form behind VPN). Pull out phone, type or dictate a note or task. *"Met with James from client team, he mentioned contract renews in September."* The assistant ingests this as a first-person note, extracts entities and facts. Also the primary interface for creating and managing tasks: *"Add a task: research lumber options for the dog house project."*
 2. **Document and photo capture.** Send documents (PDFs, images, text files) to the Telegram bot or email them to a designated address. Photos of physical mail are OCR'd, classified, and structured data extracted. Email attachments are automatically extracted and processed. All files are stored in the file store and cataloged in the knowledge graph. See [data-architecture.md](data-architecture.md).
-3. **Voice memos.** After a meeting or conversation, record a brief voice note. System transcribes (Whisper API), processes content. Supports annotations: *"Dave mentioned he's leaving — told me in confidence, don't surface this."*
+3. **Voice memos.** After a meeting or conversation, record a brief voice note. System transcribes (Deepgram API), processes content. Supports annotations: *"Dave mentioned he's leaving — told me in confidence, don't surface this."*
 
 The Telegram bot is also the primary inbound interface during the prototype phase — see [interfaces.md](interfaces.md).
 

@@ -68,4 +68,4 @@ Both tables are narrow coordination channels. Ingestion has INSERT-only on `inge
 
 ## Query-time context assembly
 
-When the assistant receives a query, it retrieves from multiple storage layers and assembles results into a focused prompt. The full prompt construction model is described in [context-assembly.md](context-assembly.md). Implementation: `agent/src/prompt/`.
+When the assistant receives a query, it retrieves from multiple storage layers and assembles results into a focused prompt. The full prompt construction model is described in [context-assembly.md](context-assembly.md). Implementation: `src/prompt/`.

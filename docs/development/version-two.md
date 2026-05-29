@@ -1,6 +1,6 @@
 # Version 2 — Memory, Email & Safety
 
-A system that remembers across conversations, processes your email, and has real security boundaries. Builds on the running Version 1 chatbot — the agent container, knowledge graph, event engine, calendar sync, and Telegram bot are already working.
+A system that remembers across conversations, processes your email, and has real security boundaries. Builds on the running Version 1 chatbot — the agent container, knowledge graph, event engine, Telegram bot, Deepgram transcription, and B2 archival are already working. Google Calendar integration (deferred from V1) is included here as part of Phase 1.
 
 Context assembly design lives in [context-assembly.md](../context-assembly.md). Container isolation and safety controls live in [security.md](../security.md). Email processing pipelines live in [data-lifecycle.md](../data-lifecycle.md). The ingestion architecture lives in [ingestion.md](../ingestion.md). This doc covers the implementation sequence and Version 2-specific decisions.
 
@@ -43,6 +43,14 @@ A scheduled job (use the event engine from Version 1) that:
 
 The morning daily briefing naturally re-establishes context after the nightly rebuild.
 
+### Google Calendar sync
+
+Connect the agent to Google Calendar so it knows what your day looks like. Deferred from Version 1 to keep the MVP scope minimal.
+
+See [setup.md](../setup.md) for the Google OAuth procedure. The `make auth-google` command runs the one-time authorization locally and stores the refresh token in 1Password.
+
+A periodic job (every 5 minutes) syncs events from the Google Calendar API into Postgres using `syncToken` or `updatedMin` for incremental fetches. The `get_calendar` tool (already stubbed in Version 1) queries locally synced events — no API call per user question. Calendar data feeds into the daily prefix (Layer 2) and enhances the daily briefing with times, locations, and prep notes.
+
 ### Real-time extraction
 
 Every conversation turn is scanned for knowledge graph updates at interaction time, not just at compaction. When you say "Julian recommended this book," the entity update happens immediately — not when compaction fires hours later. This uses the same extraction pipeline as compaction, but on a single turn.
@@ -60,6 +68,8 @@ Integration test: tell the agent a fact in one conversation, trigger compaction,
 - Have a long conversation that triggers compaction — verify context stays within budget
 - Tell the agent something, wait for compaction, ask about it later — agent remembers
 - Verify the daily prefix includes today's calendar, active reminders, and recent facts
+- Calendar events appear in the database after sync
+- Ask the agent "What's on my calendar tomorrow?" and get accurate results
 - Verify prompt caching is working on Layers 1 and 2 (check cached token counts)
 - Verify nightly rebuild produces a fresh daily prefix
 
@@ -444,14 +454,14 @@ Integration test: trigger a web search, verify the results flow through the emis
 
 ## Phase 7 — Telegram Uploads & Voice Memos
 
-Migrate audio transcription from the agent container (where it runs in Version 1) to the ingestion container with full isolation. Extend to handle document uploads and video files. Builds on the container isolation from Phase 3 and the ingestion pipeline from Phase 5.
+Migrate audio/video transcription from the agent container (where it runs in Version 1) to the ingestion container with full isolation. Version 1 already handles voice, audio, video, and video note messages with Deepgram transcription and B2 archival — this phase adds speaker diarization, ffmpeg audio extraction for bandwidth savings, document uploads, and the Telegram Bot API Local Server for large files. Builds on the container isolation from Phase 3 and the ingestion pipeline from Phase 5.
 
 ### Telegram file routing
 
 Extend the Telegram bot (running in the agent container per the [event loop](../src/engine/)) to handle non-text messages:
 
-- **Voice messages:** download the audio file, forward to ingestion for transcription via Deepgram (speaker diarization, punctuation, paragraphs)
-- **Audio/video files:** download, extract audio via ffmpeg in ingestion, transcribe via Deepgram with speaker diarization
+- **Voice messages:** forward to ingestion for transcription via Deepgram with speaker diarization (V1 handles this in the agent container without diarization)
+- **Audio/video files:** forward to ingestion, extract audio via ffmpeg for bandwidth savings, transcribe via Deepgram with speaker diarization (V1 sends video directly to Deepgram without ffmpeg)
 - **Documents** (PDFs, images, text files): download, forward to ingestion for parsing
 - **Photos:** forward to ingestion for OCR if they appear to be documents/mail, otherwise catalog as images
 
@@ -465,13 +475,11 @@ This unblocks large audio files (meeting recordings, podcasts), video files, and
 
 ### Audio/video transcription (Deepgram)
 
-Ingestion calls the Deepgram API (~$0.0043/min, Nova-2 model) for voice and video messages:
+Version 1 already transcribes voice, audio, video, and video note messages via Deepgram Nova-2 (~$0.0043/min) directly in the agent container, with B2 archival and companion transcript storage. This phase migrates that work to the ingestion container and adds:
 
-1. Receive audio or video file
-2. For video: extract audio track via ffmpeg
-3. Transcribe via Deepgram API with speaker diarization, punctuation, and paragraph detection
-4. Process the transcript through the standard extraction pipeline (entities, facts, tasks, action items)
-5. Emit structured records through the emission flow
+1. **Speaker diarization** — `diarize=true` param, critical for meeting recordings with multiple speakers
+2. **ffmpeg audio extraction** — strip audio from video before sending to Deepgram, reducing network transfer for large video files
+3. **Extraction pipeline** — process transcripts through the standard extraction pipeline (entities, facts, tasks, action items) and emit structured records through the emission flow, rather than passing raw transcript text to the event queue
 
 Deepgram over Whisper: better speaker diarization (critical for meeting recordings), streaming support, and lower cost. Transcripts are treated as untrusted content — the agent validates emissions and never interprets transcript text as system instructions.
 

@@ -16,7 +16,7 @@ Use coarse-grained tools — each tool does significant work. Say what you want,
 - **query_knowledge**: Search for any stored information — people, facts, relationships. Always check existing knowledge before creating duplicates.
 - **remember**: Store entities, facts, relationships, and preferences. For facts about existing entities, the tool handles superseding old values automatically.
 - **manage_events**: Create reminders, track deadlines, manage recurring items. Parse natural language dates from the user's messages.
-- **get_calendar**: Check the user's schedule for a date range.
+- **get_calendar**: Check the user's schedule for a date range (not yet configured — Google Calendar sync coming in Version 2).
 - **fetch_skill**: Load detailed instructions for a specific skill when relevant.
 - **send_message**: Send a proactive Telegram message to the user.
 

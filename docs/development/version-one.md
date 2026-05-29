@@ -1,10 +1,10 @@
 # Version 1 — Talking Chatbot
 
-A conversational agent on Digital Ocean that knows your calendar, can set reminders, and holds context across a conversation. Each phase builds on the previous one and produces something testable.
+A conversational agent on Digital Ocean that can set reminders, transcribe voice and video messages, and hold context across a conversation. Each phase builds on the previous one and produces something testable.
 
-Schema definitions live in [data-architecture.md](../data-architecture.md) and `migrations/`. The event loop implementation lives in `agent/src/engine/`. Event engine design lives in [event-engine.md](../event-engine.md). Setup procedures live in [setup.md](../setup.md). This doc covers the implementation sequence and Version 1-specific decisions — not the architecture itself.
+Schema definitions live in [data-architecture.md](../data-architecture.md) and `migrations/`. The event loop implementation lives in `src/engine/`. Event engine design lives in [event-engine.md](../event-engine.md). Setup procedures live in [setup.md](../setup.md). This doc covers the implementation sequence and Version 1-specific decisions — not the architecture itself. Google Calendar integration is deferred to Version 2.
 
-## Phase 1 — Infrastructure & Database
+## Phase 1 — Infrastructure & Database [COMPLETE]
 
 Get a working dev environment with a database and secrets management. Nothing AI-related yet — just the foundation everything else sits on.
 
@@ -42,7 +42,7 @@ All secrets injected via `op run` — see [setup.md](../setup.md) for the full v
 
 ---
 
-## Phase 2 — Anthropic API & Event Loop
+## Phase 2 — Anthropic API & Event Loop [COMPLETE]
 
 Get the agentic loop running. By the end of this phase, you can hardcode a message into the event queue and watch the LLM reason about it and call tools.
 
@@ -74,7 +74,7 @@ No database table needed for the queue — it's ephemeral. Events arrive, get pr
 
 ### Event loop
 
-Implementation: `agent/src/engine/`. Key Version 1 behaviors:
+Implementation: `src/engine/`. Key Version 1 behaviors:
 
 - Between every tool call, drain high-priority events from the queue and append them as context
 - Normal-priority events wait until the current task completes
@@ -92,9 +92,9 @@ Every message (user and assistant) is persisted to the `conversations` table for
 
 ### Tool definitions
 
-Coarse-grained tools for Version 1. Each tool does significant work in application code — the LLM says what, the code figures out how. Implementation: `agent/src/tools/`.
+Coarse-grained tools for Version 1. Each tool does significant work in application code — the LLM says what, the code figures out how. Implementation: `src/tools/`.
 
-**`query_knowledge`** — search the active knowledge graph. Implementation: `agent/src/knowledge/queryKnowledgeTool.ts`.
+**`query_knowledge`** — search the active knowledge graph. Implementation: `src/knowledge/queryKnowledgeTool.ts`.
 - Input: natural language question or structured filter (entity type, name pattern, date range)
 - Application code: translates to SQL queries across entities, relationships, and facts tables. Handles temporal filtering (`WHERE valid_until IS NULL` for current state, date-range queries for historical). Does not search the archive index.
 - Results are post-processed by a lightweight LLM call (Haiku) to condense and format them into a scannable summary.
@@ -105,28 +105,25 @@ Coarse-grained tools for Version 1. Each tool does significant work in applicati
 - Application code: embeds the query and runs a similarity search against the archive partition of `document_chunks` (permanent embeddings of every conversation, email, document, and note archived to B2).
 - Returns: relevant passages from original documents. Used when `query_knowledge` results are insufficient — the LLM decides to call this explicitly, guided by the nudge in `query_knowledge` results.
 
-**`remember`** — store information from the conversation. Implementation: `agent/src/knowledge/rememberTool.ts`.
+**`remember`** — store information from the conversation. Implementation: `src/knowledge/rememberTool.ts`.
 - Input: structured extraction (entity, fact, relationship, or preference)
-- Application code: inserts into the appropriate table. For entities, does fuzzy name matching first and returns candidates if ambiguous — the LLM picks the right one or creates a new entity. Entity resolution logic: `agent/src/knowledge/findExistingEntity.ts`.
+- Application code: inserts into the appropriate table. For entities, does fuzzy name matching first and returns candidates if ambiguous — the LLM picks the right one or creates a new entity. Entity resolution logic: `src/knowledge/findExistingEntity.ts`.
 - Deduplication: before inserting a fact, checks for an existing current fact (where `valid_until IS NULL`) with the same entity and attribute. If the value is identical, returns "Already known" without writing. If a different value exists, supersedes it by setting `valid_until = now()` on the old fact before inserting the new one. Relationships use the same pattern — identical relationships return "Already known". This prevents the LLM from looping on repeated storage attempts.
 - Returns: confirmation of what was stored, updated, or already known
 
-**`manage_events`** — create, update, list, and resolve events and reminders. Implementation: `agent/src/events/manageEventsTool.ts`.
+**`manage_events`** — create, update, list, and resolve events and reminders. Implementation: `src/events/manageEventsTool.ts`.
 - Input: action (create/update/list/complete/drop) with event details
 - Application code: CRUD operations on the events and reminders tables. Handles recurrence logic per [event-engine.md](../event-engine.md). Computes next reminder times.
 - Returns: confirmation or list of matching events
 
-**`get_calendar`** — fetch Google Calendar events for a date range. Implementation: `agent/src/tools/calendarTool.ts`.
-- Input: start date, end date
-- Application code: queries locally synced calendar events from Postgres (no API call per question)
-- Returns: formatted list of events with time, title, location
+**`get_calendar`** — fetch Google Calendar events for a date range. Implementation: `src/tools/calendarTool.ts`. *(Stub — returns "not configured" until Google Calendar integration in Version 2.)*
 
-**`fetch_skill`** — load a skill's full body. Implementation: `agent/src/tools/skillTool.ts`.
+**`fetch_skill`** — load a skill's full body. Implementation: `src/tools/skillTool.ts`.
 - Input: skill name
 - Application code: `SELECT body FROM skills WHERE name = $1`
 - Returns: the skill body text, which the LLM incorporates into its reasoning
 
-**`send_message`** — send a proactive Telegram message. Implementation: `agent/src/telegram/messagingTool.ts`.
+**`send_message`** — send a proactive Telegram message. Implementation: `src/telegram/messagingTool.ts`.
 - Input: message text
 - Application code: calls the Telegram bot API to send the message
 - Returns: confirmation
@@ -150,7 +147,7 @@ Unit test the SQL generation for "what's true now" vs "what was true at date X" 
 
 ---
 
-## Phase 3 — Telegram Bot
+## Phase 3 — Telegram Bot [COMPLETE]
 
 Wire up real user input. By the end of this phase, you can text the bot and have a conversation.
 
@@ -162,7 +159,7 @@ Long polling means the bot makes outbound HTTPS requests to Telegram's servers a
 
 ### Message routing
 
-Telegram text messages → high-priority event in the queue → event loop processes → response sent back via Telegram. Implementation: `agent/src/telegram/createTelegramBot.ts`.
+Telegram text messages → high-priority event in the queue → event loop processes → response sent back via Telegram. Implementation: `src/telegram/createTelegramBot.ts`.
 
 ```typescript
 bot.on("message:text", async (ctx) => {
@@ -183,7 +180,7 @@ Response delivery flows through two paths:
 - **Reactive:** `process-event.ts` extracts `chat_id` from the event payload and passes it through the tool loop. The final assistant response is sent back to that chat via `sendTelegramMessage()`.
 - **Proactive:** The `send_message` tool retrieves the persisted `chat_id` from the preferences table, enabling the LLM to send messages outside of a direct user interaction (e.g., reminders, briefings).
 
-The bot instance is initialized once in `main.ts` and shared via a singleton (`agent/src/telegram/sendTelegramMessage.ts`) so both paths use the same bot API connection.
+The bot instance is initialized once in `main.ts` and shared via a singleton (`src/telegram/sendTelegramMessage.ts`) so both paths use the same bot API connection.
 
 ### Chat ID persistence
 
@@ -193,28 +190,15 @@ The bot persists the owner's `chat_id` to the `preferences` table on every incom
 
 Single-user system. The `TELEGRAM_OWNER_ID` environment variable (set in `.env.tpl`) contains the owner's Telegram user ID. Messages from other users are rejected and logged. If the variable is not set, all messages are accepted with a warning logged — useful during initial setup to discover your user ID.
 
-### Audio message handling
+### Audio & video message handling
 
-Extend the Telegram bot to handle voice messages and audio files. When the bot receives audio, it downloads the file, sends it to the Deepgram API for transcription, and processes the transcript as a text message through the normal event loop.
+The Telegram bot handles voice messages, audio files, videos, and video notes. When the bot receives media, it downloads the file, archives it to Backblaze B2, sends it to the Deepgram API for transcription, archives the transcript as a companion `.txt` in B2, and processes the transcript as a text message through the normal event loop. See [deepgram-audio.md](deepgram-audio.md) for full implementation details.
 
-grammY handles voice messages via `bot.on("message:voice")` and audio files via `bot.on("message:audio")`. Telegram provides voice messages as OGG/Opus files and audio files in their original format — Deepgram accepts both.
+grammY handles all four types via `bot.on(["message:voice", "message:audio", "message:video", "message:video_note"])`. Deepgram accepts video files directly and extracts audio automatically — no ffmpeg needed. In Version 1, the agent container calls Deepgram and B2 directly (no ingestion container yet). Version 2 moves this to the ingestion container with full isolation.
 
-In Version 1, the agent container calls Deepgram directly (no ingestion container yet). When the ingestion container arrives in Version 2, audio processing moves there with proper isolation. The Deepgram API key is scoped to transcription only — no account management permissions.
+**Archive-first pattern:** Media is archived to B2 before transcription, so the original is safe even if Deepgram fails. B2 archival is non-fatal — if it fails, transcription proceeds with `archive_id = null`. The companion transcript is also archived to B2 with a `metadata.source_file_id` backlink to the original media row.
 
-**File size limit:** The Telegram Bot API's `getFile` method only supports files up to 20MB. Voice memos recorded in-app are well under this (~1MB/min for OGG/Opus), but uploaded audio files (meeting recordings, podcasts) can exceed it. Version 1 detects oversized files from Telegram's message metadata (available before download) and replies with a helpful message suggesting the user trim or compress the file. Version 2 removes this limit via the Telegram Bot API Local Server — see Phase 7.
-
-```typescript
-bot.on("message:voice", async (ctx) => {
-  const file = await ctx.getFile();
-  const audioBuffer = await downloadFile(file);
-  const transcript = await transcribeAudio(audioBuffer);
-  queue.push({
-    type: "user_message",
-    priority: "high",
-    payload: { text: transcript, chat_id: ctx.chat.id },
-  });
-});
-```
+**File size limit:** The Telegram Bot API's `getFile` method only supports files up to 20MB. Voice memos recorded in-app are well under this (~1MB/min for OGG/Opus), but uploaded audio files (meeting recordings, podcasts) can exceed it. Version 1 detects oversized files from Telegram's message metadata (available before download) and replies with a helpful message. Version 2 removes this limit via the Telegram Bot API Local Server.
 
 ### Message formatting
 
@@ -227,11 +211,14 @@ Messages are currently sent as plain text. MarkdownV2 formatting is a future enh
 - Tell the bot a fact ("My sister's name is Sarah"), then ask about it later ("What's my sister's name?")
 - Send a voice memo to the bot → transcript is processed, agent responds to the content
 - Send an audio file to the bot → same behavior as voice memo
+- Send a video or video note → audio extracted by Deepgram, transcript processed
+- Check B2 bucket: media file and companion transcript `.txt` both archived
+- Check `archived_files` table: transcript row backlinks to media row via `metadata.source_file_id`
 - Verify rejected messages from other users are logged
 
 ---
 
-## Phase 4 — Knowledge Graph Seeding
+## Phase 4 — Knowledge Graph Seeding [IN PROGRESS]
 
 Populate the system with real data so the agent has something meaningful to work with. This is a manual but important step — the agent's usefulness is directly proportional to its knowledge.
 
@@ -275,38 +262,7 @@ Unit test the fuzzy name matching logic in the `remember` tool. Cases: exact mat
 
 ---
 
-## Phase 5 — Google Calendar
-
-Connect the agent to your real calendar so it knows what your day looks like.
-
-### OAuth flow
-
-See [setup.md](../setup.md) for the full Google OAuth procedure. The `make auth-google` command runs the one-time authorization locally and stores the refresh token in 1Password.
-
-### Calendar sync
-
-A periodic job (every 5 minutes) that:
-
-1. Calls the Google Calendar API for events in a rolling window (today through 14 days out)
-2. Upserts events into the `events` table (or a dedicated `calendar_events` table if cleaner)
-3. Detects changes: new events, updated times, cancellations
-
-The sync should be efficient — use the Calendar API's `syncToken` or `updatedMin` parameter to fetch only changes since the last sync, not the full calendar every time.
-
-### Calendar data in context
-
-The `get_calendar` tool queries the locally synced events. No API call per user question — the tool reads from Postgres.
-
-### Testable at end of phase
-
-- Calendar events appear in the database after sync
-- Ask the agent "What's on my calendar tomorrow?" and get accurate results
-- Change an event in Google Calendar, wait 5 minutes, ask again — updated
-- Ask "Do I have any conflicts this week?" — agent reasons about overlapping events
-
----
-
-## Phase 6 — Event Engine
+## Phase 5 — Event Engine [COMPLETE]
 
 Give the agent the ability to track reminders, deadlines, and recurring tasks. This is the "clock" that makes the agent proactive. Implements the design from [event-engine.md](../event-engine.md).
 
@@ -321,7 +277,7 @@ A periodic job (every 60 seconds) that:
 
 ### Recurrence logic
 
-Implements the two recurrence models from [event-engine.md](../event-engine.md): fixed-schedule (calendar-anchored, missed occurrences become unresolved items) and interval-from-completion (timer resets from actual completion date). Implementation: `agent/src/events/computeNextDueAt.ts`.
+Implements the two recurrence models from [event-engine.md](../event-engine.md): fixed-schedule (calendar-anchored, missed occurrences become unresolved items) and interval-from-completion (timer resets from actual completion date). Implementation: `src/events/computeNextDueAt.ts`.
 
 ### Conversational event creation
 
@@ -350,7 +306,7 @@ Unit test the next-occurrence computation for both recurrence models. Cases: nor
 
 ---
 
-## Phase 7 — Daily Briefing
+## Phase 6 — Daily Briefing [PLANNED]
 
 The morning touchpoint that makes the agent feel alive. Triggered by the event engine, assembled by a skill, delivered via Telegram.
 
@@ -358,11 +314,11 @@ The morning touchpoint that makes the agent feel alive. Triggered by the event e
 
 The `daily_briefing` skill body contains instructions for what to include and how to format it:
 
-1. Today's calendar events (from synced Google Calendar) with times, locations, and any prep notes
-2. Upcoming deadlines within the next 3 days
-3. Due reminders and overdue items
-4. Pending unresolved events (missed recurring items)
-5. Any recent knowledge graph updates worth mentioning
+1. Upcoming deadlines within the next 3 days
+2. Due reminders and overdue items
+3. Pending unresolved events (missed recurring items)
+4. Any recent knowledge graph updates worth mentioning
+5. Today's calendar events *(available after Google Calendar integration in Version 2)*
 
 The skill instructs the LLM to be concise — a briefing should be glanceable on a phone screen, not a wall of text.
 
@@ -371,22 +327,21 @@ The skill instructs the LLM to be concise — a briefing should be glanceable on
 When the daily briefing event fires, the event loop:
 
 1. Loads the `daily_briefing` skill via `fetch_skill`
-2. Calls `get_calendar` for today and the next few days
-3. Calls `manage_events` to list pending reminders and overdue items
-4. Calls `query_knowledge` for any recent facts (active knowledge graph only — the archive nudge in results is irrelevant for briefings since the LLM already has structured data)
-5. The LLM synthesizes these tool results into a formatted briefing
-6. Delivers via `send_message`
+2. Calls `manage_events` to list pending reminders and overdue items
+3. Calls `query_knowledge` for any recent facts (active knowledge graph only — the archive nudge in results is irrelevant for briefings since the LLM already has structured data)
+4. The LLM synthesizes these tool results into a formatted briefing
+5. Delivers via `send_message`
 
 ### Testable at end of phase
 
 - Trigger a briefing manually: "Give me my daily briefing"
-- Verify it includes calendar events, reminders, and deadlines
+- Verify it includes reminders and deadlines
 - Verify the scheduled briefing fires at the configured time
 - Verify the format is concise and readable on mobile
 
 ---
 
-## Phase 8 — Deployment & Backups
+## Phase 7 — Deployment & Backups [PLANNED]
 
 Get the system running on a real server so it's always available. See [setup.md](../setup.md) for the full deployment and backup procedures — this section covers only what to verify.
 
@@ -397,7 +352,7 @@ Get the system running on a real server so it's always available. See [setup.md]
 3. Configure 1Password service account token scoped to the project vault
 4. Clone the repo
 5. `make up` — production mode
-6. Verify: check logs, send a Telegram message, confirm calendar sync runs
+6. Verify: check logs, send a Telegram message, confirm event engine runs
 
 Access via DO console SSH for Version 1. WireGuard VPN comes in Version 2.
 
