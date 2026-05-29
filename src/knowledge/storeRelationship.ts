@@ -9,6 +9,10 @@ export async function storeRelationship(
   const entityBName = input.entity_b_name as string;
   const relationshipType = input.type as string;
 
+  if (!entityAName || !entityBName || !relationshipType) {
+    return { content: `Missing required fields. Got: entity_a_name=${entityAName}, entity_b_name=${entityBName}, type=${relationshipType}. Provide all three as strings.`, isError: true };
+  }
+
   const entityA = await findExistingEntity(entityAName);
   const entityB = await findExistingEntity(entityBName);
 

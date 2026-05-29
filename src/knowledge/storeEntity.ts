@@ -9,6 +9,10 @@ export async function storeEntity(
   const entityType = input.type as string;
   const properties = input.properties ?? {};
 
+  if (!name || !entityType) {
+    return { content: `Missing required fields. Got: name=${name}, type=${entityType}. Provide both as strings.`, isError: true };
+  }
+
   const existing = await findExistingEntity(name);
   if (existing.length === 1) {
     return { content: `Entity "${existing[0].name}" already exists (id: ${existing[0].id}).` };

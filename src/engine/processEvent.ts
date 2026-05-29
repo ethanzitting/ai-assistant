@@ -13,7 +13,8 @@ export async function processEvent(
 ): Promise<void> {
   const userMessage = extractUserMessage(event);
   const chatId = extractChatId(event);
-  await persistMessage("user", userMessage);
+  const metadata = extractMetadata(event);
+  await persistMessage("user", userMessage, metadata);
 
   const { systemPrompt, messages } = await assembleContext();
   const tools = getToolSchemas();
@@ -32,6 +33,10 @@ export async function processEvent(
   }
 
   const assistantText = extractTextContent(response);
+  if (!assistantText.trim()) {
+    console.warn("[event] Empty assistant response, skipping delivery");
+    return;
+  }
   await persistMessage("assistant", assistantText);
   await deliverResponse(assistantText, chatId);
 }
@@ -44,6 +49,11 @@ function extractUserMessage(event: QueueEvent): string {
 function extractChatId(event: QueueEvent): number | null {
   const payload = event.payload as Record<string, unknown>;
   return (payload.chat_id as number) ?? null;
+}
+
+function extractMetadata(event: QueueEvent): Record<string, unknown> {
+  const payload = event.payload as Record<string, unknown>;
+  return (payload.audio_metadata as Record<string, unknown>) ?? {};
 }
 
 async function deliverResponse(

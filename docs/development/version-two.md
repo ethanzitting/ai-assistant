@@ -444,7 +444,7 @@ Integration test: trigger a web search, verify the results flow through the emis
 
 ## Phase 7 — Telegram Uploads & Voice Memos
 
-Accept files and voice messages through the Telegram bot, process them through ingestion. Builds on the container isolation from Phase 3 and the ingestion pipeline from Phase 5.
+Migrate audio transcription from the agent container (where it runs in Version 1) to the ingestion container with full isolation. Extend to handle document uploads and video files. Builds on the container isolation from Phase 3 and the ingestion pipeline from Phase 5.
 
 ### Telegram file routing
 
@@ -456,6 +456,12 @@ Extend the Telegram bot (running in the agent container per the [event loop](../
 - **Photos:** forward to ingestion for OCR if they appear to be documents/mail, otherwise catalog as images
 
 File forwarding mechanism: the agent writes the file to a shared volume, inserts a row into the `processing_requests` table (from Phase 3) with the file path and type, ingestion picks it up.
+
+### Telegram Bot API Local Server
+
+Version 1 uses the public Telegram Bot API, which limits `getFile` downloads to 20MB. This phase deploys Telegram's [open-source Bot API server](https://github.com/tdlib/telegram-bot-api) as a new container in docker-compose. The local server removes the 20MB download limit entirely — files up to 2GB can be downloaded directly. grammY is pointed at the local server (`http://telegram-bot-api:8081`) instead of `api.telegram.org`.
+
+This unblocks large audio files (meeting recordings, podcasts), video files, and large documents that previously had to be rejected.
 
 ### Audio/video transcription (Deepgram)
 

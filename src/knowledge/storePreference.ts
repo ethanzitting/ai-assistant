@@ -7,6 +7,10 @@ export async function storePreference(
   const key = input.key as string;
   const value = input.value;
 
+  if (!key) {
+    return { content: `Missing required field: key. Provide a string key for the preference.`, isError: true };
+  }
+
   await db`
     INSERT INTO preferences (key, value, source)
     VALUES (${key}, ${JSON.stringify(value)}, 'explicit')

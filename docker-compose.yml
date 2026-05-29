@@ -27,6 +27,10 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_OWNER_ID: ${TELEGRAM_OWNER_ID:-}
+      DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY}
+      B2_KEY_ID: ${B2_KEY_ID}
+      B2_APPLICATION_KEY: ${B2_APPLICATION_KEY}
+      B2_BUCKET_ID: ${B2_BUCKET_ID}
     depends_on:
       postgres:
         condition: service_healthy

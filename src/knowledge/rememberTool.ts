@@ -59,19 +59,53 @@ export const rememberTool: ToolDefinition = {
   handle: handleRemember,
 };
 
+const VALID_DISCRIMINATORS = new Set(["entity", "fact", "relationship", "preference"]);
+
 async function handleRemember(input: Record<string, unknown>): Promise<ToolResult> {
   const recordType = input.type as string;
 
+  if (!VALID_DISCRIMINATORS.has(recordType)) {
+    if (input.entity_a_name && input.entity_b_name) {
+      return storeRelationship({
+        entity_a_name: input.entity_a_name,
+        entity_b_name: input.entity_b_name,
+        type: recordType,
+      });
+    }
+    return { content: `Unknown type: ${recordType}. Valid types: entity, fact, relationship, preference`, isError: true };
+  }
+
   switch (recordType) {
     case "entity":
-      return storeEntity(input.entity as Record<string, unknown>);
+      return storeEntity(extractNested(input, "entity"));
     case "fact":
-      return storeFact(input.fact as Record<string, unknown>);
+      return storeFact(extractNested(input, "fact"));
     case "relationship":
-      return storeRelationship(input.relationship as Record<string, unknown>);
+      return storeRelationship(extractRelationship(input));
     case "preference":
-      return storePreference(input.preference as Record<string, unknown>);
+      return storePreference(extractNested(input, "preference"));
     default:
       return { content: `Unknown type: ${recordType}`, isError: true };
   }
+}
+
+function extractNested(input: Record<string, unknown>, key: string): Record<string, unknown> {
+  const nested = input[key];
+  if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+    return nested as Record<string, unknown>;
+  }
+  const { type: _, [key]: __, ...rest } = input;
+  return rest;
+}
+
+function extractRelationship(input: Record<string, unknown>): Record<string, unknown> {
+  const nested = input.relationship;
+  if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+    return nested as Record<string, unknown>;
+  }
+  const { type: _, relationship: relationshipType, ...rest } = input;
+  if (typeof relationshipType === "string") {
+    return { ...rest, type: relationshipType };
+  }
+  return rest;
 }

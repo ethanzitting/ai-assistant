@@ -20,7 +20,7 @@ What data comes into the assistant, what doesn't, and how it gets in. Implements
 | **Discord** | Potentially automated (gray area) | Read-only personal server messages | — |
 | **Physical mail** | Photo capture → OCR | Photos sent to quick-capture bot. OCR extracts text, classifies (bill, legal doc, personal letter), extracts structured data | — |
 | **Meeting takeaways** | Voice memo capture | 60-second post-meeting voice note, transcribed via Whisper API | Your observations and takeaways |
-| **Audio/video files** | Deepgram transcription | Full audio or video files (MP4, WebM, WAV, MP3) transcribed with speaker diarization via Deepgram API. Transcript flows through standard extraction pipeline. | Raw media files archived to B2 |
+| **Audio/video files** | Deepgram transcription | Full audio or video files (MP4, WebM, WAV, MP3) transcribed with speaker diarization via Deepgram API. Transcript flows through standard extraction pipeline. Version 1: handled directly in the agent container via Telegram voice/audio messages. Version 2: moves to the ingestion container with full isolation. | Raw media files archived to B2 |
 | **Conversations with the assistant** | Always on | Every message you send is scanned for entities, facts, tasks, intentions, and preferences — extracted to knowledge graph in real time | Routine queries pruned after 1 month; see [data-lifecycle.md](data-lifecycle.md) |
 
 ## Quick-capture channels

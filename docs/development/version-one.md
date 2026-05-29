@@ -193,6 +193,29 @@ The bot persists the owner's `chat_id` to the `preferences` table on every incom
 
 Single-user system. The `TELEGRAM_OWNER_ID` environment variable (set in `.env.tpl`) contains the owner's Telegram user ID. Messages from other users are rejected and logged. If the variable is not set, all messages are accepted with a warning logged — useful during initial setup to discover your user ID.
 
+### Audio message handling
+
+Extend the Telegram bot to handle voice messages and audio files. When the bot receives audio, it downloads the file, sends it to the Deepgram API for transcription, and processes the transcript as a text message through the normal event loop.
+
+grammY handles voice messages via `bot.on("message:voice")` and audio files via `bot.on("message:audio")`. Telegram provides voice messages as OGG/Opus files and audio files in their original format — Deepgram accepts both.
+
+In Version 1, the agent container calls Deepgram directly (no ingestion container yet). When the ingestion container arrives in Version 2, audio processing moves there with proper isolation. The Deepgram API key is scoped to transcription only — no account management permissions.
+
+**File size limit:** The Telegram Bot API's `getFile` method only supports files up to 20MB. Voice memos recorded in-app are well under this (~1MB/min for OGG/Opus), but uploaded audio files (meeting recordings, podcasts) can exceed it. Version 1 detects oversized files from Telegram's message metadata (available before download) and replies with a helpful message suggesting the user trim or compress the file. Version 2 removes this limit via the Telegram Bot API Local Server — see Phase 7.
+
+```typescript
+bot.on("message:voice", async (ctx) => {
+  const file = await ctx.getFile();
+  const audioBuffer = await downloadFile(file);
+  const transcript = await transcribeAudio(audioBuffer);
+  queue.push({
+    type: "user_message",
+    priority: "high",
+    payload: { text: transcript, chat_id: ctx.chat.id },
+  });
+});
+```
+
 ### Message formatting
 
 Messages are currently sent as plain text. MarkdownV2 formatting is a future enhancement — keep responses concise since this is a mobile chat interface.
@@ -202,6 +225,8 @@ Messages are currently sent as plain text. MarkdownV2 formatting is a future enh
 - Send a message to the bot, get a response
 - Have a multi-turn conversation that maintains context
 - Tell the bot a fact ("My sister's name is Sarah"), then ask about it later ("What's my sister's name?")
+- Send a voice memo to the bot → transcript is processed, agent responds to the content
+- Send an audio file to the bot → same behavior as voice memo
 - Verify rejected messages from other users are logged
 
 ---

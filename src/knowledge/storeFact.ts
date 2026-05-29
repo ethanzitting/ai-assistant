@@ -9,6 +9,10 @@ export async function storeFact(
   const attribute = input.attribute as string;
   const value = input.value as string;
 
+  if (!entityName || !attribute || !value) {
+    return { content: `Missing required fields. Got: entity_name=${entityName}, attribute=${attribute}, value=${value}. Provide all three as strings.`, isError: true };
+  }
+
   const candidates = await findExistingEntity(entityName);
   if (candidates.length === 0) {
     return { content: `No entity found matching "${entityName}". Create the entity first.`, isError: true };

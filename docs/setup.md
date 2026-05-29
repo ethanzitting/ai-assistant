@@ -21,6 +21,7 @@ Create a vault (or use an existing one) with these items:
 | Item | Fields |
 |---|---|
 | **Anthropic API** | `api_key` |
+| **Deepgram** | `api_key` — for audio/video transcription with speaker diarization |
 | **Google OAuth** | `client_id`, `client_secret`, `refresh_token` (populated after the OAuth flow below) |
 | **Telegram Bot** | `bot_token` |
 | **Postgres** | `username`, `password`, `database` |

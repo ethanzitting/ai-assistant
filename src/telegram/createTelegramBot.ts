@@ -1,6 +1,7 @@
 import { Bot } from "grammy";
 import type { EventQueue } from "@/engine/eventQueue.ts";
 import { db } from "@/db.ts";
+import { handleVoiceMessage } from "@/telegram/handleVoiceMessage.ts";
 
 const OWNER_ID = Deno.env.get("TELEGRAM_OWNER_ID");
 
@@ -34,6 +35,18 @@ export function createTelegramBot(queue: EventQueue): Bot {
       },
       createdAt: new Date(),
     });
+  });
+
+  bot.on(["message:voice", "message:audio", "message:video", "message:video_note"], async (ctx) => {
+    const userId = String(ctx.from.id);
+
+    if (OWNER_ID && userId !== OWNER_ID) {
+      console.warn(`[telegram] Rejected voice/audio from unknown user ${userId}`);
+      return;
+    }
+
+    await persistChatId(ctx.chat.id);
+    await handleVoiceMessage(ctx, queue);
   });
 
   bot.catch((err) => {
