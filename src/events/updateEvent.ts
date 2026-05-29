@@ -1,9 +1,11 @@
 import { db } from "@/db.ts";
 import type { ToolResult } from "@/tools/toolTypes.ts";
+import { trace } from "@/trace.ts";
 
 export async function updateEvent(
   eventId: string,
   eventData: Record<string, unknown>,
+  traceId: string,
 ): Promise<ToolResult> {
   const setClauses: string[] = [];
   const allowedFields = [
@@ -32,5 +34,6 @@ export async function updateEvent(
     WHERE id = ${eventId}
   `;
 
+  await trace(traceId, "db.update", { table: "events", id: eventId, fields: setClauses });
   return { content: `Updated event ${eventId}.` };
 }

@@ -10,3 +10,4 @@ DEEPGRAM_API_KEY=op://ai.assistant/DEEPGRAM_API_KEY/notesPlain
 B2_KEY_ID=op://ai.assistant/B2_LOWER_KEY_ID/notesPlain
 B2_APPLICATION_KEY=op://ai.assistant/B2_LOWER_APP_KEY/notesPlain
 B2_BUCKET_ID=op://ai.assistant/B2_BUCKET_ID/notesPlain
+LOG_LEVEL=info

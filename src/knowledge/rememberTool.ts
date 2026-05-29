@@ -61,7 +61,7 @@ export const rememberTool: ToolDefinition = {
 
 const VALID_DISCRIMINATORS = new Set(["entity", "fact", "relationship", "preference"]);
 
-async function handleRemember(input: Record<string, unknown>): Promise<ToolResult> {
+async function handleRemember(input: Record<string, unknown>, traceId: string): Promise<ToolResult> {
   const recordType = input.type as string;
 
   if (!VALID_DISCRIMINATORS.has(recordType)) {
@@ -70,20 +70,20 @@ async function handleRemember(input: Record<string, unknown>): Promise<ToolResul
         entity_a_name: input.entity_a_name,
         entity_b_name: input.entity_b_name,
         type: recordType,
-      });
+      }, traceId);
     }
     return { content: `Unknown type: ${recordType}. Valid types: entity, fact, relationship, preference`, isError: true };
   }
 
   switch (recordType) {
     case "entity":
-      return storeEntity(extractNested(input, "entity"));
+      return storeEntity(extractNested(input, "entity"), traceId);
     case "fact":
-      return storeFact(extractNested(input, "fact"));
+      return storeFact(extractNested(input, "fact"), traceId);
     case "relationship":
-      return storeRelationship(extractRelationship(input));
+      return storeRelationship(extractRelationship(input), traceId);
     case "preference":
-      return storePreference(extractNested(input, "preference"));
+      return storePreference(extractNested(input, "preference"), traceId);
     default:
       return { content: `Unknown type: ${recordType}`, isError: true };
   }

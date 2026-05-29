@@ -6,6 +6,7 @@ import { manageEventsTool } from "@/events/manageEventsTool.ts";
 import { calendarTool } from "@/tools/calendarTool.ts";
 import { skillTool } from "@/tools/skillTool.ts";
 import { messagingTool } from "@/telegram/messagingTool.ts";
+import { error } from "@/logger.ts";
 
 const toolDefinitions: ToolDefinition[] = [
   queryKnowledgeTool,
@@ -27,6 +28,7 @@ export function getToolSchemas(): Tool[] {
 export async function executeTool(
   toolName: string,
   toolInput: Record<string, unknown>,
+  traceId: string,
 ): Promise<ToolResult> {
   const handler = handlersByName.get(toolName);
 
@@ -35,10 +37,10 @@ export async function executeTool(
   }
 
   try {
-    return await handler(toolInput);
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error(`Tool "${toolName}" failed:`, errorMessage);
+    return await handler(toolInput, traceId);
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    error("tool", "Tool execution failed", { toolName, error: errorMessage });
     return { content: `Tool error: ${errorMessage}`, isError: true };
   }
 }

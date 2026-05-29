@@ -2,6 +2,7 @@ import { Bot } from "grammy";
 import type { EventQueue } from "@/engine/eventQueue.ts";
 import { db } from "@/db.ts";
 import { handleVoiceMessage } from "@/telegram/handleVoiceMessage.ts";
+import { warn, error } from "@/logger.ts";
 
 const OWNER_ID = Deno.env.get("TELEGRAM_OWNER_ID");
 
@@ -15,12 +16,12 @@ export function createTelegramBot(queue: EventQueue): Bot {
     const userId = String(ctx.from.id);
 
     if (OWNER_ID && userId !== OWNER_ID) {
-      console.warn(`[telegram] Rejected message from unknown user ${userId}`);
+      warn("telegram", "Rejected message from unknown user", { userId });
       return;
     }
 
     if (!OWNER_ID) {
-      console.log(`[telegram] No TELEGRAM_OWNER_ID set. Message from user ${userId} — set this as TELEGRAM_OWNER_ID to lock access.`);
+      warn("telegram", "No TELEGRAM_OWNER_ID set", { userId });
     }
 
     await persistChatId(ctx.chat.id);
@@ -41,7 +42,7 @@ export function createTelegramBot(queue: EventQueue): Bot {
     const userId = String(ctx.from.id);
 
     if (OWNER_ID && userId !== OWNER_ID) {
-      console.warn(`[telegram] Rejected voice/audio from unknown user ${userId}`);
+      warn("telegram", "Rejected voice/audio from unknown user", { userId });
       return;
     }
 
@@ -50,7 +51,7 @@ export function createTelegramBot(queue: EventQueue): Bot {
   });
 
   bot.catch((err) => {
-    console.error("[telegram] Bot error:", err.message);
+    error("telegram", "Bot error", { error: err.message });
   });
 
   return bot;
@@ -63,4 +64,3 @@ async function persistChatId(chatId: number): Promise<void> {
     ON CONFLICT (key) DO NOTHING
   `;
 }
-

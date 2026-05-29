@@ -1,4 +1,4 @@
-.PHONY: dev up down logs db migrate backup test
+.PHONY: dev up down logs db migrate backup test trace
 
 dev:
 	op run --env-file=.env.tpl -- docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
@@ -23,3 +23,9 @@ backup:
 
 test:
 	deno test src/tests/
+
+trace:
+	op run --env-file=.env.tpl -- ./scripts/trace.sh $(filter-out $@,$(MAKECMDGOALS))
+
+%:
+	@:

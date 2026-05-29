@@ -6,18 +6,31 @@ import { type QueueEvent, EventQueue } from "@/engine/eventQueue.ts";
 import { handleToolUseResponse } from "@/engine/handleToolUseResponse.ts";
 import { extractTextContent, hasToolUse } from "@/engine/parseResponse.ts";
 import { sendTelegramMessage } from "@/telegram/sendTelegramMessage.ts";
+import { info, warn, debug } from "@/logger.ts";
+import { trace } from "@/trace.ts";
 
 export async function processEvent(
   event: QueueEvent,
   queue: EventQueue,
 ): Promise<void> {
+  const traceId = event.id;
   const userMessage = extractUserMessage(event);
   const chatId = extractChatId(event);
   const metadata = extractMetadata(event);
-  await persistMessage("user", userMessage, metadata);
+
+  await trace(traceId, "event.received", { type: event.type, priority: event.priority });
+  await persistMessage({ role: "user", content: userMessage, metadata, traceId });
 
   const { systemPrompt, messages } = await assembleContext();
+  await trace(traceId, "context.assembled", {
+    messageCount: messages.length,
+    systemPromptLength: systemPrompt.length,
+    systemPrompt,
+    messages,
+  });
+
   const tools = getToolSchemas();
+  await trace(traceId, "claude.request", { messageCount: messages.length, toolCount: tools.length });
 
   const { response, tokenUsage } = await sendMessage({
     systemPrompt,
@@ -26,19 +39,26 @@ export async function processEvent(
   });
 
   logTokenUsage(tokenUsage);
+  await trace(traceId, "claude.response", {
+    ...tokenUsage,
+    stopReason: response.stop_reason,
+  });
 
   if (hasToolUse(response)) {
-    await handleToolUseResponse(response, systemPrompt, tools, queue, chatId);
+    await handleToolUseResponse({
+      initialResponse: response, systemPrompt, tools, queue, chatId, traceId,
+    });
     return;
   }
 
   const assistantText = extractTextContent(response);
   if (!assistantText.trim()) {
-    console.warn("[event] Empty assistant response, skipping delivery");
+    warn("event", "Empty assistant response, skipping delivery");
+    await trace(traceId, "response.empty", { stopReason: response.stop_reason });
     return;
   }
-  await persistMessage("assistant", assistantText);
-  await deliverResponse(assistantText, chatId);
+  await persistMessage({ role: "assistant", content: assistantText, traceId });
+  await deliverResponse(assistantText, chatId, traceId);
 }
 
 function extractUserMessage(event: QueueEvent): string {
@@ -59,14 +79,21 @@ function extractMetadata(event: QueueEvent): Record<string, unknown> {
 async function deliverResponse(
   text: string,
   chatId: number | null,
+  traceId: string,
 ): Promise<void> {
-  console.log(`[assistant] ${text}`);
+  info("assistant", text);
   if (chatId) await sendTelegramMessage(chatId, text);
+  await trace(traceId, "response.delivered", {
+    channel: chatId ? "telegram" : "none",
+    chatId,
+  });
 }
 
 function logTokenUsage(tokenUsage: TokenUsage): void {
-  console.log(
-    `[tokens] in=${tokenUsage.inputTokens} out=${tokenUsage.outputTokens} ` +
-      `cache_create=${tokenUsage.cacheCreationTokens} cache_read=${tokenUsage.cacheReadTokens}`,
-  );
+  debug("tokens", "Usage", {
+    inputTokens: tokenUsage.inputTokens,
+    outputTokens: tokenUsage.outputTokens,
+    cacheCreation: tokenUsage.cacheCreationTokens,
+    cacheRead: tokenUsage.cacheReadTokens,
+  });
 }

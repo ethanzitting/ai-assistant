@@ -1,8 +1,9 @@
 import { EventQueue } from "@/engine/eventQueue.ts";
 import { processEvent } from "@/engine/processEvent.ts";
+import { info, error } from "@/logger.ts";
 
 export async function runEventLoop(queue: EventQueue): Promise<void> {
-  console.log("Event loop started. Waiting for events...");
+  info("event", "Event loop started");
 
   while (true) {
     await queue.waitForEvent();
@@ -10,13 +11,13 @@ export async function runEventLoop(queue: EventQueue): Promise<void> {
     const event = queue.shift();
     if (!event) continue;
 
-    console.log(`[event] Processing ${event.type} (priority: ${event.priority})`);
+    info("event", "Processing", { type: event.type, priority: event.priority });
 
     try {
       await processEvent(event, queue);
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`[event] Failed to process ${event.type}: ${errorMessage}`);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      error("event", "Failed to process", { type: event.type, error: errorMessage });
     }
   }
 }

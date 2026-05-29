@@ -1,9 +1,11 @@
 import { db } from "@/db.ts";
 import { findExistingEntity } from "@/knowledge/findExistingEntity.ts";
 import type { ToolResult } from "@/tools/toolTypes.ts";
+import { trace } from "@/trace.ts";
 
 export async function storeFact(
   input: Record<string, unknown>,
+  traceId: string,
 ): Promise<ToolResult> {
   const entityName = input.entity_name as string;
   const attribute = input.attribute as string;
@@ -36,16 +38,28 @@ export async function storeFact(
   }
 
   if (existing.length > 0) {
+    // deno-lint-ignore no-explicit-any
+    await db.begin(async (tx: any) => {
+      await tx`
+        UPDATE facts SET valid_until = now()
+        WHERE entity_id = ${entityId} AND attribute = ${attribute} AND valid_until IS NULL
+      `;
+      await tx`
+        INSERT INTO facts (entity_id, attribute, value)
+        VALUES (${entityId}, ${attribute}, ${value})
+      `;
+    });
+    await trace(traceId, "db.update", {
+      table: "facts", entityId, attribute, op: "close_old", previousValue: existing[0].value,
+    });
+    await trace(traceId, "db.insert", { table: "facts", entityId, attribute, value });
+  } else {
     await db`
-      UPDATE facts SET valid_until = now()
-      WHERE entity_id = ${entityId} AND attribute = ${attribute} AND valid_until IS NULL
+      INSERT INTO facts (entity_id, attribute, value)
+      VALUES (${entityId}, ${attribute}, ${value})
     `;
+    await trace(traceId, "db.insert", { table: "facts", entityId, attribute, value });
   }
-
-  await db`
-    INSERT INTO facts (entity_id, attribute, value)
-    VALUES (${entityId}, ${attribute}, ${value})
-  `;
 
   const verb = existing.length > 0 ? "Updated" : "Stored";
   return { content: `${verb} fact: ${name}.${attribute} = "${value}"` };

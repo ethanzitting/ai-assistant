@@ -3,6 +3,7 @@ import type { EventQueue } from "@/engine/eventQueue.ts";
 import { downloadTelegramFile } from "@/audio/downloadTelegramFile.ts";
 import { transcribeAudio } from "@/audio/transcribeAudio.ts";
 import { archiveFile } from "@/archive/archiveFile.ts";
+import { error } from "@/logger.ts";
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB Telegram Bot API limit
 
@@ -43,7 +44,7 @@ export async function handleVoiceMessage(
         originalFilename,
       });
     } catch (err) {
-      console.error("[archive] Audio archival failed, continuing:", err);
+      error("archive", "Audio archival failed, continuing", { error: String(err) });
     }
 
     const transcript = await transcribeAudio(fileBytes, mimeType);
@@ -68,7 +69,7 @@ export async function handleVoiceMessage(
         metadata,
       });
     } catch (err) {
-      console.error("[archive] Transcript archival failed, continuing:", err);
+      error("archive", "Transcript archival failed, continuing", { error: String(err) });
     }
 
     const audioMetadata: Record<string, unknown> = {
@@ -94,7 +95,7 @@ export async function handleVoiceMessage(
       createdAt: new Date(),
     });
   } catch (err) {
-    console.error("[media] Failed to process media message:", err);
+    error("media", "Failed to process media message", { error: String(err) });
     await ctx.reply("Sorry, I had trouble processing that. Please try again.").catch(() => {});
   }
 }

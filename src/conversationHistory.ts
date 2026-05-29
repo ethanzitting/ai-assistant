@@ -1,4 +1,5 @@
 import { db } from "@/db.ts";
+import { trace } from "@/trace.ts";
 
 export interface ConversationRow {
   id: string;
@@ -8,15 +9,24 @@ export interface ConversationRow {
   created_at: Date;
 }
 
-export async function persistMessage(
-  role: string,
-  content: string,
-  metadata: Record<string, unknown> = {},
-): Promise<void> {
+interface PersistMessageOptions {
+  role: string;
+  content: string;
+  metadata?: Record<string, unknown>;
+  traceId?: string;
+}
+
+export async function persistMessage(options: PersistMessageOptions): Promise<void> {
+  const { role, content, metadata = {}, traceId } = options;
+
   await db`
     INSERT INTO conversations (role, content, metadata)
     VALUES (${role}, ${content}, ${JSON.stringify(metadata)})
   `;
+
+  if (traceId) {
+    await trace(traceId, "db.insert", { table: "conversations", role, contentLength: content.length });
+  }
 }
 
 export async function loadRecentMessages(

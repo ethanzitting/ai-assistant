@@ -61,7 +61,7 @@ export const manageEventsTool: ToolDefinition = {
   handle: handleManageEvents,
 };
 
-async function handleManageEvents(input: Record<string, unknown>): Promise<ToolResult> {
+async function handleManageEvents(input: Record<string, unknown>, traceId: string): Promise<ToolResult> {
   const action = input.action as string;
   const eventData = input.event as Record<string, unknown> | undefined;
   const eventId = input.event_id as string | undefined;
@@ -70,18 +70,18 @@ async function handleManageEvents(input: Record<string, unknown>): Promise<ToolR
   switch (action) {
     case "create":
       if (!eventData) return { content: "Missing event data for create.", isError: true };
-      return createEvent(eventData);
+      return createEvent(eventData, traceId);
     case "update":
       if (!eventId || !eventData) return { content: "Missing event_id or event data for update.", isError: true };
-      return updateEvent(eventId, eventData);
+      return updateEvent(eventId, eventData, traceId);
     case "list":
       return listEvents(filter ?? {});
     case "complete":
       if (!eventId) return { content: "Missing event_id for complete.", isError: true };
-      return completeEvent(eventId);
+      return completeEvent(eventId, traceId);
     case "drop":
       if (!eventId) return { content: "Missing event_id for drop.", isError: true };
-      return dropEvent(eventId);
+      return dropEvent(eventId, traceId);
     default:
       return { content: `Unknown action: ${action}`, isError: true };
   }

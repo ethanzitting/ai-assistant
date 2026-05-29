@@ -3,13 +3,15 @@ import { EventQueue } from "@/engine/eventQueue.ts";
 import { runEventLoop } from "@/engine/runEventLoop.ts";
 import { createTelegramBot } from "@/telegram/createTelegramBot.ts";
 import { setBotInstance } from "@/telegram/sendTelegramMessage.ts";
+import { info, warn, error } from "@/logger.ts";
 
 async function healthCheck(): Promise<void> {
   const result =
     await db`SELECT now() AS time, current_database() AS database`;
-  console.log(
-    `Connected to database '${result[0].database}' at ${result[0].time}`,
-  );
+  info("startup", "Connected to database", {
+    database: result[0].database,
+    time: String(result[0].time),
+  });
 
   const tables = await db`
     SELECT table_name
@@ -19,20 +21,22 @@ async function healthCheck(): Promise<void> {
   `;
 
   if (tables.length === 0) {
-    console.warn("No tables found — run 'make migrate' to apply migrations.");
+    warn("startup", "No tables found — run 'make migrate' to apply migrations");
   } else {
-    console.log(`Tables: ${tables.map((row) => row.table_name).join(", ")}`);
+    info("startup", "Tables loaded", {
+      tables: tables.map((row) => row.table_name).join(", "),
+    });
   }
 }
 
 async function main(): Promise<void> {
-  console.log("Starting agent...");
+  info("startup", "Starting agent...");
 
   try {
     await healthCheck();
-    console.log("Health check passed.");
-  } catch (error) {
-    console.error("Health check failed:", error);
+    info("startup", "Health check passed");
+  } catch (err) {
+    error("startup", "Health check failed", { error: String(err) });
     Deno.exit(1);
   }
 
@@ -40,7 +44,7 @@ async function main(): Promise<void> {
   const bot = createTelegramBot(queue);
   setBotInstance(bot);
 
-  bot.start({ onStart: () => console.log("Telegram bot started. Listening for messages...") });
+  bot.start({ onStart: () => info("startup", "Telegram bot started") });
 
   await runEventLoop(queue);
 }

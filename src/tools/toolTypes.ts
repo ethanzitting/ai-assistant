@@ -5,7 +5,7 @@ export interface ToolResult {
   isError?: boolean;
 }
 
-export type ToolHandler = (input: Record<string, unknown>) => Promise<ToolResult>;
+export type ToolHandler = (input: Record<string, unknown>, traceId?: string) => Promise<ToolResult>;
 
 export interface ToolDefinition {
   schema: Tool;

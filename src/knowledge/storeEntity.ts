@@ -1,9 +1,11 @@
 import { db } from "@/db.ts";
 import { findExistingEntity } from "@/knowledge/findExistingEntity.ts";
 import type { ToolResult } from "@/tools/toolTypes.ts";
+import { trace } from "@/trace.ts";
 
 export async function storeEntity(
   input: Record<string, unknown>,
+  traceId: string,
 ): Promise<ToolResult> {
   const name = input.name as string;
   const entityType = input.type as string;
@@ -27,5 +29,6 @@ export async function storeEntity(
     VALUES (${entityType}, ${name}, ${JSON.stringify(properties)})
     RETURNING id
   `;
+  await trace(traceId, "db.insert", { table: "entities", id: result[0].id, name, type: entityType });
   return { content: `Created entity "${name}" (${entityType}, id: ${result[0].id}).` };
 }

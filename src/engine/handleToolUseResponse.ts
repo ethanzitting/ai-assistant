@@ -1,96 +1,69 @@
-import type { MessageParam, Message, Tool } from "@anthropic-ai/sdk/resources/messages.mjs";
+import type { Message, Tool } from "@anthropic-ai/sdk/resources/messages.mjs";
 import { sendMessage } from "@/anthropic/sendMessage.ts";
-import { executeTool } from "@/tools/toolRegistry.ts";
 import { persistMessage } from "@/conversationHistory.ts";
 import { assembleContext } from "@/prompt/assembleContext.ts";
 import type { EventQueue } from "@/engine/eventQueue.ts";
 import { extractTextContent, getToolUseBlocks } from "@/engine/parseResponse.ts";
 import { sendTelegramMessage } from "@/telegram/sendTelegramMessage.ts";
+import { executeAllToolCalls } from "@/engine/executeAllToolCalls.ts";
+import { appendToolResults } from "@/engine/appendToolResults.ts";
+import { info, warn } from "@/logger.ts";
+import { trace } from "@/trace.ts";
 
-export async function handleToolUseResponse(
-  initialResponse: Message,
-  systemPrompt: string,
-  tools: Tool[],
-  queue: EventQueue,
-  chatId: number | null = null,
-): Promise<void> {
+interface HandleToolUseOptions {
+  initialResponse: Message;
+  systemPrompt: string;
+  tools: Tool[];
+  queue: EventQueue;
+  chatId: number | null;
+  traceId: string;
+}
+
+export async function handleToolUseResponse(options: HandleToolUseOptions): Promise<void> {
+  const { initialResponse, systemPrompt, tools, queue, chatId, traceId } = options;
   const MAX_TOOL_ITERATIONS = 15;
   let currentResponse = initialResponse;
   let iteration = 0;
 
   while (currentResponse.stop_reason === "tool_use") {
     if (++iteration > MAX_TOOL_ITERATIONS) {
-      console.warn(`[tool-loop] Hit max iterations (${MAX_TOOL_ITERATIONS}), forcing stop.`);
+      warn("tool-loop", "Hit max iterations", { max: MAX_TOOL_ITERATIONS });
+      await trace(traceId, "tool-loop.max_iterations", { iteration, max: MAX_TOOL_ITERATIONS });
       break;
     }
-    const toolResults = await executeAllToolCalls(currentResponse);
-    const highPriorityInterruptText = drainHighPriorityContext(queue);
+    const toolResults = await executeAllToolCalls(currentResponse, traceId);
+    const interruptText = drainHighPriorityContext(queue);
 
-    await persistToolCallRecord(currentResponse);
+    await persistToolCallRecord(currentResponse, traceId);
 
     const { messages } = await assembleContext();
-    appendToolResults(messages, currentResponse, toolResults, highPriorityInterruptText);
+    appendToolResults({ messages, assistantResponse: currentResponse, toolResults, interruptText });
 
-    const { response: nextResponse } = await sendMessage({
+    await trace(traceId, "claude.request", { iteration, messageCount: messages.length });
+
+    const { response: nextResponse, tokenUsage } = await sendMessage({
       systemPrompt,
       messages,
       tools,
+    });
+
+    await trace(traceId, "claude.response", {
+      ...tokenUsage,
+      stopReason: nextResponse.stop_reason,
+      iteration,
     });
 
     currentResponse = nextResponse;
   }
 
   const finalText = extractTextContent(currentResponse);
-  await persistMessage("assistant", finalText);
-  console.log(`[assistant] ${finalText}`);
+  await persistMessage({ role: "assistant", content: finalText, traceId });
+  info("assistant", finalText);
   if (chatId) await sendTelegramMessage(chatId, finalText);
-}
-
-interface ToolCallResult {
-  toolUseId: string;
-  content: string;
-  isError: boolean;
-}
-
-async function executeAllToolCalls(response: Message): Promise<ToolCallResult[]> {
-  const toolBlocks = getToolUseBlocks(response);
-  const results: ToolCallResult[] = [];
-
-  for (const block of toolBlocks) {
-    console.log(`[tool] ${block.name}(${JSON.stringify(block.input)})`);
-    const result = await executeTool(block.name, block.input);
-    console.log(`[tool result] ${result.content.substring(0, 200)}`);
-
-    results.push({
-      toolUseId: block.id,
-      content: result.content,
-      isError: result.isError ?? false,
-    });
-  }
-
-  return results;
-}
-
-function appendToolResults(
-  messages: MessageParam[],
-  assistantResponse: Message,
-  toolResults: ToolCallResult[],
-  highPriorityInterruptText: string | null,
-): void {
-  messages.push({ role: "assistant", content: assistantResponse.content });
-
-  const resultBlocks = toolResults.map((result) => ({
-    type: "tool_result" as const,
-    tool_use_id: result.toolUseId,
-    content: result.content,
-  }));
-
-  if (highPriorityInterruptText && resultBlocks.length > 0) {
-    const lastBlock = resultBlocks[resultBlocks.length - 1];
-    lastBlock.content += `\n\n[While you were working, new events arrived: ${highPriorityInterruptText}]`;
-  }
-
-  messages.push({ role: "user", content: resultBlocks });
+  await trace(traceId, "response.delivered", {
+    channel: chatId ? "telegram" : "none",
+    chatId,
+  });
 }
 
 function drainHighPriorityContext(queue: EventQueue): string | null {
@@ -105,8 +78,8 @@ function drainHighPriorityContext(queue: EventQueue): string | null {
     .join("\n");
 }
 
-async function persistToolCallRecord(response: Message): Promise<void> {
+async function persistToolCallRecord(response: Message, traceId: string): Promise<void> {
   const toolBlocks = getToolUseBlocks(response);
   const summary = toolBlocks.map((block) => `[called ${block.name}]`).join(" ");
-  await persistMessage("tool_call", summary);
+  await persistMessage({ role: "tool_call", content: summary, traceId });
 }

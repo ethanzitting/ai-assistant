@@ -1,4 +1,5 @@
 import type { Bot } from "grammy";
+import { warn } from "@/logger.ts";
 
 let botInstance: Bot | null = null;
 
@@ -11,7 +12,7 @@ export async function sendTelegramMessage(
   text: string,
 ): Promise<void> {
   if (!botInstance) {
-    console.log(`[telegram] Bot not initialized. Would send to ${chatId}: ${text}`);
+    warn("telegram", "Bot not initialized", { chatId });
     return;
   }
 

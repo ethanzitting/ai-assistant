@@ -1,9 +1,11 @@
 import { db } from "@/db.ts";
 import { computeNextDueAt } from "@/events/computeNextDueAt.ts";
 import type { ToolResult } from "@/tools/toolTypes.ts";
+import { trace } from "@/trace.ts";
 
 export async function createEvent(
   eventData: Record<string, unknown>,
+  traceId: string,
 ): Promise<ToolResult> {
   const recurrenceRule = eventData.recurrence_rule
     ? JSON.stringify(eventData.recurrence_rule)
@@ -27,5 +29,6 @@ export async function createEvent(
     RETURNING id, title
   `;
 
+  await trace(traceId, "db.insert", { table: "events", id: result[0].id, title: result[0].title });
   return { content: `Created event "${result[0].title}" (id: ${result[0].id}).` };
 }

@@ -1,9 +1,11 @@
 import { db } from "@/db.ts";
 import { findExistingEntity } from "@/knowledge/findExistingEntity.ts";
 import type { ToolResult } from "@/tools/toolTypes.ts";
+import { trace } from "@/trace.ts";
 
 export async function storeRelationship(
   input: Record<string, unknown>,
+  traceId: string,
 ): Promise<ToolResult> {
   const entityAName = input.entity_a_name as string;
   const entityBName = input.entity_b_name as string;
@@ -35,5 +37,11 @@ export async function storeRelationship(
     VALUES (${entityA[0].id}, ${entityB[0].id}, ${relationshipType})
   `;
 
+  await trace(traceId, "db.insert", {
+    table: "relationships",
+    entityA: entityA[0].name,
+    entityB: entityB[0].name,
+    type: relationshipType,
+  });
   return { content: `Stored relationship: ${entityA[0].name} → ${relationshipType} → ${entityB[0].name}` };
 }

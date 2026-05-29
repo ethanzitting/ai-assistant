@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { warn, error } from "@/logger.ts";
 
 function sleep(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -7,30 +8,30 @@ function sleep(milliseconds: number): Promise<void> {
 export async function callWithRetry<T>(apiFn: () => Promise<T>): Promise<T> {
   try {
     return await apiFn();
-  } catch (error: unknown) {
-    if (error instanceof Anthropic.RateLimitError) {
-      const retryDelayMs = parseRetryDelay(error);
-      console.warn(`Rate limited, retrying after ${retryDelayMs}ms`);
+  } catch (err: unknown) {
+    if (err instanceof Anthropic.RateLimitError) {
+      const retryDelayMs = parseRetryDelay(err);
+      warn("anthropic", "Rate limited, retrying", { delayMs: retryDelayMs });
       await sleep(retryDelayMs);
       return apiFn();
     }
 
-    if (error instanceof Anthropic.InternalServerError) {
-      console.warn("Server error, retrying once after 2s");
+    if (err instanceof Anthropic.InternalServerError) {
+      warn("anthropic", "Server error, retrying after 2s");
       await sleep(2000);
       return apiFn();
     }
 
-    if (error instanceof Anthropic.AuthenticationError) {
-      console.error("Authentication failed — check ANTHROPIC_API_KEY");
+    if (err instanceof Anthropic.AuthenticationError) {
+      error("anthropic", "Authentication failed — check ANTHROPIC_API_KEY");
     }
 
-    throw error;
+    throw err;
   }
 }
 
-function parseRetryDelay(error: InstanceType<typeof Anthropic.APIError>): number {
-  const errorHeaders = error.headers as Record<string, string> | undefined;
+function parseRetryDelay(err: InstanceType<typeof Anthropic.APIError>): number {
+  const errorHeaders = err.headers as Record<string, string> | undefined;
   const retryAfterSeconds = parseInt(errorHeaders?.["retry-after"] ?? "5");
   return retryAfterSeconds * 1000;
 }

@@ -3,6 +3,7 @@
   "specifiers": {
     "npm:@anthropic-ai/sdk@0.39": "0.39.0",
     "npm:grammy@^1.35.0": "1.43.0",
+    "npm:postgres@*": "3.4.9",
     "npm:postgres@^3.4.0": "3.4.9"
   },
   "npm": {

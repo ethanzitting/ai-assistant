@@ -17,7 +17,7 @@ export const skillTool: ToolDefinition = {
       required: ["name"],
     },
   },
-  handle: async (input) => {
+  handle: async (input: Record<string, unknown>) => {
     const skillName = input.name as string;
 
     const results = await db`

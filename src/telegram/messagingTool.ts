@@ -1,6 +1,7 @@
 import type { ToolDefinition } from "@/tools/toolTypes.ts";
 import { sendTelegramMessage } from "@/telegram/sendTelegramMessage.ts";
 import { db } from "@/db.ts";
+import { warn } from "@/logger.ts";
 
 export const messagingTool: ToolDefinition = {
   schema: {
@@ -17,12 +18,12 @@ export const messagingTool: ToolDefinition = {
       required: ["text"],
     },
   },
-  handle: async (input) => {
+  handle: async (input: Record<string, unknown>) => {
     const messageText = input.text as string;
     const chatId = await getOwnerChatId();
 
     if (!chatId) {
-      console.log(`[send_message] No owner chat ID known yet. Message: ${messageText}`);
+      warn("telegram", "No owner chat ID known yet", { messageText });
       return { content: "Cannot send — no Telegram chat established yet." };
     }
 

@@ -1,7 +1,8 @@
 import { db } from "@/db.ts";
 import type { ToolResult } from "@/tools/toolTypes.ts";
+import { trace } from "@/trace.ts";
 
-export async function dropEvent(eventId: string): Promise<ToolResult> {
+export async function dropEvent(eventId: string, traceId: string): Promise<ToolResult> {
   const result = await db`
     UPDATE events SET status = 'dropped'
     WHERE id = ${eventId} AND status = 'active'
@@ -12,5 +13,6 @@ export async function dropEvent(eventId: string): Promise<ToolResult> {
     return { content: `No active event found with id ${eventId}.`, isError: true };
   }
 
+  await trace(traceId, "db.update", { table: "events", id: eventId, op: "drop", title: result[0].title });
   return { content: `Dropped "${result[0].title}".` };
 }
