@@ -92,7 +92,7 @@ Processes all untrusted external input: emails, Telegram messages, Plaid transac
 **Web fetch constraint:** The ingestion container fetches URLs only when explicitly instructed by the agent (user-initiated research requests). It never autonomously follows URLs found in emails, documents, or other ingested content. This breaks the email → URL → prompt injection attack chain. See [ingestion.md](ingestion.md).
 
 **Permissions:**
-- Outbound network access to specific external APIs only (Gmail, Telegram, Plaid, LLM API) — enforced by Deno `--allow-net` allowlist and Docker network rules
+- Outbound network access to specific external APIs only (Gmail, Telegram, Plaid, LLM API, Deepgram) — enforced by Deno `--allow-net` allowlist and Docker network rules
 - No subprocess execution — Deno `--deny-run` prevents spawning child processes, CLI scripts, or shell commands
 - Read-only filesystem (`docker run --read-only`) with specific writable mount points only
 - No direct database access — emits structured records to a single Postgres table (`ingestion_emissions`) via a database user with INSERT-only permissions on that one table
@@ -100,12 +100,12 @@ Processes all untrusted external input: emails, Telegram messages, Plaid transac
 - Separate Docker network from the agent — communicates only through the emission table
 - The agent discovers new emissions by polling `ingestion_emissions` for unprocessed rows (every 5-10 seconds)
 
-**Emission schema:** Every record the ingestion container emits must conform to a predefined schema — typed fields for entities, facts, events, tasks, embeddings. The agent validates every emission against these schemas before acting on it. Anything that doesn't match is logged and dropped. No free-form text passes through as executable instructions.
+**Emission schema:** Every record the ingestion container emits must conform to a predefined schema — typed fields for entities, facts, events, tasks, embeddings. The agent validates every emission against these schemas before acting on it. Anything that doesn't match is logged and dropped. No free-form text passes through as executable instructions. Transcripts from Deepgram are treated as untrusted user content — the agent never interprets transcript text as system instructions, guarding against prompt injection via adversarial audio content.
 
 **Container monitoring:** Core actively watches the ingestion container for signs of compromise or exploitation attempts:
 
 - **Permission denial log watching.** Core tails the ingestion container's stderr via Docker's log API. Deno writes `PermissionDenied` errors when anything attempts an unauthorized action (network call to an unlisted domain, subprocess spawn, filesystem write outside allowed paths). Any permission denial triggers an immediate Telegram alert — it means a prompt injection is actively attempting exploitation.
-- **Network connection auditing.** Core periodically inspects active network connections from the ingestion container via Docker's API. Expected connections: Gmail API, Calendar API, Anthropic API, the Postgres emission table. Any connection to an unexpected destination is flagged and alerted.
+- **Network connection auditing.** Core periodically inspects active network connections from the ingestion container via Docker's API. Expected connections: Gmail API, Calendar API, Anthropic API, Deepgram API, the Postgres emission table. Any connection to an unexpected destination is flagged and alerted.
 - **Process auditing.** Core periodically checks the ingestion container's process list. Only Deno should be running. Any additional process indicates something bypassed `--deny-run`, which warrants killing the container immediately.
 
 **Emission stream monitoring:** Core also watches the emission data for anomalies:

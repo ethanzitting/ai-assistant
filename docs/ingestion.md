@@ -20,6 +20,7 @@ What data comes into the assistant, what doesn't, and how it gets in. Implements
 | **Discord** | Potentially automated (gray area) | Read-only personal server messages | — |
 | **Physical mail** | Photo capture → OCR | Photos sent to quick-capture bot. OCR extracts text, classifies (bill, legal doc, personal letter), extracts structured data | — |
 | **Meeting takeaways** | Voice memo capture | 60-second post-meeting voice note, transcribed via Whisper API | Your observations and takeaways |
+| **Audio/video files** | Deepgram transcription | Full audio or video files (MP4, WebM, WAV, MP3) transcribed with speaker diarization via Deepgram API. Transcript flows through standard extraction pipeline. | Raw media files archived to B2 |
 | **Conversations with the assistant** | Always on | Every message you send is scanned for entities, facts, tasks, intentions, and preferences — extracted to knowledge graph in real time | Routine queries pruned after 1 month; see [data-lifecycle.md](data-lifecycle.md) |
 
 ## Quick-capture channels
@@ -84,7 +85,7 @@ Photos of receipts sent via Telegram flow through the same ingestion pipeline as
 
 ## Architectural constraint
 
-The ingestion pipeline runs as a **separate container** from the agent, with strict isolation. It processes all untrusted external content (emails, Telegram messages, web pages, documents) and can only emit structured records through a schema-validated channel. It cannot read the knowledge graph, modify preferences, trigger actions, or access secrets beyond its own API keys. This prevents prompt injection in ingested content from causing unintended side effects. See [security.md](security.md) for the full isolation model.
+The ingestion pipeline runs as a **separate container** from the agent, with strict isolation. It processes all untrusted external content (emails, Telegram messages, web pages, documents, audio/video files) and can only emit structured records through a schema-validated channel. It cannot read the knowledge graph, modify preferences, trigger actions, or access secrets beyond its own API keys. This prevents prompt injection in ingested content from causing unintended side effects. Media transcription (Deepgram) happens inside this container — audio is extracted from video files via ffmpeg, sent to Deepgram, and the resulting transcript is treated as untrusted content subject to the same validation as any other emission. See [security.md](security.md) for the full isolation model.
 
 ## Sensitivity tagging
 

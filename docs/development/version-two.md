@@ -368,7 +368,7 @@ CREATE TABLE document_chunks (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     content TEXT NOT NULL,
     embedding vector(1536),       -- text-embedding-3-small output dimensions
-    source_type TEXT NOT NULL,    -- 'email', 'document', 'voice_memo', 'conversation'
+    source_type TEXT NOT NULL,    -- 'email', 'document', 'voice_memo', 'transcript', 'video_transcript', 'conversation'
     source_ref TEXT,
     entity_ids UUID[],
     metadata JSONB DEFAULT '{}',
@@ -448,22 +448,26 @@ Accept files and voice messages through the Telegram bot, process them through i
 
 ### Telegram file routing
 
-Extend the Telegram bot (running in the agent container per the [event loop](../agent/src/engine/)) to handle non-text messages:
+Extend the Telegram bot (running in the agent container per the [event loop](../src/engine/)) to handle non-text messages:
 
-- **Voice messages:** download the audio file, forward to ingestion for Whisper transcription
+- **Voice messages:** download the audio file, forward to ingestion for transcription via Deepgram (speaker diarization, punctuation, paragraphs)
+- **Audio/video files:** download, extract audio via ffmpeg in ingestion, transcribe via Deepgram with speaker diarization
 - **Documents** (PDFs, images, text files): download, forward to ingestion for parsing
 - **Photos:** forward to ingestion for OCR if they appear to be documents/mail, otherwise catalog as images
 
 File forwarding mechanism: the agent writes the file to a shared volume, inserts a row into the `processing_requests` table (from Phase 3) with the file path and type, ingestion picks it up.
 
-### Whisper transcription
+### Audio/video transcription (Deepgram)
 
-Ingestion calls the Whisper API ($0.006/min) for voice messages:
+Ingestion calls the Deepgram API (~$0.0043/min, Nova-2 model) for voice and video messages:
 
-1. Receive audio file
-2. Transcribe via Whisper API
-3. Process the transcript through the standard extraction pipeline (entities, facts, tasks, action items)
-4. Emit structured records through the emission flow
+1. Receive audio or video file
+2. For video: extract audio track via ffmpeg
+3. Transcribe via Deepgram API with speaker diarization, punctuation, and paragraph detection
+4. Process the transcript through the standard extraction pipeline (entities, facts, tasks, action items)
+5. Emit structured records through the emission flow
+
+Deepgram over Whisper: better speaker diarization (critical for meeting recordings), streaming support, and lower cost. Transcripts are treated as untrusted content — the agent validates emissions and never interprets transcript text as system instructions.
 
 ### Document processing
 
@@ -471,13 +475,15 @@ Ingestion handles uploaded documents:
 
 - **PDFs:** extract text, chunk, process for entities/facts, generate embeddings
 - **Images of physical mail:** OCR (Tesseract or a cloud OCR API), classify (bill, legal doc, personal letter), extract structured data
+- **Video files:** extract audio via ffmpeg, transcribe via Deepgram with diarization, process transcript through extraction pipeline
 - **Text files:** process directly through the extraction pipeline
 
 All uploaded files are archived to B2 and cataloged in the knowledge graph.
 
 ### Testable at end of phase
 
-- Send a voice memo to the bot → transcription appears, entities/facts extracted
+- Send a voice memo to the bot → Deepgram transcription appears with speaker identification, entities/facts extracted
+- Send a video file to the bot → audio extracted, transcribed with diarization, entities/facts extracted from transcript
 - Send a PDF to the bot → text extracted, knowledge graph updated
 - Send a photo of a letter to the bot → OCR'd, classified, structured data extracted
 - Verify all uploaded files are archived to B2
