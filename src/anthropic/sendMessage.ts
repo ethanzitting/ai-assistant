@@ -56,7 +56,7 @@ function applyCacheControl(tools: Tool[]): Tool[] | undefined {
 }
 
 function extractTokenUsage(response: Message): TokenUsage {
-  const rawUsage = response.usage as Record<string, number>;
+  const rawUsage = response.usage as unknown as Record<string, number>;
 
   return {
     inputTokens: rawUsage.input_tokens,
