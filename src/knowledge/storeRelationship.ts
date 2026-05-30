@@ -28,7 +28,7 @@ export async function storeRelationship(
   `;
 
   if (existing.length > 0) {
-    return { content: `Already known: ${entityA[0].name} → ${relationshipType} → ${entityB[0].name}. No changes made.` };
+    return { content: `Already stored: ${entityA[0].name} → ${relationshipType} → ${entityB[0].name}. Stored and current — do not re-store.` };
   }
 
   await db`

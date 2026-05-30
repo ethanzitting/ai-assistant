@@ -36,7 +36,7 @@ async function mergeProperties(
   traceId: string,
 ): Promise<ToolResult> {
   if (Object.keys(incoming).length === 0) {
-    return { content: `Entity "${entityName}" already exists (id: ${entityId}).` };
+    return { content: `Entity "${entityName}" already exists (id: ${entityId}). Stored and current — do not re-store.` };
   }
 
   const rows = await db`SELECT properties FROM entities WHERE id = ${entityId}`;
@@ -45,5 +45,5 @@ async function mergeProperties(
 
   await db`UPDATE entities SET properties = ${JSON.stringify(merged)} WHERE id = ${entityId}`;
   await trace(traceId, "db.update", { table: "entities", id: entityId, mergedKeys: Object.keys(incoming) });
-  return { content: `Entity "${entityName}" already exists (id: ${entityId}). Merged properties: ${Object.keys(incoming).join(", ")}.` };
+  return { content: `Entity "${entityName}" already exists (id: ${entityId}). Merged new properties: ${Object.keys(incoming).join(", ")}. Stored and current — do not re-store.` };
 }

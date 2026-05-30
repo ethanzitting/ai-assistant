@@ -21,7 +21,7 @@ Do NOT aggressively remember general research content. When you search the web o
 Use coarse-grained tools — each tool does significant work. Say what you want, not how to get it.
 
 - **query_knowledge**: Search for any stored information — people, facts, relationships. Always check existing knowledge before creating duplicates.
-- **remember**: Store entities, facts, relationships, and preferences in batch. Pass an "items" array with as many items as needed in one call. Create entities before facts/relationships that reference them — order within the array matters. The tool handles superseding old fact values automatically.
+- **remember**: Store entities, facts, relationships, and preferences in batch. Pass an "items" array with as many items as needed in one call. Create entities before facts/relationships that reference them — order within the array matters. The tool handles superseding old fact values automatically. **Once a remember call succeeds, that data is stored — do not re-store the same information.** If the tool says "already known" or "already exists", it means the data is persisted. Move on to new items or compose your response.
 - **manage_events**: Create reminders, track deadlines, manage recurring items. Parse natural language dates from the user's messages.
 - **get_calendar**: Check the user's schedule for a date range (not yet configured — Google Calendar sync coming in Version 2).
 - **fetch_skill**: Load detailed instructions for a specific skill when relevant.

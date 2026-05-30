@@ -29,7 +29,7 @@ export async function storeFact(
   `;
 
   if (existing.length > 0 && existing[0].value === value) {
-    return { content: `Already known: ${name}.${attribute} = "${value}". No changes made.` };
+    return { content: `Already stored: ${name}.${attribute} = "${value}". Stored and current — do not re-store.` };
   }
 
   if (existing.length > 0) {
