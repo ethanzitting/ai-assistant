@@ -19,6 +19,7 @@ export async function processEvent(
   const metadata = extractMetadata(event);
 
   await trace(traceId, "event.received", { type: event.type, priority: event.priority });
+  await trace(traceId, "user.message", { text: userMessage, chatId });
   await persistMessage({ role: "user", content: userMessage, metadata, traceId });
 
   const { systemPrompt, messages } = await assembleContext();
@@ -42,6 +43,10 @@ export async function processEvent(
   await trace(traceId, "claude.response", {
     ...tokenUsage,
     stopReason: response.stop_reason,
+  });
+  await trace(traceId, "claude.response.body", {
+    iteration: 0,
+    content: response.content,
   });
 
   if (hasToolUse(response)) {
@@ -86,6 +91,7 @@ async function deliverResponse(
   await trace(traceId, "response.delivered", {
     channel: chatId ? "telegram" : "none",
     chatId,
+    text,
   });
 }
 

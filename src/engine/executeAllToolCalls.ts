@@ -25,6 +25,7 @@ export async function executeAllToolCalls(response: Message, traceId: string): P
       name: block.name,
       isError: result.isError ?? false,
       contentLength: result.content.length,
+      content: result.content,
     });
 
     results.push({

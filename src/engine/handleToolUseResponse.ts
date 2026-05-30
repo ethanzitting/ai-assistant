@@ -57,6 +57,15 @@ export async function handleToolUseResponse(options: HandleToolUseOptions): Prom
       stopReason: nextResponse.stop_reason,
       iteration,
     });
+    await trace(traceId, "claude.response.body", {
+      iteration,
+      content: nextResponse.content,
+    });
+
+    const intermediateText = extractTextContent(nextResponse);
+    if (intermediateText.trim()) {
+      await trace(traceId, "assistant.intermediate", { iteration, text: intermediateText });
+    }
 
     currentResponse = nextResponse;
   }
@@ -68,6 +77,7 @@ export async function handleToolUseResponse(options: HandleToolUseOptions): Prom
   await trace(traceId, "response.delivered", {
     channel: chatId ? "telegram" : "none",
     chatId,
+    text: finalText,
   });
 }
 
