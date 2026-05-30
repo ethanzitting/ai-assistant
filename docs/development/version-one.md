@@ -198,7 +198,7 @@ grammY handles all four types via `bot.on(["message:voice", "message:audio", "me
 
 **Archive-first pattern:** Media is archived to B2 before transcription, so the original is safe even if Deepgram fails. B2 archival is non-fatal — if it fails, transcription proceeds with `archive_id = null`. The companion transcript is also archived to B2 with a `metadata.source_file_id` backlink to the original media row.
 
-**File size limit:** The Telegram Bot API's `getFile` method only supports files up to 20MB. Voice memos recorded in-app are well under this (~1MB/min for OGG/Opus), but uploaded audio files (meeting recordings, podcasts) can exceed it. Version 1 detects oversized files from Telegram's message metadata (available before download) and replies with a helpful message. Version 2 removes this limit via the Telegram Bot API Local Server.
+**File size limit:** A local Telegram Bot API server (`aiogram/telegram-bot-api`) runs alongside the agent, removing the public API's 20MB `getFile` limit. Files up to 100MB are accepted (a practical ceiling for in-memory processing on the VPS). The local server runs with `TELEGRAM_LOCAL=1`, which returns absolute filesystem paths from `getFile` — the agent reads files directly from a shared Docker volume. Files exceeding 100MB are rejected with a helpful message before download.
 
 ### Message formatting
 

@@ -10,7 +10,10 @@ export function createTelegramBot(queue: EventQueue): Bot {
   const token = Deno.env.get("TELEGRAM_BOT_TOKEN");
   if (!token) throw new Error("TELEGRAM_BOT_TOKEN is not set");
 
-  const bot = new Bot(token);
+  const apiRoot = Deno.env.get("TELEGRAM_API_URL");
+  if (!apiRoot) throw new Error("TELEGRAM_API_URL is not set");
+
+  const bot = new Bot(token, { client: { apiRoot } });
 
   bot.on("message:text", async (ctx) => {
     const userId = String(ctx.from.id);

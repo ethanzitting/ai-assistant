@@ -25,7 +25,7 @@ Three new files, three small modifications. No database or schema changes needed
 **`src/telegram/handlePhotoMessage.ts`** (~70 lines) — Photo orchestrator. Mirrors `src/telegram/handleVoiceMessage.ts`.
 
 1. Extract highest-resolution photo from `ctx.message.photo` (last element of array)
-2. Validate file size (20MB limit)
+2. Validate file size (100MB limit)
 3. Reply "Reading image..."
 4. Download via `downloadTelegramFile` (reused from `src/audio/`)
 5. Archive original to B2 with `sourceType: "photo"` (non-fatal)
@@ -39,7 +39,7 @@ Three new files, three small modifications. No database or schema changes needed
 
 1. Extract `ctx.message.document` — get `file_id`, `file_name`, `mime_type`, `file_size`
 2. Check MIME type against allowlist — reject non-OCR types with no reply (silent ignore for non-image/PDF docs)
-3. Validate file size (20MB limit)
+3. Validate file size (100MB limit)
 4. Reply "Reading document..."
 5. Download, archive with `sourceType: "document"`, OCR, archive OCR text — same archive-first pattern
 6. Extension from `file_name` or MIME type for archival

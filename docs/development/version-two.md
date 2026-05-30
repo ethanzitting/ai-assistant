@@ -469,9 +469,9 @@ File forwarding mechanism: the agent writes the file to a shared volume, inserts
 
 ### Telegram Bot API Local Server
 
-Version 1 uses the public Telegram Bot API, which limits `getFile` downloads to 20MB. This phase deploys Telegram's [open-source Bot API server](https://github.com/tdlib/telegram-bot-api) as a new container in docker-compose. The local server removes the 20MB download limit entirely — files up to 2GB can be downloaded directly. grammY is pointed at the local server (`http://telegram-bot-api:8081`) instead of `api.telegram.org`.
+Already deployed in Version 1. The local Bot API server (`aiogram/telegram-bot-api`) runs with `TELEGRAM_LOCAL=1` and a shared Docker volume, removing the public API's 20MB `getFile` limit. Files up to 100MB are accepted. grammY is pointed at `http://telegram-bot-api:8081` via the `TELEGRAM_API_URL` env var.
 
-This unblocks large audio files (meeting recordings, podcasts), video files, and large documents that previously had to be rejected.
+Version 2 inherits this setup — no changes needed. The ingestion container will also read from the shared volume when processing files forwarded by the agent.
 
 ### Audio/video transcription (Deepgram)
 

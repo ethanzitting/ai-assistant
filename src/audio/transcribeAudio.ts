@@ -21,7 +21,7 @@ export async function transcribeAudio(
       "Content-Type": mimeType,
     },
     body: audioBytes,
-    signal: AbortSignal.timeout(60_000),
+    signal: AbortSignal.timeout(180_000),
   });
 
   if (!response.ok) {

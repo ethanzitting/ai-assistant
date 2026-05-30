@@ -5,7 +5,7 @@ import { transcribeAudio } from "@/audio/transcribeAudio.ts";
 import { archiveFile } from "@/archive/archiveFile.ts";
 import { error } from "@/logger.ts";
 
-const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB Telegram Bot API limit
+const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB practical limit for in-memory processing
 
 export async function handleVoiceMessage(
   ctx: Context,
@@ -19,7 +19,7 @@ export async function handleVoiceMessage(
 
     if (fileSize && fileSize > MAX_FILE_SIZE) {
       await ctx.reply(
-        "That file is too large for me to process right now (20MB limit). Try a shorter clip.",
+        "That file is too large for me to process right now (100MB limit). Try a shorter clip.",
       );
       return;
     }

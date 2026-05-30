@@ -1,13 +1,19 @@
-const TELEGRAM_FILE_URL = "https://api.telegram.org/file/bot";
-
 export async function downloadTelegramFile(
   filePath: string,
   botToken: string,
 ): Promise<ArrayBuffer> {
-  const url = `${TELEGRAM_FILE_URL}${botToken}/${filePath}`;
+  if (filePath.startsWith("/")) {
+    const bytes = await Deno.readFile(filePath);
+    return bytes.buffer as ArrayBuffer;
+  }
+
+  const apiBase = Deno.env.get("TELEGRAM_API_URL");
+  if (!apiBase) throw new Error("TELEGRAM_API_URL is not set");
+
+  const url = `${apiBase}/file/bot${botToken}/${filePath}`;
 
   const response = await fetch(url, {
-    signal: AbortSignal.timeout(30_000),
+    signal: AbortSignal.timeout(120_000),
   });
 
   if (!response.ok) {
