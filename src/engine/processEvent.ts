@@ -86,7 +86,9 @@ function extractChatId(event: QueueEvent): number | null {
 
 function extractMetadata(event: QueueEvent): Record<string, unknown> {
   const payload = event.payload as Record<string, unknown>;
-  return (payload.audio_metadata as Record<string, unknown>) ?? {};
+  return (payload.audio_metadata as Record<string, unknown>)
+    ?? (payload.image_metadata as Record<string, unknown>)
+    ?? {};
 }
 
 async function deliverResponse(

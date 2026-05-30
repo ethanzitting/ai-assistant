@@ -2,6 +2,8 @@ import { Bot } from "grammy";
 import type { EventQueue } from "@/engine/eventQueue.ts";
 import { db } from "@/db.ts";
 import { handleVoiceMessage } from "@/telegram/handleVoiceMessage.ts";
+import { handlePhotoMessage } from "@/telegram/handlePhotoMessage.ts";
+import { handleDocumentMessage } from "@/telegram/handleDocumentMessage.ts";
 import { warn, error } from "@/logger.ts";
 
 const OWNER_ID = Deno.env.get("TELEGRAM_OWNER_ID");
@@ -51,6 +53,30 @@ export function createTelegramBot(queue: EventQueue): Bot {
 
     await persistChatId(ctx.chat.id);
     await handleVoiceMessage(ctx, queue);
+  });
+
+  bot.on("message:photo", async (ctx) => {
+    const userId = String(ctx.from.id);
+
+    if (OWNER_ID && userId !== OWNER_ID) {
+      warn("telegram", "Rejected photo from unknown user", { userId });
+      return;
+    }
+
+    await persistChatId(ctx.chat.id);
+    await handlePhotoMessage(ctx, queue);
+  });
+
+  bot.on("message:document", async (ctx) => {
+    const userId = String(ctx.from.id);
+
+    if (OWNER_ID && userId !== OWNER_ID) {
+      warn("telegram", "Rejected document from unknown user", { userId });
+      return;
+    }
+
+    await persistChatId(ctx.chat.id);
+    await handleDocumentMessage(ctx, queue);
   });
 
   bot.catch((err) => {

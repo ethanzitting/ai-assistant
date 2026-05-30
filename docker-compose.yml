@@ -50,6 +50,7 @@ services:
       B2_KEY_ID: ${B2_KEY_ID}
       B2_APPLICATION_KEY: ${B2_APPLICATION_KEY}
       B2_BUCKET_ID: ${B2_BUCKET_ID}
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       - telegram-bot-api-data:/var/lib/telegram-bot-api:ro

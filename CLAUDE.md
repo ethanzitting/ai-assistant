@@ -58,6 +58,8 @@ make trace      # trace summary (recent traces)
 
 **Hot reload**: dev mode mounts `./src` and `./deno.json` into the container and runs with `deno run --watch`. File edits restart the agent — be careful editing files while Jarvis is mid-processing (the turn will be killed and the Telegram message lost).
 
+**WARNING: Always use `make` commands, never raw `docker compose`.** Secrets are injected via `op run --env-file=.env.tpl` which the Makefile handles. Running `docker compose up` or `docker compose restart` directly bypasses 1Password injection and starts containers with blank env vars — the agent will crash or silently fail on any API call.
+
 ### Trace script
 
 The trace script (`scripts/trace.sh`) is the primary debugging tool. Usage:
