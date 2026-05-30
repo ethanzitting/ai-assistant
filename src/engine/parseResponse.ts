@@ -31,5 +31,5 @@ export function getToolUseBlocks(
 }
 
 export function hasToolUse(response: Message): boolean {
-  return response.stop_reason === "tool_use";
+  return response.stop_reason === "tool_use" || response.stop_reason === "pause_turn";
 }

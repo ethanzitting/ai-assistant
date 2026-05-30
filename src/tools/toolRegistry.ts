@@ -1,4 +1,4 @@
-import type { Tool } from "@anthropic-ai/sdk/resources/messages.mjs";
+import type { ToolUnion } from "@anthropic-ai/sdk/resources/messages.mjs";
 import type { ToolDefinition, ToolHandler, ToolResult } from "@/tools/toolTypes.ts";
 import { queryKnowledgeTool } from "@/knowledge/queryKnowledgeTool.ts";
 import { rememberTool } from "@/knowledge/rememberTool.ts";
@@ -21,8 +21,13 @@ const handlersByName = new Map<string, ToolHandler>(
   toolDefinitions.map((def) => [def.schema.name, def.handle]),
 );
 
-export function getToolSchemas(): Tool[] {
-  return toolDefinitions.map((def) => def.schema);
+const serverTools: ToolUnion[] = [
+  { type: "web_search_20250305", name: "web_search", max_uses: 5 },
+];
+
+export function getToolSchemas(): ToolUnion[] {
+  const clientTools: ToolUnion[] = toolDefinitions.map((def) => def.schema);
+  return [...clientTools, ...serverTools];
 }
 
 export async function executeTool(

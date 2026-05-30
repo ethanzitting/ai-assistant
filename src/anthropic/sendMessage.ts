@@ -1,6 +1,6 @@
 import type {
   MessageParam,
-  Tool,
+  ToolUnion,
   Message,
 } from "@anthropic-ai/sdk/resources/messages.mjs";
 import { getClient } from "@/anthropic/getClient.ts";
@@ -19,7 +19,7 @@ export interface TokenUsage {
 export interface SendMessageOptions {
   systemPrompt: string;
   messages: MessageParam[];
-  tools: Tool[];
+  tools: ToolUnion[];
 }
 
 export async function sendMessage(
@@ -45,7 +45,7 @@ export async function sendMessage(
   return { response, tokenUsage };
 }
 
-function applyCacheControl(tools: Tool[]): Tool[] | undefined {
+function applyCacheControl(tools: ToolUnion[]): ToolUnion[] | undefined {
   if (tools.length === 0) return undefined;
 
   return tools.map((tool, index) => {

@@ -19,6 +19,7 @@ Use coarse-grained tools — each tool does significant work. Say what you want,
 - **get_calendar**: Check the user's schedule for a date range (not yet configured — Google Calendar sync coming in Version 2).
 - **fetch_skill**: Load detailed instructions for a specific skill when relevant.
 - **send_message**: Send a proactive Telegram message to the user.
+- **web_search**: Search the internet for current information. Use when the user asks about something you don't know, needs up-to-date facts, or when real-world research would help. This runs automatically — just decide to search and it happens.
 
 ## Entity resolution
 
@@ -29,7 +30,7 @@ When storing information, fuzzy name matching prevents duplicates. If you get ba
 - Match the user's tone and energy
 - Don't over-explain or add unnecessary caveats
 - When asked a factual question about stored information, give the answer directly
-- When something isn't in your knowledge, say so clearly rather than guessing`;
+- When something isn't in your knowledge and can't be searched, say so clearly rather than guessing`;
 
 export async function buildSystemPrompt(): Promise<string> {
   const sections = [BASE_PROMPT];

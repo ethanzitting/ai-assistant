@@ -1,4 +1,4 @@
-import type { Message, Tool } from "@anthropic-ai/sdk/resources/messages.mjs";
+import type { Message, ToolUnion } from "@anthropic-ai/sdk/resources/messages.mjs";
 import { sendMessage } from "@/anthropic/sendMessage.ts";
 import { persistMessage } from "@/conversationHistory.ts";
 import { assembleContext } from "@/prompt/assembleContext.ts";
@@ -13,7 +13,7 @@ import { trace } from "@/trace.ts";
 interface HandleToolUseOptions {
   initialResponse: Message;
   systemPrompt: string;
-  tools: Tool[];
+  tools: ToolUnion[];
   queue: EventQueue;
   chatId: number | null;
   traceId: string;
@@ -25,19 +25,24 @@ export async function handleToolUseResponse(options: HandleToolUseOptions): Prom
   let currentResponse = initialResponse;
   let iteration = 0;
 
-  while (currentResponse.stop_reason === "tool_use") {
+  while (currentResponse.stop_reason === "tool_use" || currentResponse.stop_reason === "pause_turn") {
     if (++iteration > MAX_TOOL_ITERATIONS) {
       warn("tool-loop", "Hit max iterations", { max: MAX_TOOL_ITERATIONS });
       await trace(traceId, "tool-loop.max_iterations", { iteration, max: MAX_TOOL_ITERATIONS });
       break;
     }
-    const toolResults = await executeAllToolCalls(currentResponse, traceId);
-    const interruptText = drainHighPriorityContext(queue);
-
-    await persistToolCallRecord(currentResponse, traceId);
 
     const { messages } = await assembleContext();
-    appendToolResults({ messages, assistantResponse: currentResponse, toolResults, interruptText });
+
+    if (currentResponse.stop_reason === "pause_turn") {
+      await trace(traceId, "server_tool.pause_turn", { iteration });
+      messages.push({ role: "assistant", content: currentResponse.content });
+    } else {
+      const toolResults = await executeAllToolCalls(currentResponse, traceId);
+      const interruptText = drainHighPriorityContext(queue);
+      await persistToolCallRecord(currentResponse, traceId);
+      appendToolResults({ messages, assistantResponse: currentResponse, toolResults, interruptText });
+    }
 
     await trace(traceId, "claude.request", { iteration, messageCount: messages.length });
 
