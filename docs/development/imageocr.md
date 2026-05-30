@@ -17,17 +17,17 @@ Three new files, three small modifications. No database or schema changes needed
 - POST to `https://api.mistral.ai/v1/ocr` with `model: "mistral-ocr-latest"`
 - Image/PDF sent as base64 data URL in `document.document_url` field
 - Auth via `Authorization: Bearer ${MISTRAL_API_KEY}`
-- 60s timeout (matching Deepgram)
+- 60s timeout
 - Parse response: join `pages[].markdown` with double newlines
 - Return `string | null` — null when no text found
 - Include `arrayBufferToBase64()` helper (loop-based, safe for large files)
 
-**`src/telegram/handlePhotoMessage.ts`** (~70 lines) — Photo orchestrator. Mirrors `src/telegram/handleVoiceMessage.ts`.
+**`src/telegram/handlePhotoMessage.ts`** (~70 lines) — Photo orchestrator. Same archive-first pattern as `src/telegram/handleVoiceMessage.ts`, but simpler (no multi-branch media extraction).
 
 1. Extract highest-resolution photo from `ctx.message.photo` (last element of array)
 2. Validate file size (100MB limit)
 3. Reply "Reading image..."
-4. Download via `downloadTelegramFile` (reused from `src/audio/`)
+4. Call `ctx.api.getFile(fileId)` to resolve the file path, then `downloadTelegramFile` (reused from `src/audio/`)
 5. Archive original to B2 with `sourceType: "photo"` (non-fatal)
 6. Call `ocrImage(fileBytes, "image/jpeg")`
 7. If null → reply "I couldn't find any text in that image." and return
