@@ -6,6 +6,7 @@ import { type QueueEvent, EventQueue } from "@/engine/eventQueue.ts";
 import { handleToolUseResponse } from "@/engine/handleToolUseResponse.ts";
 import { extractTextContent, hasToolUse } from "@/engine/parseResponse.ts";
 import { sendTelegramMessage } from "@/telegram/sendTelegramMessage.ts";
+import { startTypingIndicator } from "@/telegram/sendTypingIndicator.ts";
 import { info, warn, debug } from "@/logger.ts";
 import { trace } from "@/trace.ts";
 
@@ -33,37 +34,44 @@ export async function processEvent(
   const tools = getToolSchemas();
   await trace(traceId, "claude.request", { messageCount: messages.length, toolCount: tools.length });
 
-  const { response, tokenUsage } = await sendMessage({
-    systemPrompt,
-    messages,
-    tools,
-  });
+  const stopTyping = chatId ? startTypingIndicator(chatId) : () => {};
 
-  logTokenUsage(tokenUsage);
-  await trace(traceId, "claude.response", {
-    ...tokenUsage,
-    stopReason: response.stop_reason,
-  });
-  await trace(traceId, "claude.response.body", {
-    iteration: 0,
-    content: response.content,
-  });
-
-  if (hasToolUse(response)) {
-    await handleToolUseResponse({
-      initialResponse: response, systemPrompt, tools, queue, chatId, traceId,
+  try {
+    const { response, tokenUsage } = await sendMessage({
+      systemPrompt,
+      messages,
+      tools,
     });
-    return;
-  }
 
-  const assistantText = extractTextContent(response);
-  if (!assistantText.trim()) {
-    warn("event", "Empty assistant response, skipping delivery");
-    await trace(traceId, "response.empty", { stopReason: response.stop_reason });
-    return;
+    logTokenUsage(tokenUsage);
+    await trace(traceId, "claude.response", {
+      ...tokenUsage,
+      stopReason: response.stop_reason,
+    });
+    await trace(traceId, "claude.response.body", {
+      iteration: 0,
+      content: response.content,
+    });
+
+    if (hasToolUse(response)) {
+      await handleToolUseResponse({
+        initialResponse: response, systemPrompt, tools, queue, chatId, traceId, stopTyping,
+      });
+      return;
+    }
+
+    const assistantText = extractTextContent(response);
+    if (!assistantText.trim()) {
+      warn("event", "Empty assistant response, skipping delivery");
+      await trace(traceId, "response.empty", { stopReason: response.stop_reason });
+      return;
+    }
+    await persistMessage({ role: "assistant", content: assistantText, traceId });
+    stopTyping();
+    await deliverResponse(assistantText, chatId, traceId);
+  } finally {
+    stopTyping();
   }
-  await persistMessage({ role: "assistant", content: assistantText, traceId });
-  await deliverResponse(assistantText, chatId, traceId);
 }
 
 function extractUserMessage(event: QueueEvent): string {

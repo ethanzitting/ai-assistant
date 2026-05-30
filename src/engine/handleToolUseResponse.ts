@@ -17,10 +17,11 @@ interface HandleToolUseOptions {
   queue: EventQueue;
   chatId: number | null;
   traceId: string;
+  stopTyping: () => void;
 }
 
 export async function handleToolUseResponse(options: HandleToolUseOptions): Promise<void> {
-  const { initialResponse, systemPrompt, tools, queue, chatId, traceId } = options;
+  const { initialResponse, systemPrompt, tools, queue, chatId, traceId, stopTyping } = options;
   const MAX_TOOL_ITERATIONS = 50;
   let currentResponse = initialResponse;
   let iteration = 0;
@@ -73,6 +74,7 @@ export async function handleToolUseResponse(options: HandleToolUseOptions): Prom
   const finalText = extractTextContent(currentResponse);
   await persistMessage({ role: "assistant", content: finalText, traceId });
   info("assistant", finalText);
+  stopTyping();
   if (chatId) await sendTelegramMessage(chatId, finalText);
   await trace(traceId, "response.delivered", {
     channel: chatId ? "telegram" : "none",

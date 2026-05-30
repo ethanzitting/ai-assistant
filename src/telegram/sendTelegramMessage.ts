@@ -7,6 +7,10 @@ export function setBotInstance(bot: Bot): void {
   botInstance = bot;
 }
 
+export function getBotInstance(): Bot | null {
+  return botInstance;
+}
+
 export async function sendTelegramMessage(
   chatId: number,
   text: string,
