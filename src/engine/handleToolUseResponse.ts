@@ -21,7 +21,7 @@ interface HandleToolUseOptions {
 
 export async function handleToolUseResponse(options: HandleToolUseOptions): Promise<void> {
   const { initialResponse, systemPrompt, tools, queue, chatId, traceId } = options;
-  const MAX_TOOL_ITERATIONS = 15;
+  const MAX_TOOL_ITERATIONS = 50;
   let currentResponse = initialResponse;
   let iteration = 0;
 

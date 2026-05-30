@@ -6,7 +6,7 @@ import type {
 import { getClient } from "@/anthropic/getClient.ts";
 import { callWithRetry } from "@/anthropic/callWithRetry.ts";
 
-const MODEL = "claude-sonnet-4-20250514";
+const MODEL = "claude-opus-4-6";
 const MAX_OUTPUT_TOKENS = 4096;
 
 export interface TokenUsage {
