@@ -1,111 +1,140 @@
+import * as v from "valibot";
 import { storeEntity } from "@/knowledge/storeEntity.ts";
 import { storeFact } from "@/knowledge/storeFact.ts";
 import { storeRelationship } from "@/knowledge/storeRelationship.ts";
 import { storePreference } from "@/knowledge/storePreference.ts";
+import { rememberInputSchema, type RememberItem } from "@/knowledge/rememberSchema.ts";
 import type { ToolDefinition, ToolResult } from "@/tools/toolTypes.ts";
+
+const ITEM_SCHEMA_HELP = `Each item in the array must have a "type" field and a corresponding nested object:
+
+  { type: "entity", entity: { name, type, properties? } }
+  { type: "fact", fact: { entity_name, attribute, value } }
+  { type: "relationship", relationship: { entity_a_name, entity_b_name, type } }
+  { type: "preference", preference: { key, value } }`;
 
 export const rememberTool: ToolDefinition = {
   schema: {
     name: "remember",
-    description:
-      "Store information from the conversation into the knowledge graph. Use for entities (people, places, orgs), facts about entities, relationships between entities, or user preferences.",
+    description: `Store one or more items into the knowledge graph in a single call. Pass an "items" array — each element is one of:
+
+  { type: "entity", entity: { name: "Dr. Nguyen", type: "person", properties: { specialty: "neurology" } } }
+  { type: "fact", fact: { entity_name: "Dana Whitfield", attribute: "diagnosis", value: "viral encephalitis" } }
+  { type: "relationship", relationship: { entity_a_name: "Robin Whitfield", entity_b_name: "Dana Whitfield", type: "spouse" } }
+  { type: "preference", preference: { key: "timezone", value: "America/Chicago" } }
+
+Create entities BEFORE facts/relationships that reference them. Batch liberally — put all entities first, then facts, then relationships.`,
     input_schema: {
       type: "object" as const,
       properties: {
-        type: {
-          type: "string",
-          enum: ["entity", "fact", "relationship", "preference"],
-          description: "What kind of information to store",
-        },
-        entity: {
-          type: "object",
-          properties: {
-            name: { type: "string" },
-            type: { type: "string", enum: ["person", "organization", "place", "account"] },
-            properties: { type: "object" },
+        items: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              type: {
+                type: "string",
+                enum: ["entity", "fact", "relationship", "preference"],
+              },
+              entity: {
+                type: "object",
+                properties: {
+                  name: { type: "string" },
+                  type: { type: "string", enum: ["person", "organization", "place", "account"] },
+                  properties: { type: "object" },
+                },
+                required: ["name", "type"],
+              },
+              fact: {
+                type: "object",
+                properties: {
+                  entity_name: { type: "string" },
+                  attribute: { type: "string" },
+                  value: { type: "string" },
+                },
+                required: ["entity_name", "attribute", "value"],
+              },
+              relationship: {
+                type: "object",
+                properties: {
+                  entity_a_name: { type: "string" },
+                  entity_b_name: { type: "string" },
+                  type: { type: "string" },
+                },
+                required: ["entity_a_name", "entity_b_name", "type"],
+              },
+              preference: {
+                type: "object",
+                properties: {
+                  key: { type: "string" },
+                  value: {},
+                },
+                required: ["key", "value"],
+              },
+            },
+            required: ["type"],
           },
-          description: "For type=entity: the entity to create or update",
-        },
-        fact: {
-          type: "object",
-          properties: {
-            entity_name: { type: "string" },
-            attribute: { type: "string" },
-            value: { type: "string" },
-          },
-          description: "For type=fact: a fact about an entity",
-        },
-        relationship: {
-          type: "object",
-          properties: {
-            entity_a_name: { type: "string" },
-            entity_b_name: { type: "string" },
-            type: { type: "string" },
-          },
-          description: "For type=relationship: a relationship between two entities",
-        },
-        preference: {
-          type: "object",
-          properties: {
-            key: { type: "string" },
-            value: {},
-          },
-          description: "For type=preference: a user preference to store",
+          minItems: 1,
+          description: "Array of items to store. Order matters — create entities before referencing them in facts or relationships.",
         },
       },
-      required: ["type"],
+      required: ["items"],
     },
   },
   handle: handleRemember,
 };
 
-const VALID_DISCRIMINATORS = new Set(["entity", "fact", "relationship", "preference"]);
-
 async function handleRemember(input: Record<string, unknown>, traceId: string): Promise<ToolResult> {
-  const recordType = input.type as string;
+  const result = v.safeParse(rememberInputSchema, input);
+  if (!result.success) {
+    return { content: formatValidationError(result.issues), isError: true };
+  }
 
-  if (!VALID_DISCRIMINATORS.has(recordType)) {
-    if (input.entity_a_name && input.entity_b_name) {
-      return storeRelationship({
-        entity_a_name: input.entity_a_name,
-        entity_b_name: input.entity_b_name,
-        type: recordType,
-      }, traceId);
+  const results: string[] = [];
+  for (const item of result.output.items) {
+    try {
+      const itemResult = await storeItem(item, traceId);
+      results.push(itemResult.isError ? `ERROR: ${itemResult.content}` : itemResult.content);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      results.push(`ERROR: ${item.type} failed: ${message}`);
     }
-    return { content: `Unknown type: ${recordType}. Valid types: entity, fact, relationship, preference`, isError: true };
   }
 
-  switch (recordType) {
+  const errorCount = results.filter((r) => r.startsWith("ERROR:")).length;
+  const successCount = results.length - errorCount;
+  if (errorCount > 0) {
+    const summary = `${successCount} succeeded, ${errorCount} failed:`;
+    return { content: `${summary}\n${results.join("\n")}`, isError: true };
+  }
+
+  return { content: results.join("\n") };
+}
+
+function storeItem(item: RememberItem, traceId: string): Promise<ToolResult> {
+  switch (item.type) {
     case "entity":
-      return storeEntity(extractNested(input, "entity"), traceId);
+      return storeEntity(item.entity, traceId);
     case "fact":
-      return storeFact(extractNested(input, "fact"), traceId);
+      return storeFact(item.fact, traceId);
     case "relationship":
-      return storeRelationship(extractRelationship(input), traceId);
+      return storeRelationship(item.relationship, traceId);
     case "preference":
-      return storePreference(extractNested(input, "preference"), traceId);
+      return storePreference(item.preference, traceId);
     default:
-      return { content: `Unknown type: ${recordType}`, isError: true };
+      return Promise.resolve({ content: `Unknown type: ${(item as Record<string, unknown>).type}`, isError: true });
   }
 }
 
-function extractNested(input: Record<string, unknown>, key: string): Record<string, unknown> {
-  const nested = input[key];
-  if (nested && typeof nested === "object" && !Array.isArray(nested)) {
-    return nested as Record<string, unknown>;
-  }
-  const { type: _, [key]: __, ...rest } = input;
-  return rest;
-}
+function formatValidationError(issues: v.BaseIssue<unknown>[]): string {
+  const details = issues.map((issue) => {
+    const path = issue.path
+      ? issue.path.map((segment: v.IssuePathItem) => String(segment.key)).join(".")
+      : "root";
+    return `${path}: ${issue.message}`;
+  });
 
-function extractRelationship(input: Record<string, unknown>): Record<string, unknown> {
-  const nested = input.relationship;
-  if (nested && typeof nested === "object" && !Array.isArray(nested)) {
-    return nested as Record<string, unknown>;
-  }
-  const { type: _, relationship: relationshipType, ...rest } = input;
-  if (typeof relationshipType === "string") {
-    return { ...rest, type: relationshipType };
-  }
-  return rest;
+  return `Invalid remember input. ${ITEM_SCHEMA_HELP}
+
+Errors: ${details.join("; ")}`;
 }

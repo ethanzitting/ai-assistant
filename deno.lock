@@ -4,7 +4,8 @@
     "npm:@anthropic-ai/sdk@0.100": "0.100.1",
     "npm:grammy@^1.35.0": "1.43.0",
     "npm:postgres@*": "3.4.9",
-    "npm:postgres@^3.4.0": "3.4.9"
+    "npm:postgres@^3.4.0": "3.4.9",
+    "npm:valibot@1": "1.4.1"
   },
   "npm": {
     "@anthropic-ai/sdk@0.100.1": {
@@ -83,6 +84,9 @@
     "ts-algebra@2.0.0": {
       "integrity": "sha512-FPAhNPFMrkwz76P7cdjdmiShwMynZYN6SgOujD1urY4oNm80Ou9oMdmbR45LotcKOXoy7wSmHkRFE6Mxbrhefw=="
     },
+    "valibot@1.4.1": {
+      "integrity": "sha512-klCmFTz2jeDluy9RwX+F884TCiogtdBJ/YaxSx1EOBYXa3NXNWj8kR1jjN8rzluwojJVWWaHJ4r1U5LfICnM3g=="
+    },
     "webidl-conversions@3.0.1": {
       "integrity": "sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ=="
     },
@@ -133,7 +137,8 @@
     "dependencies": [
       "npm:@anthropic-ai/sdk@0.100",
       "npm:grammy@^1.35.0",
-      "npm:postgres@^3.4.0"
+      "npm:postgres@^3.4.0",
+      "npm:valibot@1"
     ]
   }
 }

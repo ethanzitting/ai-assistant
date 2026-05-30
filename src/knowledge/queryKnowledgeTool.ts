@@ -3,6 +3,7 @@ import { findCurrentFacts } from "@/knowledge/findCurrentFacts.ts";
 import { findRelationships } from "@/knowledge/findRelationships.ts";
 import { formatKnowledgeResults } from "@/knowledge/formatKnowledgeResults.ts";
 import type { ToolDefinition } from "@/tools/toolTypes.ts";
+import { trace } from "@/trace.ts";
 
 export const queryKnowledgeTool: ToolDefinition = {
   schema: {
@@ -35,12 +36,19 @@ export const queryKnowledgeTool: ToolDefinition = {
 
 async function handleQueryKnowledge(
   input: Record<string, unknown>,
+  traceId: string,
 ): Promise<{ content: string; isError?: boolean }> {
   const searchQuery = input.query as string;
   const entityType = input.entity_type as string | undefined;
   const shouldIncludeHistorical = (input.include_historical as boolean) ?? false;
 
   const matchingEntities = await searchEntities(searchQuery, entityType);
+  await trace(traceId, "knowledge.query", {
+    query: searchQuery,
+    entityType,
+    matchCount: matchingEntities.length,
+  });
+
   if (matchingEntities.length === 0) {
     return { content: "No matching entities found." };
   }

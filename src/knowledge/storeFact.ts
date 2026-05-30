@@ -1,19 +1,14 @@
 import { db } from "@/db.ts";
 import { findExistingEntity } from "@/knowledge/findExistingEntity.ts";
+import type { FactInput } from "@/knowledge/rememberSchema.ts";
 import type { ToolResult } from "@/tools/toolTypes.ts";
 import { trace } from "@/trace.ts";
 
 export async function storeFact(
-  input: Record<string, unknown>,
+  input: FactInput,
   traceId: string,
 ): Promise<ToolResult> {
-  const entityName = input.entity_name as string;
-  const attribute = input.attribute as string;
-  const value = input.value as string;
-
-  if (!entityName || !attribute || !value) {
-    return { content: `Missing required fields. Got: entity_name=${entityName}, attribute=${attribute}, value=${value}. Provide all three as strings.`, isError: true };
-  }
+  const { entity_name: entityName, attribute, value } = input;
 
   const candidates = await findExistingEntity(entityName);
   if (candidates.length === 0) {

@@ -1,19 +1,14 @@
 import { db } from "@/db.ts";
 import { findExistingEntity } from "@/knowledge/findExistingEntity.ts";
+import type { RelationshipInput } from "@/knowledge/rememberSchema.ts";
 import type { ToolResult } from "@/tools/toolTypes.ts";
 import { trace } from "@/trace.ts";
 
 export async function storeRelationship(
-  input: Record<string, unknown>,
+  input: RelationshipInput,
   traceId: string,
 ): Promise<ToolResult> {
-  const entityAName = input.entity_a_name as string;
-  const entityBName = input.entity_b_name as string;
-  const relationshipType = input.type as string;
-
-  if (!entityAName || !entityBName || !relationshipType) {
-    return { content: `Missing required fields. Got: entity_a_name=${entityAName}, entity_b_name=${entityBName}, type=${relationshipType}. Provide all three as strings.`, isError: true };
-  }
+  const { entity_a_name: entityAName, entity_b_name: entityBName, type: relationshipType } = input;
 
   const entityA = await findExistingEntity(entityAName);
   const entityB = await findExistingEntity(entityBName);
@@ -24,7 +19,11 @@ export async function storeRelationship(
 
   const existing = await db`
     SELECT id FROM relationships
-    WHERE entity_a_id = ${entityA[0].id} AND entity_b_id = ${entityB[0].id} AND type = ${relationshipType}
+    WHERE type = ${relationshipType}
+      AND (
+        (entity_a_id = ${entityA[0].id} AND entity_b_id = ${entityB[0].id})
+        OR (entity_a_id = ${entityB[0].id} AND entity_b_id = ${entityA[0].id})
+      )
     LIMIT 1
   `;
 
