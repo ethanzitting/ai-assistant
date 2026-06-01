@@ -13,7 +13,7 @@ export const queryKnowledgeTool: ToolDefinition = {
   schema: {
     name: "query_knowledge",
     description:
-      "Search the knowledge graph for entities, facts, and relationships about people, places, organizations, and the user's world. Semantic search — a natural-language question, a name, or topic keywords all work (e.g. \"Dana's medications\", \"who is Sam\"). Returns the most relevant facts per entity, not everything stored.",
+      "Search the knowledge graph for entities, facts, and relationships about people, places, organizations, and the user's world. Semantic search — a natural-language question, a name, or topic keywords all work (e.g. \"Dana's medications\", \"who is Sam\"). Returns the most relevant facts per entity, not everything stored; for a complete picture of one entity, set include_all_facts: true rather than issuing many narrow queries.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -34,7 +34,7 @@ export const queryKnowledgeTool: ToolDefinition = {
         include_all_facts: {
           type: "boolean",
           description:
-            "List every fact on each matched entity instead of just the query-relevant ones (results are normally capped per entity). Use sparingly — prefer a more specific query. Defaults to false.",
+            "Set true when the user wants a complete picture of an entity (\"tell me everything about X\", \"what do you know about Y\"): returns every fact on each matched entity instead of only the query-relevant ones, which are otherwise capped per entity. One such call beats many narrow queries. Leave false for specific questions. Defaults to false.",
         },
       },
       required: ["query"],
