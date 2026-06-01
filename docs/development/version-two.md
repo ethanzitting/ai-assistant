@@ -371,13 +371,15 @@ Integration test: process a batch of emails, verify every processed email has a 
 
 Add semantic search over accumulated content and give the agent a research tool. Builds on the pgvector extension already present in the Version 1 database.
 
+> **Partially shipped early (in V1).** The semantic-search half landed ahead of schedule: `entities`/`facts` carry embeddings, archived-file text is embedded into `document_chunks`, and `query_knowledge` (hybrid) + `search_archives` are live — using **`gemini-embedding-001`** in the **agent container** (not the ingestion container), via `migrations/009_semantic_search.sql` and `src/embeddings/`. What shipped is the *archive-only* subset of the design below: a single permanent `document_chunks` table with **no `partition`/`tier` columns**, one embedding per chunk. The full design in this section — the active/archive partition split, dual embeddings, lifecycle tiers, and generating embeddings inside the isolated ingestion container — remains future work and reflects the target, not current code. `web_search` is already available as Anthropic's server-side tool in the agent (the routing-through-ingestion model below is still future).
+
 ### Document chunks table
 
 ```sql
 CREATE TABLE document_chunks (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     content TEXT NOT NULL,
-    embedding vector(1536),       -- text-embedding-3-small output dimensions
+    embedding vector(1536),       -- gemini-embedding-001 @ 1536 dims (MRL, L2-normalized)
     source_type TEXT NOT NULL,    -- 'email', 'document', 'voice_memo', 'transcript', 'video_transcript', 'conversation'
     source_ref TEXT,
     entity_ids UUID[],
@@ -398,7 +400,7 @@ Two logical partitions sharing one table, distinguished by the `partition` colum
 
 ### Embedding generation
 
-When the ingestion container processes content (emails, documents, voice transcripts), it chunks the text and generates embeddings via the embedding API (text-embedding-3-small, $0.02/MTok). Chunks and embeddings are emitted through the standard emission flow.
+When the ingestion container processes content (emails, documents, voice transcripts), it chunks the text and generates embeddings via the embedding API (`gemini-embedding-001`). Chunks and embeddings are emitted through the standard emission flow.
 
 The agent validates and inserts into `document_chunks`. Every piece of content gets two embeddings: one in the active partition (subject to pruning) and one in the archive partition (permanent). The embedding generation could happen in the agent container (after receiving the raw text emission) or in ingestion (emitting pre-computed embeddings). Prefer ingestion — it keeps the compute-heavy work in the isolated container.
 
@@ -454,7 +456,7 @@ Integration test: trigger a web search, verify the results flow through the emis
 
 ## Phase 7 — Telegram Uploads & Voice Memos
 
-Migrate audio/video transcription from the agent container (where it runs in Version 1) to the ingestion container with full isolation. Version 1 already handles voice, audio, video, and video note messages with Deepgram transcription and B2 archival — this phase adds speaker diarization, ffmpeg audio extraction for bandwidth savings, document uploads, and the Telegram Bot API Local Server for large files. Builds on the container isolation from Phase 3 and the ingestion pipeline from Phase 5.
+Migrate audio/video transcription from the agent container (where it runs in Version 1) to the ingestion container with full isolation. Version 1 already handles voice, audio, video, and video note messages with Deepgram transcription and B2 archival, and **photo/document OCR via Mistral** (with the extracted text embedded into `document_chunks`) — this phase moves that work behind the isolation boundary and adds speaker diarization, ffmpeg audio extraction for bandwidth savings, and the Telegram Bot API Local Server for large files. Builds on the container isolation from Phase 3 and the ingestion pipeline from Phase 5.
 
 ### Telegram file routing
 
@@ -488,7 +490,7 @@ Deepgram over Whisper: better speaker diarization (critical for meeting recordin
 Ingestion handles uploaded documents:
 
 - **PDFs:** extract text, chunk, process for entities/facts, generate embeddings
-- **Images of physical mail:** OCR (Tesseract or a cloud OCR API), classify (bill, legal doc, personal letter), extract structured data
+- **Images of physical mail:** OCR (Mistral, as used today for photos/documents), classify (bill, legal doc, personal letter), extract structured data
 - **Video files:** extract audio via ffmpeg, transcribe via Deepgram with diarization, process transcript through extraction pipeline
 - **Text files:** process directly through the extraction pipeline
 

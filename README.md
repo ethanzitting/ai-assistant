@@ -38,7 +38,7 @@ Living architecture and operational docs. Each file covers one concern and is me
 
 ### Code
 
-- [agent/README.md](agent/README.md) — agent container architecture and directory map
+- [CLAUDE.md](CLAUDE.md) — architecture, subsystems, database, file layout, and coding conventions
 
 ## Shipping changes
 

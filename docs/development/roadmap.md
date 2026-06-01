@@ -4,7 +4,7 @@ Phased implementation plan. Version 1 is deliberately minimal — get it working
 
 ## Version 1 — Talking Chatbot
 
-A conversational agent on Digital Ocean that can set reminders, transcribe voice and video messages, remember facts, and hold context across a conversation. Running locally and generating real feedback — Phases 1-3 and 5 complete, knowledge graph seeding in progress through organic conversation. Detailed plan: [version-one.md](version-one.md).
+A conversational agent on Digital Ocean that can set reminders, transcribe voice and video messages, OCR photos and documents, remember facts, semantically search its memory and archived files, and hold context across a conversation. Running locally and generating real feedback — Phases 1-3 and 5 complete, and the semantic-search half of V2's embedding pipeline landed early (agent-container, `gemini-embedding-001`). Knowledge graph seeding in progress through organic conversation. Detailed plan: [version-one.md](version-one.md).
 
 ## Version 2 — Memory, Email & Safety
 

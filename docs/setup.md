@@ -22,6 +22,8 @@ Create a vault (or use an existing one) with these items:
 |---|---|
 | **Anthropic API** | `api_key` |
 | **Deepgram** | `api_key` — for audio/video transcription with speaker diarization |
+| **Mistral** | `api_key` — for photo/document OCR |
+| **Gemini** | `api_key` — for embeddings (semantic search over the knowledge graph and archives) |
 | **Google OAuth** | `client_id`, `client_secret`, `refresh_token` (populated after the OAuth flow below) |
 | **Telegram Bot** | `bot_token` |
 | **Postgres** | `username`, `password`, `database` |
@@ -153,11 +155,13 @@ dev:          # Start dev environment with hot-reload
 up:           # Start production-like environment
 down:         # Stop everything
 logs:         # Tail all container logs
-db:           # Open psql shell
-migrate:      # Run pending migrations
-backup:       # Manual backup trigger
-auth-google:  # Run Google OAuth flow, store refresh token (not yet implemented)
-test:         # Run test suite
+db:                # Open psql shell
+migrate:           # Run pending migrations
+reembed:           # (Re)embed null/stale rows — migration, outage recovery, or model change
+backfill-archives: # One-time: embed text of already-archived files into document_chunks
+backup:            # Manual backup trigger
+auth-google:       # Run Google OAuth flow, store refresh token (not yet implemented)
+test:              # Run test suite
 ```
 
 ## Recovery checklist

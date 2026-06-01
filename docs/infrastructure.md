@@ -79,8 +79,8 @@ The sandbox runs LLM-generated code inside a locked-down Docker container with D
 |---|---|
 | VPS (4 vCPU, 8GB RAM) | $15–30 |
 | Object storage (archive + backups) | < $1 |
-| Embedding API (text-embedding-3-small) | < $1 |
-| Whisper API (voice memos) | < $1 |
+| Embedding API (Gemini `gemini-embedding-001`) | < $1 |
+| Transcription API (Deepgram nova-2) | < $1 |
 | **Subtotal** | **~$17–32** |
 
 ### LLM API costs

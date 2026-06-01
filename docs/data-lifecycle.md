@@ -2,7 +2,9 @@
 
 How data ages: ingested at full fidelity, compressed as it gets older, eventually distilled to facts in the knowledge graph. Sister doc to [data-architecture.md](data-architecture.md), which covers where data *lives*; this doc covers what happens to it *over time*. See also [context-assembly.md](context-assembly.md) for how aged data is assembled into the agent's prompt — the lifecycle feeds directly into the prompt layers and compaction model.
 
-The B2 file archive sits outside this lifecycle — originals are retained forever there. Their embeddings in the archive partition of `document_chunks` are also permanent and never pruned. What follows is about the active/working storage — the archive index is append-only and untouched by pruning.
+> **Status:** This describes the *planned* lifecycle. It is **not yet implemented** — there is no tiering, compaction, summarization, or pruning engine today. What exists now is the foundation it builds on: originals archived to B2 (permanent), the knowledge graph (`entities`/`facts`, permanent), and a single append-only `document_chunks` vector index of archived-file text. The hot/warm/cold model below is the target.
+
+The B2 file archive sits outside this lifecycle — originals are retained forever there. Their embeddings in `document_chunks` are also permanent and never pruned (today it is a single append-only table; the planned split into active/archive partitions arrives with the lifecycle below). What follows is about the eventual active/working storage.
 
 ## Three-tier memory model
 

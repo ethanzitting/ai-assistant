@@ -16,16 +16,18 @@ When the assistant needs *"what bills are due this Friday,"* it runs a database 
 
 ### Layer 2 — Vector store (pgvector)
 
-Stores embeddings — numerical representations of text that capture semantic meaning. Conversations, notes, emails, and documents are chunked, embedded via an embedding model (OpenAI `text-embedding-3-small` or equivalent), and stored with metadata.
+Stores embeddings — numerical representations of text that capture semantic meaning. Text is embedded via **Google `gemini-embedding-001`** (1536 dimensions, L2-normalized, cosine distance) with asymmetric query/document task types. pgvector runs as a Postgres extension — no separate database needed.
 
-**Best practice:** hybrid search combining keyword-based search (BM25) with vector/semantic search delivers significant relevance gains over either method alone.
+**Best practice:** hybrid search combining keyword matching with vector/semantic search delivers significant relevance gains over either alone.
 
-pgvector runs as a Postgres extension — no separate database needed.
+**Implemented today** (`migrations/009_semantic_search.sql`, `src/embeddings/`): the knowledge graph itself is semantically searchable — `entities` and `facts` carry `embedding`/`embedding_model` columns, and `query_knowledge` runs hybrid (vector + keyword) search with per-entity fact ranking. Archived-file text (voice/audio transcripts, OCR'd photos and documents) is chunked into the **`document_chunks`** table and searched by the **`search_archives`** tool. Embeddings are generated in the agent container; `make reembed` (re)embeds null/stale rows.
 
-Two logical partitions:
+**Planned — the two-partition lifecycle (not yet built):** `document_chunks` is currently a single, permanent, append-only archive index with no partition/tier columns. The future design splits the vector store into two logical partitions:
 
 - **Active index.** Embeddings of current summaries and recent full-text content. Lean, pruned by the data lifecycle, fast.
-- **Archive index.** Embeddings of every original document chunk, ever. **Never pruned** — append-only and permanent. Every conversation transcript, email, document, and note archived to B2 has a corresponding embedding here. Searched by the `search_archives` tool when the LLM needs historical context, reasoning, or content not captured in the knowledge graph.
+- **Archive index.** Embeddings of every original document chunk, ever. **Never pruned** — append-only and permanent.
+
+This split, and the lifecycle that drives it, arrive alongside compaction and pruning (see [data-lifecycle.md](data-lifecycle.md)).
 
 ### Layer 3 — Knowledge graph (Postgres tables)
 

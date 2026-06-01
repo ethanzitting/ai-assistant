@@ -61,7 +61,7 @@ These are the areas the assistant should eventually cover. They are not all in s
 - **Living fact-check cache:** research summaries stored as files and knowledge graph entities, updated when new information emerges. Rapidly pull up a summary during a conversation, then update it later as facts change.
 - Gather options for decisions (phone plans, contractors, schools). Build comparison matrices. Present short lists instead of overwhelming open fields.
 - All research artifacts (PDFs, studies, summaries) permanently stored in the file system and cataloged in the knowledge graph for future retrieval.
-- Requires web search and file creation capabilities — available once the sandbox and ingestion containers support outbound research flows.
+- Web search is available today via the `web_search` tool, and `search_archives` retrieves stored research from the vector index. The richer flow — multi-round research, file creation, and isolated outbound fetching — arrives with the sandbox and ingestion containers.
 
 ### Proactive pattern recognition
 - *"You've canceled your gym session 3 weeks in a row — want to move it to a different slot?"*

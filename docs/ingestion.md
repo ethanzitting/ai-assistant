@@ -2,6 +2,8 @@
 
 What data comes into the assistant, what doesn't, and how it gets in. Implements the "senses" primitive from [primitives.md](primitives.md). Per-source processing pipelines (what happens *after* ingestion) live in [data-lifecycle.md](data-lifecycle.md).
 
+> **Status:** The isolated **ingestion container** described here is the target architecture and is **not yet built**. Today, all processing — Telegram intake, Deepgram transcription, Mistral OCR, and Gemini embeddings — runs inside the **agent container**, and `web_search` is Anthropic's server-side tool invoked directly by the agent. The isolation boundary, emission channel, and email/web-fetch pipelines are future work (V2). Sections below describe that target.
+
 ## Data trust principle
 
 **Any data provided to the assistant is assumed to have permission to be processed.** The user decides what to share — the agent works with whatever it receives without policing boundaries. If you forward a work email, share a document, or dictate a meeting takeaway, the agent treats it as fair game for extraction, storage, and retrieval.
@@ -81,7 +83,7 @@ Ingestion has SELECT + UPDATE on this table (to claim and complete requests) but
 
 ## Receipt and document processing
 
-Photos of receipts sent via Telegram flow through the same ingestion pipeline as other files. Ingestion runs OCR (Tesseract locally, or a cloud OCR API for difficult receipts), then the ingestion LLM extracts structured data (merchant, date, line items, total, payment method, category). Results are emitted as `transaction` emissions through the standard emission flow, with line items stored as JSONB. See [workflow-financial-tracking.md](development/workflow-financial-tracking.md) for the full receipt processing walkthrough.
+Photos of receipts sent via Telegram flow through the same ingestion pipeline as other files. Ingestion runs OCR (Mistral OCR, as used today for photos/documents), then the ingestion LLM extracts structured data (merchant, date, line items, total, payment method, category). Results are emitted as `transaction` emissions through the standard emission flow, with line items stored as JSONB. See [workflow-financial-tracking.md](development/workflow-financial-tracking.md) for the full receipt processing walkthrough.
 
 ## Architectural constraint
 

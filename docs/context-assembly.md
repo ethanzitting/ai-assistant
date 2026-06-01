@@ -29,7 +29,7 @@ Every prompt is assembled from four layers, ordered for cache efficiency. The fi
 └─────────────────────────────────┘
 ```
 
-**Currently implemented:** Layer 1 (system prompt in `src/prompt/buildSystemPrompt.ts`) and Layer 4 (conversation messages in `src/conversationHistory.ts`) with simple token-based truncation (`src/prompt/tokenEstimation.ts`). Layers 2 and 3 are designed but not yet built.
+**Currently implemented:** Layer 1 (system prompt in `src/prompt/buildSystemPrompt.ts`) and Layer 4 (conversation messages in `src/conversationHistory.ts`) with simple token-based truncation (`src/prompt/tokenEstimation.ts`). The query-specific retrieval row is also live — `query_knowledge` runs hybrid (vector + keyword) semantic search over the knowledge graph, and `search_archives` searches embedded archived-file text — though it's pulled in on demand by tool calls, not yet assembled into a standing prompt layer. Layers 2 and 3 (daily/recent prefixes) and compaction are designed but not yet built.
 
 ### Layer 1 — Stable prefix (cached across all turns)
 

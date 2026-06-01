@@ -10,7 +10,7 @@ The target channels are **Telegram**, **smartwatch**, and **AirPods** — things
 
 **Notification channel:** Telegram is the primary notification channel — all proactive alerts, briefings, and reminders are delivered as bot messages. For future multi-channel output (smartwatch, separate notification priorities), Pushover ($5 one-time, dead-simple HTTP API, supports Apple Watch complications) or ntfy (free, self-hosted, open source) are candidates for supplementing Telegram with lock-screen push notifications.
 
-**Voice I/O channel:** Telegram bot. You already need this for quick-capture (see [ingestion.md](ingestion.md)). Talk into Telegram via earbuds (native voice message support), bot receives audio, transcribes via Whisper API, processes through assistant, replies as text in the same chat. One app, one channel, works on day one.
+**Voice I/O channel:** Telegram bot. You already need this for quick-capture (see [ingestion.md](ingestion.md)). Talk into Telegram via earbuds (native voice message support), bot receives audio, transcribes via Deepgram (nova-2), processes through assistant, replies as text in the same chat. One app, one channel, works on day one.
 
 **Optional alternative — Siri Shortcut:** A shortcut called "Hey assistant" that records audio, sends it as a Telegram voice message to the bot, and speaks the response via text-to-speech. Triggered by "Hey Siri, assistant" or AirPod tap. No app needed, no exposed server endpoints — everything flows through Telegram's API.
 

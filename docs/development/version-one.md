@@ -94,16 +94,15 @@ Every message (user and assistant) is persisted to the `conversations` table for
 
 Coarse-grained tools for Version 1. Each tool does significant work in application code — the LLM says what, the code figures out how. Implementation: `src/tools/`.
 
-**`query_knowledge`** — search the active knowledge graph. Implementation: `src/knowledge/queryKnowledgeTool.ts`.
-- Input: natural language question or structured filter (entity type, name pattern, date range)
-- Application code: translates to SQL queries across entities, relationships, and facts tables. Handles temporal filtering (`WHERE valid_until IS NULL` for current state, date-range queries for historical). Does not search the archive index.
-- Results are post-processed by a lightweight LLM call (Haiku) to condense and format them into a scannable summary.
-- Returns: formatted results (entities with their current facts, relationships) plus a nudge to try different queries and a reminder that archives were not searched. The nudge is always present regardless of result quality.
+**`query_knowledge`** — hybrid (vector + keyword) semantic search over the knowledge graph. Implementation: `src/knowledge/queryKnowledgeTool.ts`, `src/knowledge/hybridSearch.ts`.
+- Input: a natural-language question or keywords; optional `entity_type`, `include_historical`, `include_all_facts`.
+- Application code: embeds the query (`gemini-embedding-001`), runs vector search over fact and entity embeddings plus a tokenized keyword leg, then returns each matched entity with its query-relevant facts (ranked, capped per entity — `include_all_facts` lifts the cap) and relationships. Temporal filtering via `valid_until IS NULL`.
+- Returns: formatted results plus a nudge toward `search_archives` for original documents and transcripts.
 
-**`search_archives`** — search the archive index for historical context. *(Not yet implemented — Version 2.)*
-- Input: natural language query
-- Application code: embeds the query and runs a similarity search against the archive partition of `document_chunks` (permanent embeddings of every conversation, email, document, and note archived to B2).
-- Returns: relevant passages from original documents. Used when `query_knowledge` results are insufficient — the LLM decides to call this explicitly, guided by the nudge in `query_knowledge` results.
+**`search_archives`** — semantic search over archived-file text. Implementation: `src/archive/searchArchivesTool.ts`, `src/archive/searchArchives.ts`.
+- Input: natural-language query, optional `source_type` filter.
+- Application code: embeds the query and runs hybrid search against `document_chunks` — embedded chunks of voice/audio transcripts and OCR'd photos and documents. (A single permanent archive table today; the active/archive partition split is future.)
+- Returns: ranked passages with their source file. The LLM calls it explicitly for original content, guided by the nudge in `query_knowledge` results.
 
 **`remember`** — store information from the conversation. Implementation: `src/knowledge/rememberTool.ts`.
 - Input: structured extraction (entity, fact, relationship, or preference)
