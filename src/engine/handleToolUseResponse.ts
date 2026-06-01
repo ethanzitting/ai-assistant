@@ -4,10 +4,10 @@ import { persistMessage } from "@/conversationHistory.ts";
 import { assembleContext } from "@/prompt/assembleContext.ts";
 import type { EventQueue } from "@/engine/eventQueue.ts";
 import { extractTextContent, getToolUseBlocks } from "@/engine/parseResponse.ts";
-import { sendTelegramMessage } from "@/telegram/sendTelegramMessage.ts";
 import { executeAllToolCalls } from "@/engine/executeAllToolCalls.ts";
 import { appendToolResults } from "@/engine/appendToolResults.ts";
-import { info, warn } from "@/logger.ts";
+import { deliverFinalResponse } from "@/engine/deliverFinalResponse.ts";
+import { warn } from "@/logger.ts";
 import { trace } from "@/trace.ts";
 
 interface HandleToolUseOptions {
@@ -25,9 +25,11 @@ export async function handleToolUseResponse(options: HandleToolUseOptions): Prom
   const MAX_TOOL_ITERATIONS = 50;
   let currentResponse = initialResponse;
   let iteration = 0;
+  let hitMaxIterations = false;
 
   while (currentResponse.stop_reason === "tool_use" || currentResponse.stop_reason === "pause_turn") {
     if (++iteration > MAX_TOOL_ITERATIONS) {
+      hitMaxIterations = true;
       warn("tool-loop", "Hit max iterations", { max: MAX_TOOL_ITERATIONS });
       await trace(traceId, "tool-loop.max_iterations", { iteration, max: MAX_TOOL_ITERATIONS });
       break;
@@ -71,16 +73,8 @@ export async function handleToolUseResponse(options: HandleToolUseOptions): Prom
     currentResponse = nextResponse;
   }
 
-  const finalText = extractTextContent(currentResponse);
-  await persistMessage({ role: "assistant", content: finalText, traceId });
-  info("assistant", finalText);
   stopTyping();
-  if (chatId) await sendTelegramMessage(chatId, finalText);
-  await trace(traceId, "response.delivered", {
-    channel: chatId ? "telegram" : "none",
-    chatId,
-    text: finalText,
-  });
+  await deliverFinalResponse(currentResponse, hitMaxIterations, chatId, traceId);
 }
 
 function drainHighPriorityContext(queue: EventQueue): string | null {
