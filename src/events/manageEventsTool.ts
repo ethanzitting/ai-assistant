@@ -4,6 +4,8 @@ import { updateEvent } from "@/events/updateEvent.ts";
 import { listEvents } from "@/events/listEvents.ts";
 import { completeEvent } from "@/events/completeEvent.ts";
 import { dropEvent } from "@/events/dropEvent.ts";
+import { manageEventsInputSchema } from "@/events/manageEventsSchema.ts";
+import { parseToolInput } from "@/tools/parseToolInput.ts";
 
 export const manageEventsTool: ToolDefinition = {
   schema: {
@@ -61,28 +63,27 @@ export const manageEventsTool: ToolDefinition = {
   handle: handleManageEvents,
 };
 
-async function handleManageEvents(input: Record<string, unknown>, traceId: string): Promise<ToolResult> {
-  const action = input.action as string;
-  const eventData = input.event as Record<string, unknown> | undefined;
-  const eventId = input.event_id as string | undefined;
-  const filter = input.filter as Record<string, unknown> | undefined;
+const SCHEMA_HELP = `action="create":   { action: "create", event: { title, type, priority?, dtstart?, ... } }
+action="update":   { action: "update", event_id: "...", event: { title?, priority?, ... } }
+action="list":     { action: "list", filter?: { status?, from?, to? } }
+action="complete": { action: "complete", event_id: "..." }
+action="drop":     { action: "drop", event_id: "..." }`;
 
-  switch (action) {
+async function handleManageEvents(input: Record<string, unknown>, traceId: string): Promise<ToolResult> {
+  const parsed = parseToolInput(manageEventsInputSchema, input, SCHEMA_HELP);
+  if (!parsed.success) return parsed.error;
+
+  const data = parsed.data;
+  switch (data.action) {
     case "create":
-      if (!eventData) return { content: "Missing event data for create.", isError: true };
-      return createEvent(eventData, traceId);
+      return createEvent(data.event, traceId);
     case "update":
-      if (!eventId || !eventData) return { content: "Missing event_id or event data for update.", isError: true };
-      return updateEvent(eventId, eventData, traceId);
+      return updateEvent(data.event_id, data.event, traceId);
     case "list":
-      return listEvents(filter ?? {});
+      return listEvents(data.filter ?? {});
     case "complete":
-      if (!eventId) return { content: "Missing event_id for complete.", isError: true };
-      return completeEvent(eventId, traceId);
+      return completeEvent(data.event_id, traceId);
     case "drop":
-      if (!eventId) return { content: "Missing event_id for drop.", isError: true };
-      return dropEvent(eventId, traceId);
-    default:
-      return { content: `Unknown action: ${action}`, isError: true };
+      return dropEvent(data.event_id, traceId);
   }
 }

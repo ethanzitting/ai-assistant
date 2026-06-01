@@ -1,7 +1,13 @@
+import * as v from "valibot";
 import type { ToolDefinition } from "@/tools/toolTypes.ts";
+import { parseToolInput } from "@/tools/parseToolInput.ts";
 import { sendTelegramMessage } from "@/telegram/sendTelegramMessage.ts";
 import { db } from "@/db.ts";
 import { warn } from "@/logger.ts";
+
+const messagingInputSchema = v.object({
+  text: v.pipe(v.string(), v.trim(), v.nonEmpty()),
+});
 
 export const messagingTool: ToolDefinition = {
   schema: {
@@ -19,15 +25,17 @@ export const messagingTool: ToolDefinition = {
     },
   },
   handle: async (input: Record<string, unknown>) => {
-    const messageText = input.text as string;
+    const parsed = parseToolInput(messagingInputSchema, input, '{ text: "message to send" }');
+    if (!parsed.success) return parsed.error;
+
     const chatId = await getOwnerChatId();
 
     if (!chatId) {
-      warn("telegram", "No owner chat ID known yet", { messageText });
+      warn("telegram", "No owner chat ID known yet", { messageText: parsed.data.text });
       return { content: "Cannot send — no Telegram chat established yet." };
     }
 
-    await sendTelegramMessage(chatId, messageText);
+    await sendTelegramMessage(chatId, parsed.data.text);
     return { content: "Message sent." };
   },
 };

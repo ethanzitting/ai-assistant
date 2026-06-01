@@ -1,27 +1,28 @@
-export function computeNextDueAt(
-  eventData: Record<string, unknown>,
-): string | null {
-  const recurrenceRule = eventData.recurrence_rule as
-    | Record<string, unknown>
-    | undefined;
+import type { RecurrenceRule } from "@/events/manageEventsSchema.ts";
 
-  if (!recurrenceRule) {
-    return (eventData.dtstart as string) ?? (eventData.deadline as string) ?? null;
+interface EventDates {
+  dtstart?: string;
+  deadline?: string;
+  recurrence_rule?: RecurrenceRule;
+}
+
+export function computeNextDueAt(event: EventDates): string | null {
+  if (!event.recurrence_rule) {
+    return event.dtstart ?? event.deadline ?? null;
   }
 
-  const interval = recurrenceRule.interval as number;
-  const unit = recurrenceRule.unit as string;
-  const isFromCompletion = recurrenceRule.from_completion as boolean;
+  const { interval, unit, from_completion } = event.recurrence_rule;
+  const anchorDate = from_completion
+    ? new Date()
+    : parseAnchorDate(event);
 
-  const anchorDate = isFromCompletion ? new Date() : parseAnchorDate(eventData);
   if (!anchorDate) return null;
 
   return addInterval(anchorDate, interval, unit).toISOString();
 }
 
-function parseAnchorDate(eventData: Record<string, unknown>): Date | null {
-  const dateString = (eventData.dtstart as string) ??
-    (eventData.deadline as string);
+function parseAnchorDate(event: EventDates): Date | null {
+  const dateString = event.dtstart ?? event.deadline;
   if (!dateString) return null;
   return new Date(dateString);
 }

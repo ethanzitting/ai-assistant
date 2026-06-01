@@ -1,20 +1,19 @@
 import { db } from "@/db.ts";
+import type { EventFilter } from "@/events/manageEventsSchema.ts";
 import type { ToolResult } from "@/tools/toolTypes.ts";
 
 export async function listEvents(
-  filter: Record<string, unknown>,
+  filter: EventFilter,
 ): Promise<ToolResult> {
-  const status = (filter.status as string) ?? "active";
-  const fromDate = filter.from as string | undefined;
-  const toDate = filter.to as string | undefined;
+  const status = filter.status ?? "active";
 
   let results;
 
-  if (fromDate && toDate) {
+  if (filter.from && filter.to) {
     results = await db`
       SELECT id, title, type, priority, status, dtstart, deadline, next_due_at, category
       FROM events
-      WHERE status = ${status} AND next_due_at >= ${fromDate} AND next_due_at <= ${toDate}
+      WHERE status = ${status} AND next_due_at >= ${filter.from} AND next_due_at <= ${filter.to}
       ORDER BY next_due_at ASC NULLS LAST
       LIMIT 50
     `;

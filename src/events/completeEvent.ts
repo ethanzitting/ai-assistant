@@ -1,5 +1,6 @@
 import { db } from "@/db.ts";
 import { computeNextDueAt } from "@/events/computeNextDueAt.ts";
+import type { RecurrenceRule } from "@/events/manageEventsSchema.ts";
 import type { ToolResult } from "@/tools/toolTypes.ts";
 import { trace } from "@/trace.ts";
 
@@ -19,7 +20,7 @@ export async function completeEvent(eventId: string, traceId: string): Promise<T
   await trace(traceId, "db.update", { table: "events", id: eventId, op: "complete", title: completedEvent.title });
 
   if (completedEvent.recurrence_rule) {
-    await advanceRecurrence(eventId, completedEvent.recurrence_rule, traceId);
+    await advanceRecurrence(eventId, completedEvent.recurrence_rule as RecurrenceRule, traceId);
     return { content: `Completed "${completedEvent.title}" and scheduled next occurrence.` };
   }
 
@@ -28,7 +29,7 @@ export async function completeEvent(eventId: string, traceId: string): Promise<T
 
 async function advanceRecurrence(
   eventId: string,
-  recurrenceRule: Record<string, unknown>,
+  recurrenceRule: RecurrenceRule,
   traceId: string,
 ): Promise<void> {
   const nextDueAt = computeNextDueAt({ recurrence_rule: recurrenceRule });

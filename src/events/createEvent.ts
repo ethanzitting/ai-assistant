@@ -1,30 +1,31 @@
 import { db } from "@/db.ts";
 import { computeNextDueAt } from "@/events/computeNextDueAt.ts";
+import type { EventData } from "@/events/manageEventsSchema.ts";
 import type { ToolResult } from "@/tools/toolTypes.ts";
 import { trace } from "@/trace.ts";
 
 export async function createEvent(
-  eventData: Record<string, unknown>,
+  event: EventData,
   traceId: string,
 ): Promise<ToolResult> {
-  const recurrenceRule = eventData.recurrence_rule
-    ? JSON.stringify(eventData.recurrence_rule)
+  const recurrenceRule = event.recurrence_rule
+    ? JSON.stringify(event.recurrence_rule)
     : null;
 
   const result = await db`
     INSERT INTO events (title, type, priority, dtstart, dtend, deadline,
       lead_time_days, recurrence_rule, category, next_due_at)
     VALUES (
-      ${eventData.title as string},
-      ${eventData.type as string},
-      ${(eventData.priority as string) ?? "medium"},
-      ${(eventData.dtstart as string) ?? null},
-      ${(eventData.dtend as string) ?? null},
-      ${(eventData.deadline as string) ?? null},
-      ${(eventData.lead_time_days as number) ?? null},
+      ${event.title},
+      ${event.type},
+      ${event.priority ?? "medium"},
+      ${event.dtstart ?? null},
+      ${event.dtend ?? null},
+      ${event.deadline ?? null},
+      ${event.lead_time_days ?? null},
       ${recurrenceRule},
-      ${(eventData.category as string) ?? null},
-      ${computeNextDueAt(eventData)}
+      ${event.category ?? null},
+      ${computeNextDueAt(event)}
     )
     RETURNING id, title
   `;

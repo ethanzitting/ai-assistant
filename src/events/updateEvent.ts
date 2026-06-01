@@ -1,39 +1,30 @@
 import { db } from "@/db.ts";
+import type { EventDataPartial } from "@/events/manageEventsSchema.ts";
 import type { ToolResult } from "@/tools/toolTypes.ts";
 import { trace } from "@/trace.ts";
 
 export async function updateEvent(
   eventId: string,
-  eventData: Record<string, unknown>,
+  event: EventDataPartial,
   traceId: string,
 ): Promise<ToolResult> {
-  const setClauses: string[] = [];
-  const allowedFields = [
-    "title", "type", "priority", "dtstart", "dtend",
-    "deadline", "lead_time_days", "category", "status",
-  ];
+  const updatedFields = Object.keys(event).filter((k) => event[k as keyof typeof event] !== undefined);
 
-  for (const field of allowedFields) {
-    if (field in eventData) {
-      setClauses.push(field);
-    }
-  }
-
-  if (setClauses.length === 0) {
+  if (updatedFields.length === 0) {
     return { content: "No valid fields to update.", isError: true };
   }
 
   await db`
     UPDATE events SET
-      title = COALESCE(${(eventData.title as string) ?? null}, title),
-      priority = COALESCE(${(eventData.priority as string) ?? null}, priority),
-      dtstart = COALESCE(${(eventData.dtstart as string) ?? null}, dtstart),
-      dtend = COALESCE(${(eventData.dtend as string) ?? null}, dtend),
-      deadline = COALESCE(${(eventData.deadline as string) ?? null}, deadline),
-      category = COALESCE(${(eventData.category as string) ?? null}, category)
+      title = COALESCE(${event.title ?? null}, title),
+      priority = COALESCE(${event.priority ?? null}, priority),
+      dtstart = COALESCE(${event.dtstart ?? null}, dtstart),
+      dtend = COALESCE(${event.dtend ?? null}, dtend),
+      deadline = COALESCE(${event.deadline ?? null}, deadline),
+      category = COALESCE(${event.category ?? null}, category)
     WHERE id = ${eventId}
   `;
 
-  await trace(traceId, "db.update", { table: "events", id: eventId, fields: setClauses });
+  await trace(traceId, "db.update", { table: "events", id: eventId, fields: updatedFields });
   return { content: `Updated event ${eventId}.` };
 }

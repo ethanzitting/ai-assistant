@@ -1,5 +1,11 @@
+import * as v from "valibot";
 import { db } from "@/db.ts";
+import { parseToolInput } from "@/tools/parseToolInput.ts";
 import type { ToolDefinition } from "@/tools/toolTypes.ts";
+
+const skillInputSchema = v.object({
+  name: v.pipe(v.string(), v.trim(), v.nonEmpty()),
+});
 
 export const skillTool: ToolDefinition = {
   schema: {
@@ -18,14 +24,15 @@ export const skillTool: ToolDefinition = {
     },
   },
   handle: async (input: Record<string, unknown>) => {
-    const skillName = input.name as string;
+    const parsed = parseToolInput(skillInputSchema, input, '{ name: "skill_name" }');
+    if (!parsed.success) return parsed.error;
 
     const results = await db`
-      SELECT body FROM skills WHERE name = ${skillName}
+      SELECT body FROM skills WHERE name = ${parsed.data.name}
     `;
 
     if (results.length === 0) {
-      return { content: `No skill found with name "${skillName}".`, isError: true };
+      return { content: `No skill found with name "${parsed.data.name}".`, isError: true };
     }
 
     return { content: results[0].body as string };

@@ -2,6 +2,8 @@ import { searchEntities } from "@/knowledge/searchEntities.ts";
 import { findCurrentFacts } from "@/knowledge/findCurrentFacts.ts";
 import { findRelationships } from "@/knowledge/findRelationships.ts";
 import { formatKnowledgeResults } from "@/knowledge/formatKnowledgeResults.ts";
+import { queryKnowledgeInputSchema } from "@/knowledge/queryKnowledgeSchema.ts";
+import { parseToolInput } from "@/tools/parseToolInput.ts";
 import type { ToolDefinition } from "@/tools/toolTypes.ts";
 import { trace } from "@/trace.ts";
 
@@ -15,7 +17,7 @@ export const queryKnowledgeTool: ToolDefinition = {
       properties: {
         query: {
           type: "string",
-          description: "Natural language question or search term",
+          description: "Entity name or keyword(s) to search for. Use short terms — a person's name, place, or topic — not full sentences.",
         },
         entity_type: {
           type: "string",
@@ -38,13 +40,19 @@ async function handleQueryKnowledge(
   input: Record<string, unknown>,
   traceId: string,
 ): Promise<{ content: string; isError?: boolean }> {
-  const searchQuery = input.query as string;
-  const entityType = input.entity_type as string | undefined;
-  const shouldIncludeHistorical = (input.include_historical as boolean) ?? false;
+  const parsed = parseToolInput(
+    queryKnowledgeInputSchema,
+    input,
+    '{ query: "person name or keyword", entity_type?: "person"|"organization"|"place"|"account", include_historical?: true }',
+  );
+  if (!parsed.success) return parsed.error;
 
-  const matchingEntities = await searchEntities(searchQuery, entityType);
+  const { query, entity_type: entityType, include_historical } = parsed.data;
+  const shouldIncludeHistorical = include_historical ?? false;
+
+  const matchingEntities = await searchEntities(query, entityType);
   await trace(traceId, "knowledge.query", {
-    query: searchQuery,
+    query,
     entityType,
     matchCount: matchingEntities.length,
   });
