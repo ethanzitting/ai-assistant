@@ -53,8 +53,8 @@ If no `telegram_chat_id` preference exists yet (fresh install), skip the backfil
 ### Access model
 
 - **Private chats:** `TELEGRAM_OWNER_ID` check remains — only the owner can DM the bot.
-- **Allowed group chats:** Messages from ANY member are accepted and processed. The bot sees all messages (privacy mode already disabled in BotFather). Media from any member is transcribed and processed.
-- **Trigger mechanism:** In groups, the bot responds to `@botname` mentions or replies to the bot's messages. It sees all messages for context but only actively responds when addressed.
+- **Allowed group chats:** Messages from ANY member in an allowed group are accepted. Privacy mode is disabled in BotFather so the bot sees all messages.
+- **Trigger mechanism:** In groups, the bot only responds when @mentioned or replied to. All other messages are passively ingested for context (see "Passive vs active messages" below).
 - **Unknown groups:** Messages from groups not in the allowlist are silently dropped.
 
 ### Environment
@@ -77,9 +77,42 @@ Replace `persistChatId()` with `ensureChat()` that upserts into the `chats` tabl
 
 The `preferences` table row for `telegram_chat_id` is still written for backward compatibility during the transition, but `ensureChat` becomes the primary path.
 
+### Passive vs active messages
+
+Group messages split into two paths based on whether the bot was addressed:
+
+**Active messages** — the bot was @mentioned or the message is a reply to the bot's message. These are pushed to the event queue as `user_message` events, trigger a full Claude turn (context assembly → Claude API → tool loop → response), and cost a normal API call.
+
+**Passive messages** — everything else in an allowed group chat. These are persisted directly to the `conversations` table with `role: 'context'` and sender attribution (`[Sarah]: going to the store`). No event is queued, no Claude call is made. Cost: one DB write, $0 in API spend.
+
+Passive messages appear in conversation history when Jarvis is next invoked in that chat. He sees what was said and can reference it, extract knowledge from it, or ignore it — but only when he's actually addressed. This means an active group chat with 50 messages/day doesn't burn 50 Claude turns. It burns however many @mentions there are, and those turns have full conversational context.
+
+**Detection logic** in `createTelegramBot.ts`:
+
+```typescript
+function isAddressedToBot(ctx: Context): boolean {
+  const msg = ctx.message;
+  if (!msg) return false;
+
+  // Reply to bot's message
+  if (msg.reply_to_message?.from?.id === ctx.me.id) return true;
+
+  // @mention in text
+  const botUsername = ctx.me.username;
+  if (botUsername && msg.text?.includes(`@${botUsername}`)) return true;
+
+  // @mention in caption (photos/documents)
+  if (botUsername && msg.caption?.includes(`@${botUsername}`)) return true;
+
+  return false;
+}
+```
+
+**Private chats** skip this check entirely — every message is active.
+
 ### Event payload
 
-Every message pushed to the event queue includes:
+Active messages are pushed to the event queue:
 
 ```typescript
 payload: {
@@ -87,14 +120,35 @@ payload: {
   chat_id: ctx.chat.id,              // telegram chat id (for delivery)
   internal_chat_id: chat.id,         // internal UUID (for context loading)
   chat_type: ctx.chat.type,          // 'private', 'group', 'supergroup'
-  sender_name: ctx.from.first_name,  // null for private chats
+  sender_name: senderName(ctx.from), // first + last name, null for private chats
   sender_id: String(ctx.from.id),    // telegram user id
 }
 ```
 
+Passive messages bypass the queue and are written directly:
+
+```typescript
+await persistMessage({
+  role: "context",
+  content: `[${senderName(ctx.from)}]: ${ctx.message.text}`,
+  chatId: internalChatId,
+  metadata: { sender_id: String(ctx.from.id) },
+});
+```
+
+Telegram has no single "full name" field — `senderName` composes one from the optional name parts:
+
+```typescript
+function senderName(from: User): string {
+  return [from.first_name, from.last_name].filter(Boolean).join(" ");
+}
+```
+
+The composed name is for the human-readable display prefix only. Authoritative identity for knowledge storage keys off the numeric `sender_id` in metadata — names are user-controlled display strings and can change or collide.
+
 ## Sender identity and owner distinction
 
-Every message carries `sender_name` (from `ctx.from.first_name`) and `sender_id` (from `ctx.from.id`). The system prompt identifies the owner by `TELEGRAM_OWNER_ID`.
+Every message carries `sender_name` (first + last name via `senderName(ctx.from)`) and `sender_id` (from `ctx.from.id`). The system prompt identifies the owner by `TELEGRAM_OWNER_ID`.
 
 - When the owner says "my sister is Sarah", the agent stores it as a fact about the owner.
 - When someone else says "my sister is Sarah", the agent attributes it to that person — Sarah's birthday fact, not the owner's.
@@ -107,11 +161,22 @@ In group messages, the stored conversation content is prefixed with the sender's
 All context loading is scoped by chat:
 
 - `persistMessage(role, content, chatId, metadata)` — adds required `chatId` param
-- `loadRecentMessages(chatId, limit)` — filters by `chat_id`
+- `loadRecentTurns(chatId, turnCount)` — loads the last N active turns plus interleaved passive messages
 - `assembleContext(chatId, chatType)` — loads per-chat history, injects per-chat policies into the system prompt
 - `buildSystemPrompt(chatId, chatType)` — appends group chat addendum and per-chat policies
 
-The token budget and truncation logic stay the same (V1). The only change is that messages loaded are scoped to a single chat. V2's compaction pipeline replaces truncation and operates per-chat.
+### Conversation window: last 5 active turns
+
+Context is the last 5 active turns, not a token budget. An active turn is a user message that triggered a Claude response (plus the assistant response and any tool calls in between).
+
+- **Private chat:** Last 5 user messages + 5 assistant responses + tool calls = the last 5 back-and-forth exchanges.
+- **Group chat:** Last 5 @mentions/replies that Jarvis responded to, plus all passive `context` messages that fall between those turns. This gives Jarvis the surrounding group conversation each time he was invoked.
+
+This replaces the current ~20k token truncation with a simpler, more predictable window. Token count varies — 5 turns of short text is ~2k tokens, 5 turns with large OCR attachments could be 15k+ — but the window is always anchored on meaningful interactions, not an arbitrary byte limit.
+
+Large attachments in the conversation window can be expensive token-wise. Long-term, attachments will be routed to the knowledge graph immediately instead of living in conversation history. For now, the cost is acceptable — 5 turns is a small enough window that even with attachments, context stays manageable.
+
+`loadRecentTurns` returns all roles including `context`. When assembling the messages array for Claude, `context` messages are mapped to `role: "user"` (Claude's API only accepts user/assistant). The sender prefix (`[Sarah]: ...`) is already in the content, so Claude sees the full group conversation thread naturally interleaved with its own responses.
 
 The `handleToolUseResponse` tool loop threads `internalChatId` through so that `assembleContext` and `persistMessage` calls within the loop remain chat-scoped.
 
@@ -221,12 +286,12 @@ Conversation pruning operates per-chat. A quiet group chat accumulates less and 
 
 1. Migration: `008_multi_chat.sql` — chats table, conversations.chat_id, backfill
 2. `src/telegram/chatRegistry.ts` — ensureChat, getPrivateChat, loadChatPolicies
-3. `src/conversationHistory.ts` — add chatId param to both functions (breaks all callers)
+3. `src/conversationHistory.ts` — add chatId param, add `context` role support, map `context` → `user` in message assembly
 4. `src/prompt/assembleContext.ts` + `src/prompt/buildSystemPrompt.ts` — chat-scoped context
 5. `src/engine/processEvent.ts` — thread internalChatId, sender name prefix
 6. `src/engine/handleToolUseResponse.ts` — thread internalChatId through tool loop
-7. `src/telegram/createTelegramBot.ts` — group chat logic, ensureChat, mention detection
-8. `src/telegram/handleVoiceMessage.ts` — same group chat changes
+7. `src/telegram/createTelegramBot.ts` — `isAddressedToBot()` detection, passive message persistence, group chat routing, ensureChat
+8. `src/telegram/handleVoiceMessage.ts`, `handlePhotoMessage.ts`, `handleDocumentMessage.ts` — same group chat changes (media from any member is processed, but only triggers a Claude turn if the bot was @mentioned in the caption)
 9. `src/telegram/messagingTool.ts` — optional chat targeting
 
 Steps 3-6 are atomic — the `persistMessage` signature change requires all callers to update together.
@@ -235,11 +300,13 @@ Steps 3-6 are atomic — the `persistMessage` signature change requires all call
 
 - Message the bot in private and group chat — independent conversation histories
 - Knowledge stored from group chat accessible in private chat (unified knowledge graph)
-- Another group member sends a message — bot sees it, attributes it correctly
+- Group members send messages without @mentioning the bot — no response, no API call, but messages appear in conversation history
+- @mention the bot after passive messages — bot responds with awareness of what was said (references prior messages in its reply)
 - Another group member sends a voice message — transcribed and processed with their name
 - Another group member asks about the owner's private info — bot deflects
 - Owner says "my dog's name is Max" in group — stored as owner's fact, retrievable in private chat
 - Set a policy on the group chat — agent follows it
 - Only the owner can set policies (other members' attempts are rejected)
 - Proactive messages (reminders) go to private chat only
-- Bot responds to @mentions and replies in groups
+- Bot responds to @mentions and replies in groups, silent otherwise
+- Active group chat with many messages — verify no Claude API calls for non-addressed messages
