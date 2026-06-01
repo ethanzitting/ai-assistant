@@ -6,6 +6,7 @@ import { safeEmbed } from "@/embeddings/safeEmbed.ts";
 import { factEmbeddingText } from "@/embeddings/embeddingText.ts";
 import { toVectorLiteral } from "@/embeddings/toVectorLiteral.ts";
 import { EMBEDDING_MODEL_TAG } from "@/embeddings/embeddingModel.ts";
+import { SEMANTIC_DEDUP_THRESHOLD } from "@/embeddings/searchConfig.ts";
 import { trace } from "@/trace.ts";
 
 export async function storeFact(
@@ -57,6 +58,34 @@ export async function storeFact(
     });
     await trace(traceId, "db.insert", { table: "facts", entityId, attribute, value });
   } else {
+    // New attribute. Guard against attribute drift: if a near-identical fact already exists
+    // on this entity under a different attribute name (e.g. medication_droperidol vs
+    // med_droperidol), skip rather than create a redundant attribute. Only runs when the
+    // incoming fact embedded; otherwise falls through to a normal insert.
+    if (embeddingLiteral) {
+      const nearDuplicate = await db`
+        SELECT attribute, value, (embedding <=> ${embeddingLiteral}::vector) AS distance
+        FROM facts
+        WHERE entity_id = ${entityId} AND valid_until IS NULL AND embedding IS NOT NULL
+          AND embedding_model = ${EMBEDDING_MODEL_TAG}
+          AND (embedding <=> ${embeddingLiteral}::vector) < ${SEMANTIC_DEDUP_THRESHOLD}
+        ORDER BY embedding <=> ${embeddingLiteral}::vector
+        LIMIT 1
+      `;
+      if (nearDuplicate.length > 0) {
+        await trace(traceId, "fact.semantic_dedup", {
+          entityId,
+          attribute,
+          matchedAttribute: nearDuplicate[0].attribute,
+          distance: nearDuplicate[0].distance,
+        });
+        return {
+          content:
+            `Already captured: ${name}.${nearDuplicate[0].attribute} = "${nearDuplicate[0].value}". Your input is a near-duplicate of this, so it was not stored — do not re-store.`,
+        };
+      }
+    }
+
     await db`
       INSERT INTO facts (entity_id, attribute, value, embedding, embedding_model)
       VALUES (${entityId}, ${attribute}, ${value}, ${embeddingLiteral}::vector, ${embeddingModel})

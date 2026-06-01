@@ -29,7 +29,10 @@ export async function embedText(text: string, mode: EmbedMode): Promise<number[]
       taskType,
       outputDimensionality: EMBEDDING_DIMS,
     }),
-  }, { timeoutMs: 30_000 });
+    // Patient retry on rate limits: a flat 2s wait per 429 (no jitter), up to 5 times, so a
+    // free-tier burst is ridden out rather than exhausting retries and returning null — which
+    // would silently disable the storeFact semantic dedup. A server Retry-After still wins.
+  }, { timeoutMs: 30_000, maxRetries: 5, baseDelayMs: 2000, factor: 1, jitter: false });
 
   if (!response.ok) {
     const body = await response.text();
