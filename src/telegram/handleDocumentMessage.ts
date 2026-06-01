@@ -3,6 +3,7 @@ import type { EventQueue } from "@/engine/eventQueue.ts";
 import { downloadTelegramFile } from "@/audio/downloadTelegramFile.ts";
 import { ocrImage } from "@/ocr/ocrImage.ts";
 import { archiveFile } from "@/archive/archiveFile.ts";
+import { embedArchivedFile } from "@/archive/embedArchivedFile.ts";
 import { requireEnv } from "@/requireEnv.ts";
 import { error } from "@/logger.ts";
 
@@ -97,6 +98,15 @@ export async function handleDocumentMessage(
     if (doc.file_size) imageMetadata.file_size_bytes = doc.file_size;
     if (archiveId) imageMetadata.archive_id = archiveId;
     if (textArchiveId) imageMetadata.ocr_text_archive_id = textArchiveId;
+
+    if (archiveId) {
+      await embedArchivedFile({
+        archivedFileId: archiveId,
+        sourceType: "document",
+        text: ocrText,
+        metadata: { telegram_file_id: doc.file_id, original_filename: doc.file_name },
+      });
+    }
 
     queue.push({
       id: crypto.randomUUID(),

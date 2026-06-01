@@ -8,6 +8,7 @@ const PARAMS = new URLSearchParams({
 });
 
 import { requireEnv } from "@/requireEnv.ts";
+import { fetchWithRetry } from "@/retry/fetchWithRetry.ts";
 
 export async function transcribeAudio(
   audioBytes: ArrayBuffer,
@@ -15,15 +16,14 @@ export async function transcribeAudio(
 ): Promise<string | null> {
   const apiKey = requireEnv("DEEPGRAM_API_KEY");
 
-  const response = await fetch(`${DEEPGRAM_URL}?${PARAMS}`, {
+  const response = await fetchWithRetry(`${DEEPGRAM_URL}?${PARAMS}`, {
     method: "POST",
     headers: {
       Authorization: `Token ${apiKey}`,
       "Content-Type": mimeType,
     },
     body: audioBytes,
-    signal: AbortSignal.timeout(180_000),
-  });
+  }, { timeoutMs: 180_000 });
 
   if (!response.ok) {
     const body = await response.text();

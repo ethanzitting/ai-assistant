@@ -21,7 +21,7 @@ export async function persistMessage(options: PersistMessageOptions): Promise<vo
 
   await db`
     INSERT INTO conversations (role, content, metadata, trace_id)
-    VALUES (${role}, ${content}, ${JSON.stringify(metadata)}, ${traceId ?? null})
+    VALUES (${role}, ${content}, ${db.json(metadata as never)}, ${traceId ?? null})
   `;
 
   if (traceId) {

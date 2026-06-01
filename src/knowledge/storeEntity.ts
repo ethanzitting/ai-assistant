@@ -2,6 +2,10 @@ import { db } from "@/db.ts";
 import { findExistingEntity } from "@/knowledge/findExistingEntity.ts";
 import type { EntityInput } from "@/knowledge/rememberSchema.ts";
 import type { ToolResult } from "@/tools/toolTypes.ts";
+import { safeEmbed } from "@/embeddings/safeEmbed.ts";
+import { entityEmbeddingText } from "@/embeddings/embeddingText.ts";
+import { toVectorLiteral } from "@/embeddings/toVectorLiteral.ts";
+import { EMBEDDING_MODEL_TAG } from "@/embeddings/embeddingModel.ts";
 import { trace } from "@/trace.ts";
 
 export async function storeEntity(
@@ -20,9 +24,13 @@ export async function storeEntity(
     return mergeProperties(existing[0].id, existing[0].name, properties ?? {}, traceId);
   }
 
+  const embedding = await safeEmbed(entityEmbeddingText(name, entityType, properties), "stored-document");
+  const embeddingLiteral = embedding ? toVectorLiteral(embedding) : null;
+  const embeddingModel = embedding ? EMBEDDING_MODEL_TAG : null;
+
   const result = await db`
-    INSERT INTO entities (type, name, properties)
-    VALUES (${entityType}, ${name}, ${JSON.stringify(properties ?? {})})
+    INSERT INTO entities (type, name, properties, embedding, embedding_model)
+    VALUES (${entityType}, ${name}, ${db.json((properties ?? {}) as never)}, ${embeddingLiteral}::vector, ${embeddingModel})
     RETURNING id
   `;
   await trace(traceId, "db.insert", { table: "entities", id: result[0].id, name, type: entityType });
@@ -40,10 +48,16 @@ async function mergeProperties(
   }
 
   const rows = await db`SELECT properties FROM entities WHERE id = ${entityId}`;
-  const current = (rows[0].properties ?? {}) as Record<string, unknown>;
+  // Guard: only spread a genuine object. If stored properties are somehow not an object
+  // (e.g. legacy corrupt data), start fresh rather than spreading a string into char-indexed
+  // keys — the bug that previously snowballed properties into multi-MB blobs.
+  const stored = rows[0].properties;
+  const current = (stored && typeof stored === "object" && !Array.isArray(stored))
+    ? stored as Record<string, unknown>
+    : {};
   const merged = { ...current, ...incoming };
 
-  await db`UPDATE entities SET properties = ${JSON.stringify(merged)} WHERE id = ${entityId}`;
+  await db`UPDATE entities SET properties = ${db.json(merged as never)} WHERE id = ${entityId}`;
   await trace(traceId, "db.update", { table: "entities", id: entityId, mergedKeys: Object.keys(incoming) });
   return { content: `Entity "${entityName}" already exists (id: ${entityId}). Merged new properties: ${Object.keys(incoming).join(", ")}. Stored and current — do not re-store.` };
 }

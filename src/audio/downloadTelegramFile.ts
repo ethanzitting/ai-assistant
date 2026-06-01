@@ -1,4 +1,5 @@
 import { requireEnv } from "@/requireEnv.ts";
+import { fetchWithRetry } from "@/retry/fetchWithRetry.ts";
 
 export async function downloadTelegramFile(
   filePath: string,
@@ -13,9 +14,7 @@ export async function downloadTelegramFile(
 
   const url = `${apiBase}/file/bot${botToken}/${filePath}`;
 
-  const response = await fetch(url, {
-    signal: AbortSignal.timeout(120_000),
-  });
+  const response = await fetchWithRetry(url, {}, { timeoutMs: 120_000 });
 
   if (!response.ok) {
     throw new Error(`Telegram file download failed (${response.status}): ${filePath}`);

@@ -3,6 +3,8 @@ import type { EventQueue } from "@/engine/eventQueue.ts";
 import { downloadTelegramFile } from "@/audio/downloadTelegramFile.ts";
 import { transcribeAudio } from "@/audio/transcribeAudio.ts";
 import { archiveFile } from "@/archive/archiveFile.ts";
+import { embedArchivedFile } from "@/archive/embedArchivedFile.ts";
+import type { SourceType } from "@/archive/sourceTypes.ts";
 import { requireEnv } from "@/requireEnv.ts";
 import { error } from "@/logger.ts";
 
@@ -84,6 +86,15 @@ export async function handleVoiceMessage(
     if (archiveId) audioMetadata.archive_id = archiveId;
     if (transcriptArchiveId) audioMetadata.transcript_archive_id = transcriptArchiveId;
 
+    if (archiveId) {
+      await embedArchivedFile({
+        archivedFileId: archiveId,
+        sourceType,
+        text: transcript,
+        metadata: { telegram_file_id: fileId },
+      });
+    }
+
     queue.push({
       id: crypto.randomUUID(),
       type: "user_message",
@@ -107,7 +118,7 @@ interface MediaInfo {
   mimeType: string;
   fileSize: number | undefined;
   originalFilename: string | undefined;
-  sourceType: string;
+  sourceType: SourceType;
   label: string;
 }
 

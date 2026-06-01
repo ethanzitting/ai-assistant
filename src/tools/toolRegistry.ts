@@ -1,6 +1,7 @@
 import type { ToolUnion } from "@anthropic-ai/sdk/resources/messages.mjs";
 import type { ToolDefinition, ToolHandler, ToolResult } from "@/tools/toolTypes.ts";
 import { queryKnowledgeTool } from "@/knowledge/queryKnowledgeTool.ts";
+import { searchArchivesTool } from "@/archive/searchArchivesTool.ts";
 import { rememberTool } from "@/knowledge/rememberTool.ts";
 import { manageEventsTool } from "@/events/manageEventsTool.ts";
 import { calendarTool } from "@/tools/calendarTool.ts";
@@ -10,6 +11,7 @@ import { error } from "@/logger.ts";
 
 const toolDefinitions: ToolDefinition[] = [
   queryKnowledgeTool,
+  searchArchivesTool,
   rememberTool,
   manageEventsTool,
   calendarTool,

@@ -9,7 +9,7 @@ export async function createEvent(
   traceId: string,
 ): Promise<ToolResult> {
   const recurrenceRule = event.recurrence_rule
-    ? JSON.stringify(event.recurrence_rule)
+    ? db.json(event.recurrence_rule as never)
     : null;
 
   const result = await db`

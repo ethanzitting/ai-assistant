@@ -72,7 +72,7 @@ export function createTelegramBot(queue: EventQueue): Bot {
 async function persistChatId(chatId: number): Promise<void> {
   await db`
     INSERT INTO preferences (key, value, source)
-    VALUES ('telegram_chat_id', ${JSON.stringify(chatId)}, 'telegram_bot')
+    VALUES ('telegram_chat_id', ${db.json(chatId as never)}, 'telegram_bot')
     ON CONFLICT (key) DO NOTHING
   `;
 }

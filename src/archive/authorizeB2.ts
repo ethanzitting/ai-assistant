@@ -1,6 +1,14 @@
 import { requireEnv } from "@/requireEnv.ts";
+import { HttpError } from "@/retry/httpError.ts";
 
 const B2_AUTH_URL = "https://api.backblazeb2.com/b2api/v2/b2_authorize_account";
+
+// Statuses where retrying the authorize call later may succeed — surfaced as HttpError so the
+// wrapping withRetry in uploadToB2 treats them as retryable. NOTE: 401 is deliberately NOT here.
+// For *authorization*, a 401 means bad credentials, which won't fix themselves on retry.
+// (uploadToB2 does retry 401 — but for the *upload* step, where it instead means an expired
+// upload token. Same status, different meaning per endpoint.)
+const RETRYABLE_STATUS = new Set([408, 429, 500, 502, 503, 504]);
 
 interface B2Auth {
   authorizationToken: string;
@@ -29,6 +37,7 @@ export async function authorizeB2(): Promise<B2Auth> {
   });
 
   if (!response.ok) {
+    if (RETRYABLE_STATUS.has(response.status)) throw new HttpError(response);
     const body = await response.text();
     throw new Error(`B2 authorization failed (${response.status}): ${body}`);
   }

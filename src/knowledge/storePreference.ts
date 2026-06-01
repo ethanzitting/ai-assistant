@@ -11,8 +11,8 @@ export async function storePreference(
 
   await db`
     INSERT INTO preferences (key, value, source)
-    VALUES (${key}, ${JSON.stringify(value)}, 'explicit')
-    ON CONFLICT (key) DO UPDATE SET value = ${JSON.stringify(value)}, updated_at = now()
+    VALUES (${key}, ${db.json(value as never)}, 'explicit')
+    ON CONFLICT (key) DO UPDATE SET value = ${db.json(value as never)}, updated_at = now()
   `;
 
   await trace(traceId, "db.insert", { table: "preferences", key, op: "upsert" });

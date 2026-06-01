@@ -27,7 +27,7 @@ export async function archiveFile(params: ArchiveParams): Promise<string> {
 
   const [row] = await db`
     INSERT INTO archived_files (source_type, b2_path, original_filename, mime_type, file_size_bytes, sha256, metadata)
-    VALUES (${sourceType}, ${b2Path}, ${originalFilename ?? null}, ${mimeType}, ${fileBytes.byteLength}, ${sha256Hex}, ${JSON.stringify(metadata)})
+    VALUES (${sourceType}, ${b2Path}, ${originalFilename ?? null}, ${mimeType}, ${fileBytes.byteLength}, ${sha256Hex}, ${db.json(metadata as never)})
     RETURNING id
   `;
 

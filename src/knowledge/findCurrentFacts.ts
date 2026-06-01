@@ -1,6 +1,7 @@
 import { db } from "@/db.ts";
 
 export interface FactRecord {
+  id: string;
   entity_id: string;
   attribute: string;
   value: string;
@@ -14,7 +15,7 @@ export async function findCurrentFacts(
 ): Promise<FactRecord[]> {
   if (shouldIncludeHistorical) {
     return db`
-      SELECT entity_id, attribute, value, valid_from, valid_until
+      SELECT id, entity_id, attribute, value, valid_from, valid_until
       FROM facts
       WHERE entity_id = ANY(${entityIds})
       ORDER BY entity_id, attribute, valid_from DESC
@@ -22,7 +23,7 @@ export async function findCurrentFacts(
   }
 
   return db`
-    SELECT entity_id, attribute, value, valid_from, valid_until
+    SELECT id, entity_id, attribute, value, valid_from, valid_until
     FROM facts
     WHERE entity_id = ANY(${entityIds}) AND valid_until IS NULL
     ORDER BY entity_id, attribute

@@ -2,6 +2,10 @@ import { db } from "@/db.ts";
 import { findExistingEntity } from "@/knowledge/findExistingEntity.ts";
 import type { FactInput } from "@/knowledge/rememberSchema.ts";
 import type { ToolResult } from "@/tools/toolTypes.ts";
+import { safeEmbed } from "@/embeddings/safeEmbed.ts";
+import { factEmbeddingText } from "@/embeddings/embeddingText.ts";
+import { toVectorLiteral } from "@/embeddings/toVectorLiteral.ts";
+import { EMBEDDING_MODEL_TAG } from "@/embeddings/embeddingModel.ts";
 import { trace } from "@/trace.ts";
 
 export async function storeFact(
@@ -32,6 +36,10 @@ export async function storeFact(
     return { content: `Already stored: ${name}.${attribute} = "${value}". Stored and current — do not re-store.` };
   }
 
+  const embedding = await safeEmbed(factEmbeddingText(name, attribute, value), "stored-document");
+  const embeddingLiteral = embedding ? toVectorLiteral(embedding) : null;
+  const embeddingModel = embedding ? EMBEDDING_MODEL_TAG : null;
+
   if (existing.length > 0) {
     // deno-lint-ignore no-explicit-any
     await db.begin(async (tx: any) => {
@@ -40,8 +48,8 @@ export async function storeFact(
         WHERE entity_id = ${entityId} AND attribute = ${attribute} AND valid_until IS NULL
       `;
       await tx`
-        INSERT INTO facts (entity_id, attribute, value)
-        VALUES (${entityId}, ${attribute}, ${value})
+        INSERT INTO facts (entity_id, attribute, value, embedding, embedding_model)
+        VALUES (${entityId}, ${attribute}, ${value}, ${embeddingLiteral}::vector, ${embeddingModel})
       `;
     });
     await trace(traceId, "db.update", {
@@ -50,8 +58,8 @@ export async function storeFact(
     await trace(traceId, "db.insert", { table: "facts", entityId, attribute, value });
   } else {
     await db`
-      INSERT INTO facts (entity_id, attribute, value)
-      VALUES (${entityId}, ${attribute}, ${value})
+      INSERT INTO facts (entity_id, attribute, value, embedding, embedding_model)
+      VALUES (${entityId}, ${attribute}, ${value}, ${embeddingLiteral}::vector, ${embeddingModel})
     `;
     await trace(traceId, "db.insert", { table: "facts", entityId, attribute, value });
   }

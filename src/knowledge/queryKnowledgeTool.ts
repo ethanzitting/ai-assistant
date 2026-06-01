@@ -1,9 +1,11 @@
-import { searchEntities } from "@/knowledge/searchEntities.ts";
+import { hybridSearch } from "@/knowledge/hybridSearch.ts";
 import { findCurrentFacts } from "@/knowledge/findCurrentFacts.ts";
 import { findRelationships } from "@/knowledge/findRelationships.ts";
 import { formatKnowledgeResults } from "@/knowledge/formatKnowledgeResults.ts";
 import { queryKnowledgeInputSchema } from "@/knowledge/queryKnowledgeSchema.ts";
 import { parseToolInput } from "@/tools/parseToolInput.ts";
+import { safeEmbed } from "@/embeddings/safeEmbed.ts";
+import { MAX_FACTS_PER_ENTITY } from "@/embeddings/searchConfig.ts";
 import type { ToolDefinition } from "@/tools/toolTypes.ts";
 import { trace } from "@/trace.ts";
 
@@ -11,13 +13,13 @@ export const queryKnowledgeTool: ToolDefinition = {
   schema: {
     name: "query_knowledge",
     description:
-      "Search the knowledge graph for entities, facts, and relationships. Use for any question about people, places, organizations, or stored information.",
+      "Search the knowledge graph for entities, facts, and relationships about people, places, organizations, and the user's world. Semantic search — a natural-language question, a name, or topic keywords all work (e.g. \"Dana's medications\", \"who is Sam\"). Returns the most relevant facts per entity, not everything stored.",
     input_schema: {
       type: "object" as const,
       properties: {
         query: {
           type: "string",
-          description: "Entity name or keyword(s) to search for. Use short terms — a person's name, place, or topic — not full sentences.",
+          description: "A natural-language question or keywords describing what you're looking for.",
         },
         entity_type: {
           type: "string",
@@ -28,6 +30,11 @@ export const queryKnowledgeTool: ToolDefinition = {
           type: "boolean",
           description:
             "Include facts that are no longer current (have a valid_until date). Defaults to false.",
+        },
+        include_all_facts: {
+          type: "boolean",
+          description:
+            "List every fact on each matched entity instead of just the query-relevant ones (results are normally capped per entity). Use sparingly — prefer a more specific query. Defaults to false.",
         },
       },
       required: ["query"],
@@ -43,27 +50,44 @@ async function handleQueryKnowledge(
   const parsed = parseToolInput(
     queryKnowledgeInputSchema,
     input,
-    '{ query: "person name or keyword", entity_type?: "person"|"organization"|"place"|"account", include_historical?: true }',
+    '{ query: "natural-language question or keywords", entity_type?: "person"|"organization"|"place"|"account", include_historical?: true }',
   );
   if (!parsed.success) return parsed.error;
 
-  const { query, entity_type: entityType, include_historical } = parsed.data;
+  const { query, entity_type: entityType, include_historical, include_all_facts } = parsed.data;
   const shouldIncludeHistorical = include_historical ?? false;
+  const maxFactsPerEntity = include_all_facts ? Number.MAX_SAFE_INTEGER : MAX_FACTS_PER_ENTITY;
 
-  const matchingEntities = await searchEntities(query, entityType);
+  const queryVector = await safeEmbed(query, "search-query");
+  const { entities, relevantFactIds } = await hybridSearch(query, queryVector, entityType);
+
   await trace(traceId, "knowledge.query", {
     query,
     entityType,
-    matchCount: matchingEntities.length,
+    matchCount: entities.length,
+    relevantFacts: relevantFactIds.size,
+    semantic: queryVector !== null,
   });
 
-  if (matchingEntities.length === 0) {
-    return { content: "No matching entities found." };
+  if (entities.length === 0) {
+    return {
+      content:
+        `Nothing in the knowledge graph matches "${query}". Do not retry the same search — the information isn't stored. Try a different angle, or move on.`,
+    };
   }
 
-  const entityIds = matchingEntities.map((entity) => entity.id);
+  const entityIds = entities.map((entity) => entity.id);
   const facts = await findCurrentFacts(entityIds, shouldIncludeHistorical);
   const relationships = await findRelationships(entityIds);
 
-  return { content: formatKnowledgeResults(matchingEntities, facts, relationships) };
+  const formatted = formatKnowledgeResults({
+    entities,
+    facts,
+    relationships,
+    relevantFactIds,
+    maxFactsPerEntity,
+  });
+  return {
+    content: `${formatted}\n\nFor original documents, photos, or transcripts, use search_archives.`,
+  };
 }

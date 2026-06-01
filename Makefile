@@ -1,4 +1,4 @@
-.PHONY: dev up down logs db migrate backup test trace
+.PHONY: dev up down logs db migrate reembed backfill-archives backup test trace
 
 dev:
 	op run --env-file=.env.tpl -- docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
@@ -17,6 +17,12 @@ db:
 
 migrate:
 	op run --env-file=.env.tpl -- ./scripts/migrate.sh
+
+reembed:
+	docker compose exec agent deno run --allow-net --allow-env --allow-read src/maintenance/reembed.ts
+
+backfill-archives:
+	docker compose exec agent deno run --allow-net --allow-env --allow-read src/backfill/archives.ts
 
 backup:
 	@echo "Backup not yet implemented (Phase 8)"

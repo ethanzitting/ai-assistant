@@ -18,17 +18,20 @@ Telegram → grammY bot → EventQueue → processEvent → Claude API → tool 
 | Subsystem | Purpose | Entry point |
 |-----------|---------|-------------|
 | Knowledge graph | Entities, facts, relationships, preferences | `src/knowledge/` |
+| Semantic search | Embeddings + hybrid (vector + keyword) retrieval over the KG and archives | `src/embeddings/`, `src/knowledge/hybridSearch.ts` |
 | Events | Reminders, deadlines, recurring items | `src/events/` |
 | Audio | Voice note transcription (Deepgram nova-2) | `src/audio/` |
 | Archive | File storage to Backblaze B2 | `src/archive/` |
 | Tracing | Full request/response cycle logging | `src/trace.ts` |
 | Skills | Loadable instruction sets for complex tasks | `src/tools/skillTool.ts` |
+| Retry | Backoff/jitter/timeout wrapper for external API calls | `src/retry/` |
 
 ### Tool definitions
 
 Tools are registered in `src/tools/toolRegistry.ts`. Each tool is a `ToolDefinition` with a JSON schema (what Claude sees) and a handler function. Current tools:
 
-- `query_knowledge` — search entities, facts, relationships
+- `query_knowledge` — hybrid (semantic + keyword) search over the knowledge graph; returns the facts most relevant to the query, ranked, capped per entity (not the entity's whole record)
+- `search_archives` — semantic search over archived file text (voice/audio transcripts, OCR'd photos and documents) stored in `document_chunks`
 - `remember` — batch-store items (entities, facts, relationships, preferences) with Valibot validation
 - `manage_events` — CRUD for reminders and deadlines
 - `get_calendar` — placeholder (not yet wired to Google Calendar)
@@ -38,27 +41,37 @@ Tools are registered in `src/tools/toolRegistry.ts`. Each tool is a `ToolDefinit
 
 ### Database
 
-Postgres with pgvector extension. Tables: `entities`, `facts`, `relationships`, `preferences`, `conversations`, `events`, `skills`, `engine_trace`, `archived_files`, `schema_migrations`.
+Postgres with pgvector extension. Tables: `entities`, `facts`, `relationships`, `preferences`, `conversations`, `events`, `skills`, `engine_trace`, `archived_files`, `document_chunks`, `schema_migrations`.
 
 Facts support temporal validity (`valid_from`/`valid_until`) and are auto-superseded when a new value is stored for the same entity+attribute.
 
-Entity search uses fuzzy name matching via `findExistingEntity.ts`.
+`findExistingEntity.ts` does fuzzy name matching for dedup on write. Read-time recall is semantic: `entities` and `facts` carry `embedding vector(1536)` + `embedding_model`, and `document_chunks` holds embedded chunks of archived file text (permanent archive index — no tier/partition; the hot/warm/cold lifecycle store is future work). Embeddings are `gemini-embedding-001` @ 1536 dims (MRL, L2-normalized), compared by cosine distance. Model identity and the relevance cutoff (`DISTANCE_THRESHOLD`, needs tuning against real data) live in `src/embeddings/embeddingModel.ts`; vectors from different models are not comparable, hence the `embedding_model` stamp on every row.
+
+**Migrations apply in filename-sort order** (`scripts/migrate.sh`). Numbers aren't strictly unique historically (two `006_*` files exist); the latest is `009_semantic_search.sql`, so the next is `010`.
 
 ## Dev workflow
 
 All secrets are in 1Password and injected at runtime via `op run --env-file=.env.tpl`.
 
 ```bash
-make dev        # start all containers with hot-reload (mounts ./src into agent container)
-make logs       # tail container logs
-make db         # psql shell into Postgres
-make migrate    # run pending SQL migrations from migrations/
-make trace      # trace summary (recent traces)
+make dev                  # start all containers with hot-reload (mounts ./src into agent container)
+make logs                 # tail container logs
+make db                   # psql shell into Postgres
+make migrate              # run pending SQL migrations from migrations/
+make reembed              # (re)embed any null/stale rows: migration, outage recovery, or model change (in-container)
+make backfill-archives    # one-time: populate document_chunks from pre-existing archived files (in-container)
+make trace                # trace summary (recent traces)
 ```
 
 **Hot reload**: dev mode mounts `./src` and `./deno.json` into the container and runs with `deno run --watch`. File edits restart the agent — be careful editing files while Jarvis is mid-processing (the turn will be killed and the Telegram message lost).
 
 **WARNING: Always use `make` commands, never raw `docker compose`.** Secrets are injected via `op run --env-file=.env.tpl` which the Makefile handles. Running `docker compose up` or `docker compose restart` directly bypasses 1Password injection and starts containers with blank env vars — the agent will crash or silently fail on any API call.
+
+**WARNING: `op run` fails closed on unresolved secrets.** Adding a new secret reference to `.env.tpl` breaks *every* `op run` make command (`dev`, `up`, `migrate`, `trace`) until that item actually exists in the `ai.assistant` 1Password vault. Create the secret in 1Password *first*, then add its reference.
+
+**Container-injected env is set at start, not by the watcher.** Adding a new env var means a full `make dev`/`make up` restart to inject it — the hot-reload watcher only reloads code.
+
+**In-container scripts live under `src/`.** The Dockerfile copies only `src/` and `deno.json` into the image, so anything that must run inside the agent container (e.g. Deno backfill scripts in `src/backfill/`, run via `docker compose exec agent deno run …`) belongs under `src/`. `scripts/` is shell-only (`migrate.sh`, `trace.sh`).
 
 ### Trace script
 
@@ -80,7 +93,17 @@ make trace search <text>      # search messages/responses by text
 ### Type checking
 
 ```bash
-deno check src/main.ts    # type-check the whole project
+deno check src/main.ts    # type-check the whole project (backfill scripts aren't in this graph — check them explicitly)
+```
+
+**`deno check` is authoritative — ignore IDE "Cannot find module '@/…'" errors.** The IDE/TypeScript server doesn't resolve Deno's `@/` import map, so it shows false module-resolution diagnostics on the absolute imports. If `deno check` passes, the code is fine.
+
+### Inspecting the database non-interactively
+
+`make db` opens an interactive shell. For a one-off read query, exec into the already-running postgres container (its env is set at container start, so no `op run` needed):
+
+```bash
+docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT …"'
 ```
 
 ## Coding conventions
@@ -89,7 +112,10 @@ deno check src/main.ts    # type-check the whole project
 - One exported function per file, file named after the export (camelCase)
 - Files under ~100 lines; split if larger
 - Named exports only, absolute imports (`@/` prefix)
+- Descriptive variable names — no abbreviations (`queryVector` not `queryVec`, `queryVectorLiteral` not `qLit`). The only accepted short form is `err` in catch blocks (codebase-wide convention; avoids colliding with the `error` logger).
 - Early returns, no deep nesting
+- **When something's easy to misuse, make it self-documenting rather than commenting around it.** The fix for "too many" — too many similar parameters, opaque boolean flags, bare magic values — is usually clearer code, not more docs: descriptive multi-word literal-union values (`"search-query"`/`"stored-document"`, not `"query"`/`"document"`), named options objects instead of long positional arg lists, named constants instead of inline numbers. A reader (human or LLM) should grasp intent from the names alone.
+- **Outbound calls to external APIs go through `src/retry/`.** Use `fetchWithRetry(input, init, { timeoutMs })` for raw HTTP (handles backoff, jitter, Retry-After, per-attempt timeouts, and retries 408/425/429/5xx + network/timeout errors; pass `timeoutMs`, never put `AbortSignal.timeout` in `init` — it's reused across attempts and goes stale). Use `withRetry(fn, options)` for non-fetch or stateful operations (e.g. B2 upload, which re-authorizes via `onRetry`). The Anthropic SDK path is the exception — it uses its own SDK-error-aware `src/anthropic/callWithRetry.ts`.
 - Conventional commits: `type(scope): description`
 
 ## Documentation
@@ -122,6 +148,7 @@ The `docs/` directory contains architecture docs and development plans. Read the
 | `version-one.md` | V1 scope — conversational chatbot (current) |
 | `version-two.md` | V2 scope — memory, email, security |
 | `group-chat-support.md` | Multi-chat isolation with shared knowledge graph |
+| `natural-language-search.md` | Embeddings + hybrid search over the KG and archived files |
 | `imageocr.md` | Mistral OCR for photos and documents |
 | `workflow-*.md` | Step-by-step traces through realistic use cases (financial, recall, research, tasks, SMS) |
 
@@ -138,13 +165,18 @@ src/
   conversationHistory.ts     # persist/load conversation messages
   anthropic/                 # Claude API client, retry logic
   engine/                    # event queue, processing loop, tool execution
-  knowledge/                 # knowledge graph tools and storage
+  knowledge/                 # knowledge graph tools, hybrid search, storage
+  embeddings/                # Gemini embedding client, chunking, vector helpers
   events/                    # event/reminder CRUD
   audio/                     # Deepgram transcription, Telegram file download
-  archive/                   # Backblaze B2 upload
-  telegram/                  # grammY bot, voice handler, messaging tool
+  archive/                   # Backblaze B2 upload, archive embedding + search
+  ocr/                       # Mistral OCR
+  telegram/                  # grammY bot, voice/photo/document handlers, messaging tool
   prompt/                    # system prompt assembly, token estimation
   tools/                     # tool registry, tool types, calendar, skills
+  retry/                     # withRetry + fetchWithRetry (backoff/jitter/timeout) for external APIs
+  maintenance/               # reembed.ts — standing command to (re)embed null/stale rows (run in-container)
+  backfill/                  # archives.ts — one-time migration: populate document_chunks (run in-container)
 migrations/                  # numbered SQL files applied by scripts/migrate.sh
 scripts/
   trace.sh                   # trace debugging CLI

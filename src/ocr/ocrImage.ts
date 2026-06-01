@@ -1,4 +1,5 @@
 import { requireEnv } from "@/requireEnv.ts";
+import { fetchWithRetry } from "@/retry/fetchWithRetry.ts";
 
 const OCR_URL = "https://api.mistral.ai/v1/ocr";
 const OCR_MODEL = "mistral-ocr-latest";
@@ -12,7 +13,7 @@ export async function ocrImage(
   const base64 = arrayBufferToBase64(fileBytes);
   const dataUrl = `data:${mimeType};base64,${base64}`;
 
-  const response = await fetch(OCR_URL, {
+  const response = await fetchWithRetry(OCR_URL, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -22,8 +23,7 @@ export async function ocrImage(
       model: OCR_MODEL,
       document: { type: "document_url", document_url: dataUrl },
     }),
-    signal: AbortSignal.timeout(60_000),
-  });
+  }, { timeoutMs: 60_000 });
 
   if (!response.ok) {
     const body = await response.text();
