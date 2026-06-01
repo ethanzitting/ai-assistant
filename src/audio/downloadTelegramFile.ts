@@ -1,3 +1,5 @@
+import { requireEnv } from "@/requireEnv.ts";
+
 export async function downloadTelegramFile(
   filePath: string,
   botToken: string,
@@ -7,8 +9,7 @@ export async function downloadTelegramFile(
     return bytes.buffer as ArrayBuffer;
   }
 
-  const apiBase = Deno.env.get("TELEGRAM_API_URL");
-  if (!apiBase) throw new Error("TELEGRAM_API_URL is not set");
+  const apiBase = requireEnv("TELEGRAM_API_URL");
 
   const url = `${apiBase}/file/bot${botToken}/${filePath}`;
 

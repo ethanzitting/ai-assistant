@@ -3,6 +3,7 @@ import type { EventQueue } from "@/engine/eventQueue.ts";
 import { downloadTelegramFile } from "@/audio/downloadTelegramFile.ts";
 import { ocrImage } from "@/ocr/ocrImage.ts";
 import { archiveFile } from "@/archive/archiveFile.ts";
+import { requireEnv } from "@/requireEnv.ts";
 import { error } from "@/logger.ts";
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024;
@@ -38,7 +39,7 @@ export async function handleDocumentMessage(
     const file = await ctx.api.getFile(doc.file_id);
     if (!file.file_path) throw new Error("Telegram did not return a file_path");
 
-    const botToken = Deno.env.get("TELEGRAM_BOT_TOKEN")!;
+    const botToken = requireEnv("TELEGRAM_BOT_TOKEN");
     const fileBytes = await downloadTelegramFile(file.file_path, botToken);
 
     const ext = extensionFromMime(mimeType);

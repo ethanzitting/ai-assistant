@@ -3,6 +3,7 @@ import type { EventQueue } from "@/engine/eventQueue.ts";
 import { downloadTelegramFile } from "@/audio/downloadTelegramFile.ts";
 import { transcribeAudio } from "@/audio/transcribeAudio.ts";
 import { archiveFile } from "@/archive/archiveFile.ts";
+import { requireEnv } from "@/requireEnv.ts";
 import { error } from "@/logger.ts";
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB practical limit for in-memory processing
@@ -29,7 +30,7 @@ export async function handleVoiceMessage(
     const file = await ctx.getFile();
     if (!file.file_path) throw new Error("Telegram did not return a file_path");
 
-    const botToken = Deno.env.get("TELEGRAM_BOT_TOKEN")!;
+    const botToken = requireEnv("TELEGRAM_BOT_TOKEN");
     const fileBytes = await downloadTelegramFile(file.file_path, botToken);
 
     const ext = extensionFromMime(mimeType);

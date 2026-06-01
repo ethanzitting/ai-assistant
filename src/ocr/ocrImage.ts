@@ -1,3 +1,5 @@
+import { requireEnv } from "@/requireEnv.ts";
+
 const OCR_URL = "https://api.mistral.ai/v1/ocr";
 const OCR_MODEL = "mistral-ocr-latest";
 
@@ -5,8 +7,7 @@ export async function ocrImage(
   fileBytes: ArrayBuffer,
   mimeType: string,
 ): Promise<string | null> {
-  const apiKey = Deno.env.get("MISTRAL_API_KEY");
-  if (!apiKey) throw new Error("MISTRAL_API_KEY must be set");
+  const apiKey = requireEnv("MISTRAL_API_KEY");
 
   const base64 = arrayBufferToBase64(fileBytes);
   const dataUrl = `data:${mimeType};base64,${base64}`;

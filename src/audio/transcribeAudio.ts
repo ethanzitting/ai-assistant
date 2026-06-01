@@ -7,12 +7,13 @@ const PARAMS = new URLSearchParams({
   paragraphs: "true",
 });
 
+import { requireEnv } from "@/requireEnv.ts";
+
 export async function transcribeAudio(
   audioBytes: ArrayBuffer,
   mimeType: string,
 ): Promise<string | null> {
-  const apiKey = Deno.env.get("DEEPGRAM_API_KEY");
-  if (!apiKey) throw new Error("DEEPGRAM_API_KEY must be set");
+  const apiKey = requireEnv("DEEPGRAM_API_KEY");
 
   const response = await fetch(`${DEEPGRAM_URL}?${PARAMS}`, {
     method: "POST",

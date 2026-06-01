@@ -1,17 +1,10 @@
 import postgres from "postgres";
-
-function getRequiredEnv(name: string): string {
-  const value = Deno.env.get(name);
-  if (!value) {
-    throw new Error(`Missing required environment variable: ${name}`);
-  }
-  return value;
-}
+import { requireEnv } from "@/requireEnv.ts";
 
 export const db = postgres({
-  host: getRequiredEnv("DB_HOST"),
+  host: requireEnv("DB_HOST"),
   port: parseInt(Deno.env.get("DB_PORT") || "5432"),
-  user: getRequiredEnv("DB_USER"),
-  password: getRequiredEnv("DB_PASSWORD"),
-  database: getRequiredEnv("DB_NAME"),
+  user: requireEnv("DB_USER"),
+  password: requireEnv("DB_PASSWORD"),
+  database: requireEnv("DB_NAME"),
 });

@@ -1,3 +1,5 @@
+import { requireEnv } from "@/requireEnv.ts";
+
 const B2_AUTH_URL = "https://api.backblazeb2.com/b2api/v2/b2_authorize_account";
 
 interface B2Auth {
@@ -15,9 +17,8 @@ export async function authorizeB2(): Promise<B2Auth> {
     return cached;
   }
 
-  const keyId = Deno.env.get("B2_KEY_ID");
-  const appKey = Deno.env.get("B2_APPLICATION_KEY");
-  if (!keyId || !appKey) throw new Error("B2_KEY_ID and B2_APPLICATION_KEY must be set");
+  const keyId = requireEnv("B2_KEY_ID");
+  const appKey = requireEnv("B2_APPLICATION_KEY");
 
   const response = await fetch(B2_AUTH_URL, {
     method: "GET",

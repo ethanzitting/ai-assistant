@@ -1,6 +1,7 @@
 import { Bot } from "grammy";
 import type { EventQueue } from "@/engine/eventQueue.ts";
 import { db } from "@/db.ts";
+import { requireEnv } from "@/requireEnv.ts";
 import { handleVoiceMessage } from "@/telegram/handleVoiceMessage.ts";
 import { handlePhotoMessage } from "@/telegram/handlePhotoMessage.ts";
 import { handleDocumentMessage } from "@/telegram/handleDocumentMessage.ts";
@@ -8,27 +9,27 @@ import { warn, error } from "@/logger.ts";
 
 const OWNER_ID = Deno.env.get("TELEGRAM_OWNER_ID");
 
-export function createTelegramBot(queue: EventQueue): Bot {
-  const token = Deno.env.get("TELEGRAM_BOT_TOKEN");
-  if (!token) throw new Error("TELEGRAM_BOT_TOKEN is not set");
+function isOwner(telegramUserId: number): boolean {
+  const userId = String(telegramUserId);
+  if (!OWNER_ID) {
+    warn("telegram", "No TELEGRAM_OWNER_ID set — rejecting all messages", { userId });
+    return false;
+  }
+  if (userId !== OWNER_ID) {
+    warn("telegram", "Rejected message from unknown user", { userId });
+    return false;
+  }
+  return true;
+}
 
-  const apiRoot = Deno.env.get("TELEGRAM_API_URL");
-  if (!apiRoot) throw new Error("TELEGRAM_API_URL is not set");
+export function createTelegramBot(queue: EventQueue): Bot {
+  const token = requireEnv("TELEGRAM_BOT_TOKEN");
+  const apiRoot = requireEnv("TELEGRAM_API_URL");
 
   const bot = new Bot(token, { client: { apiRoot } });
 
   bot.on("message:text", async (ctx) => {
-    const userId = String(ctx.from.id);
-
-    if (OWNER_ID && userId !== OWNER_ID) {
-      warn("telegram", "Rejected message from unknown user", { userId });
-      return;
-    }
-
-    if (!OWNER_ID) {
-      warn("telegram", "No TELEGRAM_OWNER_ID set", { userId });
-    }
-
+    if (!isOwner(ctx.from.id)) return;
     await persistChatId(ctx.chat.id);
 
     queue.push({
@@ -44,37 +45,19 @@ export function createTelegramBot(queue: EventQueue): Bot {
   });
 
   bot.on(["message:voice", "message:audio", "message:video", "message:video_note"], async (ctx) => {
-    const userId = String(ctx.from.id);
-
-    if (OWNER_ID && userId !== OWNER_ID) {
-      warn("telegram", "Rejected voice/audio from unknown user", { userId });
-      return;
-    }
-
+    if (!isOwner(ctx.from.id)) return;
     await persistChatId(ctx.chat.id);
     await handleVoiceMessage(ctx, queue);
   });
 
   bot.on("message:photo", async (ctx) => {
-    const userId = String(ctx.from.id);
-
-    if (OWNER_ID && userId !== OWNER_ID) {
-      warn("telegram", "Rejected photo from unknown user", { userId });
-      return;
-    }
-
+    if (!isOwner(ctx.from.id)) return;
     await persistChatId(ctx.chat.id);
     await handlePhotoMessage(ctx, queue);
   });
 
   bot.on("message:document", async (ctx) => {
-    const userId = String(ctx.from.id);
-
-    if (OWNER_ID && userId !== OWNER_ID) {
-      warn("telegram", "Rejected document from unknown user", { userId });
-      return;
-    }
-
+    if (!isOwner(ctx.from.id)) return;
     await persistChatId(ctx.chat.id);
     await handleDocumentMessage(ctx, queue);
   });

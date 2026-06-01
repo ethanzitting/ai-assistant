@@ -1,4 +1,5 @@
 import { authorizeB2, clearB2AuthCache } from "@/archive/authorizeB2.ts";
+import { requireEnv } from "@/requireEnv.ts";
 
 interface B2UploadResult {
   fileId: string;
@@ -23,8 +24,7 @@ async function attemptUpload(
   isRetry = false,
 ): Promise<B2UploadResult> {
   const auth = await authorizeB2();
-  const bucketId = Deno.env.get("B2_BUCKET_ID");
-  if (!bucketId) throw new Error("B2_BUCKET_ID must be set");
+  const bucketId = requireEnv("B2_BUCKET_ID");
 
   const uploadUrlResponse = await fetch(
     `${auth.apiUrl}/b2api/v2/b2_get_upload_url`,
