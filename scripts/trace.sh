@@ -167,7 +167,11 @@ SELECT
                 r.detail->>'content' AS result_content,
                 COALESCE((r.detail->>'isError')::boolean, false) AS is_error
             FROM ordered c
-            LEFT JOIN ordered r ON r.rn = c.rn + 1 AND r.step = 'tool.result'
+            LEFT JOIN LATERAL (
+                SELECT detail FROM ordered nxt
+                WHERE nxt.step = 'tool.result' AND nxt.rn > c.rn
+                ORDER BY nxt.rn LIMIT 1
+            ) r ON true
             WHERE c.step = 'tool.called'
         ) sub),
         ''
@@ -204,7 +208,11 @@ SELECT
     END ||
     COALESCE(r.detail->>'content', '(no content)') || E'\n'
 FROM ordered c
-LEFT JOIN ordered r ON r.rn = c.rn + 1 AND r.step = 'tool.result'
+LEFT JOIN LATERAL (
+    SELECT detail FROM ordered nxt
+    WHERE nxt.step = 'tool.result' AND nxt.rn > c.rn
+    ORDER BY nxt.rn LIMIT 1
+) r ON true
 WHERE c.step = 'tool.called'
 ORDER BY c.rn;
 SQL
