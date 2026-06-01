@@ -1,4 +1,4 @@
-.PHONY: dev up down logs db migrate reembed backfill-archives backup test trace
+.PHONY: dev up down logs db migrate reembed backfill-archives prune-duplicates prune-duplicates-apply consolidate-facts consolidate-facts-apply backup test trace
 
 dev:
 	op run --env-file=.env.tpl -- docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
@@ -23,6 +23,18 @@ reembed:
 
 backfill-archives:
 	docker compose exec agent deno run --allow-net --allow-env --allow-read src/backfill/archives.ts
+
+prune-duplicates:
+	docker compose exec agent deno run --allow-net --allow-env --allow-read src/maintenance/pruneDuplicates.ts
+
+prune-duplicates-apply:
+	docker compose exec agent deno run --allow-net --allow-env --allow-read src/maintenance/pruneDuplicates.ts --apply
+
+consolidate-facts:
+	docker compose exec agent deno run --allow-net --allow-env --allow-read src/maintenance/consolidateFacts.ts
+
+consolidate-facts-apply:
+	docker compose exec agent deno run --allow-net --allow-env --allow-read src/maintenance/consolidateFacts.ts --apply
 
 backup:
 	@echo "Backup not yet implemented (Phase 8)"
