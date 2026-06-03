@@ -43,7 +43,8 @@ export async function sendTelegramMessage(
 }
 
 async function sendAsDocument(chatId: number, text: string): Promise<void> {
-  const caption = text.slice(0, MAX_CAPTION_LENGTH) + "…";
+  const suffix = "\n\n… full response in the attachment above.";
+  const caption = text.slice(0, MAX_CAPTION_LENGTH - suffix.length) + suffix;
   const filename = await generateFilename(text);
   const buffer = new TextEncoder().encode(text);
   const file = new InputFile(buffer, filename);
