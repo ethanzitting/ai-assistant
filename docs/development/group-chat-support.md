@@ -45,7 +45,7 @@ CREATE INDEX IF NOT EXISTS idx_conversations_chat_created ON conversations(chat_
 
 ### Backfill
 
-The migration is two-step:
+The migration is three-step:
 
 1. Add the nullable `chat_id` column.
 2. Read the existing `telegram_chat_id` from the `preferences` table. If present, create a default private chat row and UPDATE all existing conversation rows to point to it.
@@ -108,7 +108,7 @@ Two separate questions: when Jarvis *learns* from a chat, and when he *replies*.
 
 > A time-based trigger (flush after N hours) was considered but **deferred for V1**: it needs a periodic scheduler the system doesn't have yet — nothing fires timed events today (the same gap blocks reminders/daily-briefing). Residual risk: a rarely-tagged, low-volume chat won't extract until its next tag or until it crosses the token threshold. Acceptable for the care chat (tagged often); revisit when a scheduler exists.
 
-The flush is a **full turn with `respond: false`** — the same brain and tools, the reply suppressed, and a flush-specific instruction ("extract knowledge from this backlog; do not converse"). Whichever trigger fires, Jarvis runs one batched extraction over the whole backlog — better dedup and reference resolution than isolated per-message passes — then advances `last_processed_at` to the newest message processed. Only one flush is queued per chat at a time (a token-check while a flush is already pending is a no-op). An idle day costs $0; a busy or finally-addressed chat costs one batched pass, not one per message.
+The flush is a **full turn with `respond: false`**. The flush event's `payload.text` is a standing extraction instruction (e.g. "The conversation history contains unprocessed group messages. Extract all entities, facts, and relationships into the knowledge graph. Do not respond conversationally."). `processEvent` skips persisting this to `conversations` when `respond` is false — it's a system-initiated turn, not a real user message. The backlog is already in history as `context` rows; `assembleContext` loads them normally, so Claude sees the instruction as the current message and the group chatter in context. Whichever trigger fires, Jarvis runs one batched extraction — better dedup and reference resolution than isolated per-message passes — then advances `last_processed_at` to the newest message processed. Only one flush is queued per chat at a time (tracked in-memory via a `Set<chatId>` in the bot handler — lost on restart, which just means a redundant idempotent flush). An idle day costs $0; a busy or finally-addressed chat costs one batched pass, not one per message.
 
 **Replying happens only when addressed** — an @mention or a reply to one of the bot's messages. In a group that's the only thing that posts a message back. In a private chat every message is addressed, so Jarvis both learns and replies immediately (no deferral).
 
@@ -145,7 +145,7 @@ payload: {
   chat_id: ctx.chat.id,              // telegram chat id (for delivery)
   internal_chat_id: chat.id,         // internal UUID (for context loading)
   chat_type: ctx.chat.type,          // 'private', 'group', 'supergroup'
-  sender_name: senderName(ctx.from), // first + last name, null for private chats
+  sender_name: senderName(ctx.from), // first + last name (always populated; the [Name]: prefix is omitted for private chats)
   sender_id: String(ctx.from.id),    // telegram user id
   respond: true,                     // tagged → reply
 }
@@ -202,9 +202,15 @@ When Jarvis is invoked in a chat, his context window is the **greater of** the l
 
 Large attachments in the window can be expensive token-wise. Long-term, attachments will be routed to the knowledge graph immediately instead of living in conversation history. For now the cost is acceptable.
 
-The loader returns all roles including `context`. When assembling the messages array for Claude, `context` messages are mapped to `role: "user"` (the API accepts only user/assistant). **Note:** `assembleContext` today filters to `user`/`assistant` and would silently drop `context` rows — the filter must be widened to include `context` before mapping. The sender prefix (`[Sarah]: ...`) is already in the content, so Claude sees the group thread naturally interleaved with its own replies.
+The loader returns all roles including `context`. When assembling the messages array for Claude, `context` messages are mapped to `role: "user"` (the API accepts only user/assistant). **Note:** `assembleContext` today filters to `user`/`assistant` and would silently drop `context` rows — the filter must be widened to include `context` before mapping.
+
+**Role-merging requirement:** Claude's API requires strictly alternating `user`/`assistant` messages. Multiple consecutive `context` rows (or a `context` row followed by a `user` row) all map to `user`, producing consecutive same-role messages that the API rejects. The message-assembly layer must merge consecutive same-role messages into a single message before sending. For now this is a simple concatenation (join with `\n`, preserving each line's `[Name]:` prefix). Longer-term, decoupling the internal conversation model from Claude's role constraints (a proper message-assembly abstraction) would be cleaner — scope that as separate future work, not part of this phase.
+
+The sender prefix (`[Sarah]: ...`) is already in the content, so Claude sees the group thread naturally interleaved with its own replies.
 
 The `handleToolUseResponse` tool loop threads `internalChatId` through so that `assembleContext` and `persistMessage` calls within the loop remain chat-scoped.
+
+**Mid-turn event drain:** `handleToolUseResponse` drains high-priority events from the queue during the tool loop and injects them as context. In multi-chat, this drain must be scoped to the current chat — a message from Chat B must not be injected into Chat A's turn. Filter drained events by `internal_chat_id`; leave non-matching events in the queue.
 
 ### Scheduled events
 
@@ -267,7 +273,14 @@ None — new group chats start open. The owner adds restrictions explicitly only
 
 ### Who can set policies
 
-Only the owner. Enforced by checking `sender_id` against `TELEGRAM_OWNER_ID` in the policy-setting logic. The owner can set policies conversationally from any chat or via direct DB update.
+Only the owner, via direct DB update:
+
+```sql
+UPDATE chats SET policies = '[{"rule": "...", "added_at": "..."}]'
+WHERE telegram_chat_id = -100123456;
+```
+
+A conversational policy-setting tool (e.g. "set a policy on this chat") is deferred — it needs a `manage_policies` tool, sender-gating, and multi-chat targeting, none of which exist yet. Direct DB is sufficient for V1's single care chat.
 
 ### How policies affect the system prompt
 
@@ -322,10 +335,10 @@ Conversation pruning operates per-chat. A quiet group chat accumulates less and 
 
 1. Migration: `010_multi_chat.sql` — chats table, conversations.chat_id, backfill
 2. `src/telegram/chatRegistry.ts` — ensureChat, getPrivateChat, loadChatPolicies
-3. `src/conversationHistory.ts` — add chatId param, add `context` role support, map `context` → `user` in message assembly
+3. `src/conversationHistory.ts` — add chatId param, add `context` role support, map `context` → `user` in message assembly, merge consecutive same-role messages
 4. `src/prompt/assembleContext.ts` + `src/prompt/buildSystemPrompt.ts` — chat-scoped context
-5. `src/engine/processEvent.ts` — thread internalChatId and sender name prefix; on any turn, extract the backlog since `chats.last_processed_at` and advance the watermark to the newest processed message; honor `respond` (false = flush turn, no reply — overrides the always-send fallback in `deliverFinalResponse`).
-6. `src/engine/handleToolUseResponse.ts` — thread internalChatId through tool loop
+5. `src/engine/processEvent.ts` — thread internalChatId and sender name prefix; skip persisting `payload.text` to conversations when `respond` is false (the flush instruction is system-initiated, not a real user message); on any turn, extract the backlog since `chats.last_processed_at` and advance the watermark to the newest processed message; honor `respond` (false = flush turn, no reply — overrides the always-send fallback in `deliverFinalResponse`).
+6. `src/engine/handleToolUseResponse.ts` — thread internalChatId through tool loop; scope mid-turn event drain to the current chat (filter by `internal_chat_id`)
 7. `src/telegram/createTelegramBot.ts` — tagged → enqueue a turn (`respond: true`); untagged → persist as `context` + run the token trigger-check (enqueue a flush if it trips); `my_chat_member` + unknown-source handling that notifies the owner with chat ID + sender name (no text processed, deduped per source); group chat routing, ensureChat
 8. `src/telegram/handleVoiceMessage.ts`, `handlePhotoMessage.ts`, `handleDocumentMessage.ts` — move the allowlist/trust gate ahead of the transcription/OCR call (today it sits after the `isOwner` check, inside the handler). All allowlisted-group media — any member's — is transcribed/OCR'd on arrival (media can't be deferred like text; you need the text to store it), then its text follows the defer/flush path. A reply is posted only if the bot was @mentioned in the caption.
 9. `src/telegram/messagingTool.ts` — optional chat targeting
@@ -336,10 +349,10 @@ Steps 3-6 are atomic — the `persistMessage` signature change requires all call
 
 - Message the bot in private and group chat — independent conversation histories
 - Knowledge stored from group chat accessible in private chat (unified knowledge graph)
-- Group members send messages without @mentioning the bot — no reply; they're appended to history and extracted on the next flush (token/time trigger) or tag
+- Group members send messages without @mentioning the bot — no reply; they're appended to history and extracted on the next flush (token trigger) or tag
 - @mention the bot after a stretch of untagged messages — bot responds with awareness of the backlog (references prior messages) and extracts it as part of that turn
 - Another group member sends a voice message — transcribed and processed with their name
-- Another group member asks about the owner's private info — bot deflects
+- Another group member asks about Dana's medical situation — bot answers openly (open-by-default posture)
 - Owner says "my dog's name is Max" in group — stored as owner's fact, retrievable in private chat
 - Set a policy on the group chat — agent follows it
 - Only the owner can set policies (other members' attempts are rejected)

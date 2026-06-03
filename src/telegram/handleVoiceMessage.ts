@@ -8,11 +8,13 @@ import type { SourceType } from "@/archive/sourceTypes.ts";
 import { requireEnv } from "@/requireEnv.ts";
 import { error } from "@/logger.ts";
 
-const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB practical limit for in-memory processing
+const MAX_FILE_SIZE = 100 * 1024 * 1024;
 
 export async function handleVoiceMessage(
   ctx: Context,
   queue: EventQueue,
+  internalChatId?: string,
+  chatType?: string,
 ): Promise<void> {
   try {
     const media = extractMediaInfo(ctx);
@@ -95,13 +97,22 @@ export async function handleVoiceMessage(
       });
     }
 
+    const isPrivate = !chatType || chatType === "private";
+    const senderLabel = isPrivate ? "" : `[${senderNameFrom(ctx)}]: `;
+    const respond = isPrivate || isAddressedInCaption(ctx);
+
     queue.push({
       id: crypto.randomUUID(),
       type: "user_message",
       priority: "high",
       payload: {
-        text: `[${label}, ${duration}s]\n${transcript}`,
+        text: `${senderLabel}[${label}, ${duration}s]\n${transcript}`,
         chat_id: ctx.chat!.id,
+        internal_chat_id: internalChatId,
+        chat_type: chatType,
+        sender_name: senderNameFrom(ctx),
+        sender_id: ctx.from ? String(ctx.from.id) : undefined,
+        respond,
         audio_metadata: audioMetadata,
       },
       createdAt: new Date(),
@@ -110,6 +121,26 @@ export async function handleVoiceMessage(
     error("media", "Failed to process media message", { error: String(err) });
     await ctx.reply("Sorry, I had trouble processing that. Please try again.").catch(() => {});
   }
+}
+
+function isAddressedInCaption(ctx: Context): boolean {
+  const botUsername = ctx.me.username;
+  if (!botUsername) return false;
+
+  const msg = ctx.message;
+  if (!msg) return false;
+
+  if (msg.reply_to_message?.from?.id === ctx.me.id) return true;
+
+  const caption = msg.caption;
+  if (caption && caption.includes(`@${botUsername}`)) return true;
+
+  return false;
+}
+
+function senderNameFrom(ctx: Context): string {
+  if (!ctx.from) return "Unknown";
+  return [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(" ");
 }
 
 interface MediaInfo {

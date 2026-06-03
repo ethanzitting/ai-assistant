@@ -7,6 +7,8 @@ import { handleToolUseResponse } from "@/engine/handleToolUseResponse.ts";
 import { extractTextContent, hasToolUse } from "@/engine/parseResponse.ts";
 import { sendTelegramMessage } from "@/telegram/sendTelegramMessage.ts";
 import { startTypingIndicator } from "@/telegram/sendTypingIndicator.ts";
+import { advanceWatermark } from "@/telegram/chatRegistry.ts";
+import { clearPendingFlush } from "@/telegram/createTelegramBot.ts";
 import { info, warn, debug } from "@/logger.ts";
 import { trace } from "@/trace.ts";
 
@@ -15,15 +17,22 @@ export async function processEvent(
   queue: EventQueue,
 ): Promise<void> {
   const traceId = event.id;
-  const userMessage = extractUserMessage(event);
-  const chatId = extractChatId(event);
-  const metadata = extractMetadata(event);
+  const payload = event.payload as Record<string, unknown>;
+  const userMessage = (payload.text as string) ?? JSON.stringify(payload);
+  const telegramChatId = (payload.chat_id as number) ?? null;
+  const internalChatId = (payload.internal_chat_id as string) ?? undefined;
+  const chatType = (payload.chat_type as string) ?? undefined;
+  const respond = (payload.respond as boolean) ?? true;
+  const metadata = extractMetadata(payload);
 
   await trace(traceId, "event.received", { type: event.type, priority: event.priority });
-  await trace(traceId, "user.message", { text: userMessage, chatId });
-  await persistMessage({ role: "user", content: userMessage, metadata, traceId });
+  await trace(traceId, "user.message", { text: userMessage, chatId: telegramChatId, respond });
 
-  const { systemPrompt, messages } = await assembleContext();
+  if (respond) {
+    await persistMessage({ role: "user", content: userMessage, chatId: internalChatId, metadata, traceId });
+  }
+
+  const { systemPrompt, messages } = await assembleContext(internalChatId, chatType);
   await trace(traceId, "context.assembled", {
     messageCount: messages.length,
     systemPromptLength: systemPrompt.length,
@@ -34,7 +43,7 @@ export async function processEvent(
   const tools = getToolSchemas();
   await trace(traceId, "claude.request", { messageCount: messages.length, toolCount: tools.length });
 
-  const stopTyping = chatId ? startTypingIndicator(chatId) : () => {};
+  const stopTyping = (respond && telegramChatId) ? startTypingIndicator(telegramChatId) : () => {};
 
   try {
     const { response, tokenUsage } = await sendMessage({
@@ -55,7 +64,8 @@ export async function processEvent(
 
     if (hasToolUse(response)) {
       await handleToolUseResponse({
-        initialResponse: response, systemPrompt, tools, queue, chatId, traceId, stopTyping,
+        initialResponse: response, systemPrompt, tools, queue,
+        telegramChatId, internalChatId, respond, traceId, stopTyping,
       });
       return;
     }
@@ -66,26 +76,25 @@ export async function processEvent(
       await trace(traceId, "response.empty", { stopReason: response.stop_reason });
       return;
     }
-    await persistMessage({ role: "assistant", content: assistantText, traceId });
+    await persistMessage({ role: "assistant", content: assistantText, chatId: internalChatId, traceId });
+
     stopTyping();
-    await deliverResponse(assistantText, chatId, traceId);
+    if (respond) {
+      await deliverResponse(assistantText, telegramChatId, traceId);
+    } else {
+      await trace(traceId, "response.suppressed", { text: assistantText });
+    }
   } finally {
     stopTyping();
+    if (!respond && internalChatId) {
+      await advanceWatermark(internalChatId, new Date());
+      clearPendingFlush(internalChatId);
+      await trace(traceId, "flush.completed", { internalChatId });
+    }
   }
 }
 
-function extractUserMessage(event: QueueEvent): string {
-  const payload = event.payload as Record<string, unknown>;
-  return (payload.text as string) ?? JSON.stringify(payload);
-}
-
-function extractChatId(event: QueueEvent): number | null {
-  const payload = event.payload as Record<string, unknown>;
-  return (payload.chat_id as number) ?? null;
-}
-
-function extractMetadata(event: QueueEvent): Record<string, unknown> {
-  const payload = event.payload as Record<string, unknown>;
+function extractMetadata(payload: Record<string, unknown>): Record<string, unknown> {
   return (payload.audio_metadata as Record<string, unknown>)
     ?? (payload.image_metadata as Record<string, unknown>)
     ?? {};

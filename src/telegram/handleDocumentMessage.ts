@@ -22,6 +22,8 @@ const OCR_MIME_TYPES = new Set([
 export async function handleDocumentMessage(
   ctx: Context,
   queue: EventQueue,
+  internalChatId?: string,
+  chatType?: string,
 ): Promise<void> {
   try {
     const doc = ctx.message?.document;
@@ -108,13 +110,22 @@ export async function handleDocumentMessage(
       });
     }
 
+    const isPrivate = !chatType || chatType === "private";
+    const senderLabel = isPrivate ? "" : `[${senderNameFrom(ctx)}]: `;
+    const respond = isPrivate || isAddressedInCaption(ctx);
+
     queue.push({
       id: crypto.randomUUID(),
       type: "user_message",
       priority: "high",
       payload: {
-        text: messageText,
+        text: `${senderLabel}${messageText}`,
         chat_id: ctx.chat!.id,
+        internal_chat_id: internalChatId,
+        chat_type: chatType,
+        sender_name: senderNameFrom(ctx),
+        sender_id: ctx.from ? String(ctx.from.id) : undefined,
+        respond,
         image_metadata: imageMetadata,
       },
       createdAt: new Date(),
@@ -123,6 +134,26 @@ export async function handleDocumentMessage(
     error("document", "Failed to process document message", { error: String(err) });
     await ctx.reply("Sorry, I had trouble processing that document. Please try again.").catch(() => {});
   }
+}
+
+function isAddressedInCaption(ctx: Context): boolean {
+  const botUsername = ctx.me.username;
+  if (!botUsername) return false;
+
+  const msg = ctx.message;
+  if (!msg) return false;
+
+  if (msg.reply_to_message?.from?.id === ctx.me.id) return true;
+
+  const caption = msg.caption;
+  if (caption && caption.includes(`@${botUsername}`)) return true;
+
+  return false;
+}
+
+function senderNameFrom(ctx: Context): string {
+  if (!ctx.from) return "Unknown";
+  return [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(" ");
 }
 
 function extensionFromMime(mimeType: string): string {

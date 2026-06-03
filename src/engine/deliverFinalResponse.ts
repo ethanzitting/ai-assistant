@@ -8,7 +8,9 @@ import { trace } from "@/trace.ts";
 export async function deliverFinalResponse(
   response: Message,
   hitMaxIterations: boolean,
-  chatId: number | null,
+  telegramChatId: number | null,
+  internalChatId: string | undefined,
+  respond: boolean,
   traceId: string,
 ): Promise<void> {
   const finalText = extractTextContent(response).trim();
@@ -18,15 +20,20 @@ export async function deliverFinalResponse(
     await trace(traceId, "response.empty", { hitMaxIterations });
   }
 
-  // Always deliver something — a user-initiated turn should never end in silence.
   const deliverText = finalText || fallbackText(hitMaxIterations);
 
-  await persistMessage({ role: "assistant", content: deliverText, traceId });
+  await persistMessage({ role: "assistant", content: deliverText, chatId: internalChatId, traceId });
+
+  if (!respond) {
+    await trace(traceId, "response.suppressed", { text: deliverText });
+    return;
+  }
+
   info("assistant", deliverText);
-  if (chatId) await sendTelegramMessage(chatId, deliverText);
+  if (telegramChatId) await sendTelegramMessage(telegramChatId, deliverText);
   await trace(traceId, "response.delivered", {
-    channel: chatId ? "telegram" : "none",
-    chatId,
+    channel: telegramChatId ? "telegram" : "none",
+    chatId: telegramChatId,
     text: deliverText,
   });
 }

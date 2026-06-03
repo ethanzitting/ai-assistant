@@ -15,13 +15,18 @@ interface HandleToolUseOptions {
   systemPrompt: string;
   tools: ToolUnion[];
   queue: EventQueue;
-  chatId: number | null;
+  telegramChatId: number | null;
+  internalChatId?: string;
+  respond: boolean;
   traceId: string;
   stopTyping: () => void;
 }
 
 export async function handleToolUseResponse(options: HandleToolUseOptions): Promise<void> {
-  const { initialResponse, systemPrompt, tools, queue, chatId, traceId, stopTyping } = options;
+  const {
+    initialResponse, systemPrompt, tools, queue,
+    telegramChatId, internalChatId, respond, traceId, stopTyping,
+  } = options;
   const MAX_TOOL_ITERATIONS = 50;
   let currentResponse = initialResponse;
   let iteration = 0;
@@ -35,15 +40,15 @@ export async function handleToolUseResponse(options: HandleToolUseOptions): Prom
       break;
     }
 
-    const { messages } = await assembleContext();
+    const { messages } = await assembleContext(internalChatId);
 
     if (currentResponse.stop_reason === "pause_turn") {
       await trace(traceId, "server_tool.pause_turn", { iteration });
       messages.push({ role: "assistant", content: currentResponse.content });
     } else {
       const toolResults = await executeAllToolCalls(currentResponse, traceId);
-      const interruptText = drainHighPriorityContext(queue);
-      await persistToolCallRecord(currentResponse, traceId);
+      const interruptText = drainHighPriorityContext(queue, internalChatId);
+      await persistToolCallRecord(currentResponse, internalChatId, traceId);
       appendToolResults({ messages, assistantResponse: currentResponse, toolResults, interruptText });
     }
 
@@ -74,23 +79,38 @@ export async function handleToolUseResponse(options: HandleToolUseOptions): Prom
   }
 
   stopTyping();
-  await deliverFinalResponse(currentResponse, hitMaxIterations, chatId, traceId);
+  await deliverFinalResponse(currentResponse, hitMaxIterations, telegramChatId, internalChatId, respond, traceId);
 }
 
-function drainHighPriorityContext(queue: EventQueue): string | null {
+function drainHighPriorityContext(queue: EventQueue, currentChatId?: string): string | null {
   const highPriorityEvents = queue.drainHighPriority();
   if (highPriorityEvents.length === 0) return null;
 
-  return highPriorityEvents
-    .map((event) => {
-      const payload = event.payload as Record<string, unknown>;
-      return payload.text ?? JSON.stringify(payload);
-    })
-    .join("\n");
+  const matching: string[] = [];
+  const returned: typeof highPriorityEvents = [];
+
+  for (const event of highPriorityEvents) {
+    const payload = event.payload as Record<string, unknown>;
+    const eventChatId = payload.internal_chat_id as string | undefined;
+
+    if (!currentChatId || eventChatId === currentChatId || !eventChatId) {
+      const text = (payload.text as string) ?? JSON.stringify(payload);
+      matching.push(text);
+    } else {
+      returned.push(event);
+    }
+  }
+
+  for (const event of returned) {
+    queue.push(event);
+  }
+
+  if (matching.length === 0) return null;
+  return matching.join("\n");
 }
 
-async function persistToolCallRecord(response: Message, traceId: string): Promise<void> {
+async function persistToolCallRecord(response: Message, chatId: string | undefined, traceId: string): Promise<void> {
   const toolBlocks = getToolUseBlocks(response);
   const summary = toolBlocks.map((block) => `[called ${block.name}]`).join(" ");
-  await persistMessage({ role: "tool_call", content: summary, traceId });
+  await persistMessage({ role: "tool_call", content: summary, chatId, traceId });
 }

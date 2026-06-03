@@ -1,5 +1,6 @@
 import { db } from "@/db.ts";
 import { currentDateLabel } from "@/currentDate.ts";
+import { loadChatPolicies, type ChatPolicy } from "@/telegram/chatRegistry.ts";
 
 const BASE_PROMPT = `You are Jarvis, a personal assistant for a single user. You have a persistent knowledge graph, an event engine, and access to the user's calendar. You maintain continuity across all conversations — there are no sessions, just an ongoing relationship.
 
@@ -31,7 +32,7 @@ Use coarse-grained tools — each tool does significant work. Say what you want,
 - **manage_events**: Create reminders, track deadlines, manage recurring items. Parse natural language dates from the user's messages.
 - **get_calendar**: Check the user's schedule for a date range (not yet configured — Google Calendar sync coming in Version 2).
 - **fetch_skill**: Load detailed instructions for a specific skill when relevant.
-- **send_message**: Send a proactive Telegram message to the user.
+- **send_message**: Send a proactive Telegram message to the user. Optionally target a specific chat by name.
 - **web_search**: Search the internet for current information. Use when the user asks about something you don't know, needs up-to-date facts, or when real-world research would help. This runs automatically — just decide to search and it happens.
 
 ## Entity resolution
@@ -67,8 +68,35 @@ You are a Deno/TypeScript application running in Docker, built by Ethan. Your br
 - When asked a factual question about stored information, give the answer directly
 - When something isn't in your knowledge and can't be searched, say so clearly rather than guessing`;
 
-export async function buildSystemPrompt(): Promise<string> {
+const GROUP_ADDENDUM = `
+
+## Group chat context
+
+You are Ethan's personal assistant, brought into a group chat to collaborate with the participants. Be open and helpful — share information and work through problems together with the chat. Do not withhold or deflect by default.
+
+- Keep responses concise — you're in a shared space.
+- Messages are prefixed with the sender's name: [Sarah]: hey can you check...
+- The owner (Ethan) is identified by TELEGRAM_OWNER_ID. Treat the owner's statements as authoritative for knowledge storage (facts, preferences). Other participants' statements are conversational context — don't store them as owner facts.
+- The only limits are the explicit per-chat policies below, if any — follow those strictly. Absent a policy, share freely with the chat; do not refuse, hedge, or tell someone to "ask the owner directly." The people here were added by the owner to collaborate.`;
+
+export async function buildSystemPrompt(
+  internalChatId?: string,
+  chatType?: string,
+): Promise<string> {
   const sections = [BASE_PROMPT, currentDateSection()];
+
+  const isGroup = chatType === "group" || chatType === "supergroup";
+
+  if (isGroup) {
+    sections.push(GROUP_ADDENDUM);
+  }
+
+  if (isGroup && internalChatId) {
+    const policies = await loadChatPolicies(internalChatId);
+    if (policies.length > 0) {
+      sections.push(formatPolicies(policies));
+    }
+  }
 
   const skills = await loadSkillSummaries();
   if (skills.length > 0) {
@@ -85,6 +113,11 @@ export async function buildSystemPrompt(): Promise<string> {
 
 function currentDateSection(): string {
   return `## Today's date\nToday is ${currentDateLabel()}. Anchor every relative date ("today", "last week", "May 10") to this, and always stamp the correct year on the facts and events you store.`;
+}
+
+function formatPolicies(policies: ChatPolicy[]): string {
+  const lines = policies.map((policy) => `- ${policy.rule}`);
+  return `## Chat-specific policies\n\nThis chat has the following behavioral rules. Follow them strictly:\n${lines.join("\n")}`;
 }
 
 async function loadSkillSummaries(): Promise<{ name: string; description: string }[]> {
