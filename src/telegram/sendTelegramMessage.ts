@@ -1,4 +1,6 @@
-import type { Bot } from "grammy";
+import { InputFile, type Bot } from "grammy";
+import { getClient } from "@/anthropic/getClient.ts";
+import { withRetry } from "@/retry/withRetry.ts";
 import { warn } from "@/logger.ts";
 
 let botInstance: Bot | null = null;
@@ -11,6 +13,10 @@ export function getBotInstance(): Bot | null {
   return botInstance;
 }
 
+const ATTACHMENT_THRESHOLD = 3000;
+const MAX_CAPTION_LENGTH = 990;
+const MAX_MESSAGE_LENGTH = 4096;
+
 export async function sendTelegramMessage(
   chatId: number,
   text: string,
@@ -20,24 +26,65 @@ export async function sendTelegramMessage(
     return;
   }
 
+  if (text.length >= ATTACHMENT_THRESHOLD) {
+    try {
+      await sendAsDocument(chatId, text);
+      return;
+    } catch (error: unknown) {
+      warn("telegram", "sendDocument failed, falling back to text", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
   for (const chunk of splitMessage(text)) {
     await botInstance.api.sendMessage(chatId, chunk);
   }
 }
 
-const MAX_LENGTH = 4096;
+async function sendAsDocument(chatId: number, text: string): Promise<void> {
+  const caption = text.slice(0, MAX_CAPTION_LENGTH) + "…";
+  const filename = await generateFilename(text);
+  const buffer = new TextEncoder().encode(text);
+  const file = new InputFile(buffer, filename);
+  await botInstance!.api.sendDocument(chatId, file, { caption });
+}
+
+async function generateFilename(text: string): Promise<string> {
+  try {
+    const response = await withRetry(
+      () => getClient().messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 30,
+        messages: [{
+          role: "user",
+          content: `Write a short filename (2-5 words, lowercase, hyphens, no extension) for this text:\n\n${text.slice(0, 300)}`,
+        }],
+      }),
+      { maxRetries: 1, signal: AbortSignal.timeout(10_000) },
+    );
+    const raw = response.content[0].type === "text" ? response.content[0].text : "";
+    const slug = raw.trim().toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-|-$/g, "");
+    if (slug.length > 0 && slug.length <= 80) return slug + ".txt";
+  } catch (error: unknown) {
+    warn("telegram", "Filename generation failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+  return "response.txt";
+}
 
 function splitMessage(text: string): string[] {
-  if (text.length <= MAX_LENGTH) return [text];
+  if (text.length <= MAX_MESSAGE_LENGTH) return [text];
 
   const chunks: string[] = [];
   let remaining = text;
 
-  while (remaining.length > MAX_LENGTH) {
-    let splitAt = remaining.lastIndexOf("\n\n", MAX_LENGTH);
-    if (splitAt < 1) splitAt = remaining.lastIndexOf("\n", MAX_LENGTH);
-    if (splitAt < 1) splitAt = remaining.lastIndexOf(" ", MAX_LENGTH);
-    if (splitAt < 1) splitAt = MAX_LENGTH;
+  while (remaining.length > MAX_MESSAGE_LENGTH) {
+    let splitAt = remaining.lastIndexOf("\n\n", MAX_MESSAGE_LENGTH);
+    if (splitAt < 1) splitAt = remaining.lastIndexOf("\n", MAX_MESSAGE_LENGTH);
+    if (splitAt < 1) splitAt = remaining.lastIndexOf(" ", MAX_MESSAGE_LENGTH);
+    if (splitAt < 1) splitAt = MAX_MESSAGE_LENGTH;
 
     chunks.push(remaining.slice(0, splitAt));
     remaining = remaining.slice(splitAt).trimStart();
