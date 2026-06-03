@@ -4,20 +4,12 @@ import { downloadTelegramFile } from "@/audio/downloadTelegramFile.ts";
 import { ocrImage } from "@/ocr/ocrImage.ts";
 import { archiveFile } from "@/archive/archiveFile.ts";
 import { embedArchivedFile } from "@/archive/embedArchivedFile.ts";
+import { classifyDocument, extensionForDocument } from "@/telegram/documentTypes.ts";
 import { requireEnv } from "@/requireEnv.ts";
 import { error } from "@/logger.ts";
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024;
-
-const OCR_MIME_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/gif",
-  "image/webp",
-  "image/tiff",
-  "image/bmp",
-  "application/pdf",
-]);
+const MAX_TEXT_BYTES = 512 * 1024;
 
 export async function handleDocumentMessage(
   ctx: Context,
@@ -30,10 +22,13 @@ export async function handleDocumentMessage(
     if (!doc) return;
 
     const mimeType = doc.mime_type ?? "";
-    if (!OCR_MIME_TYPES.has(mimeType)) return;
+    const docClass = classifyDocument(mimeType, doc.file_name);
+    if (!docClass) return;
 
-    if (doc.file_size && doc.file_size > MAX_FILE_SIZE) {
-      await ctx.reply("That document is too large for me to process (100MB limit).");
+    const sizeLimit = docClass === "text" ? MAX_TEXT_BYTES : MAX_FILE_SIZE;
+    if (doc.file_size && doc.file_size > sizeLimit) {
+      const limitLabel = docClass === "text" ? "512KB" : "100MB";
+      await ctx.reply(`That document is too large for me to process (${limitLabel} limit).`);
       return;
     }
 
@@ -45,7 +40,7 @@ export async function handleDocumentMessage(
     const botToken = requireEnv("TELEGRAM_BOT_TOKEN");
     const fileBytes = await downloadTelegramFile(file.file_path, botToken);
 
-    const ext = extensionFromMime(mimeType);
+    const ext = extensionForDocument(mimeType, doc.file_name);
     let archiveId: string | null = null;
     try {
       archiveId = await archiveFile({
@@ -60,59 +55,68 @@ export async function handleDocumentMessage(
       error("archive", "Document archival failed, continuing", { error: String(err) });
     }
 
-    const ocrText = await ocrImage(fileBytes, mimeType);
+    let extractedText: string | null;
+    let extractionModel: string;
 
-    if (!ocrText) {
+    if (docClass === "text") {
+      extractedText = new TextDecoder("utf-8", { fatal: false }).decode(fileBytes);
+      extractionModel = "utf8-decode";
+    } else {
+      extractedText = await ocrImage(fileBytes, mimeType);
+      extractionModel = "mistral-ocr-latest";
+    }
+
+    if (!extractedText) {
       await ctx.reply("I couldn't find any text in that document.");
       return;
     }
 
-    let textArchiveId: string | null = null;
-    try {
-      const textBytes = new TextEncoder().encode(ocrText);
-      const metadata: Record<string, unknown> = {};
-      if (archiveId) metadata.source_file_id = archiveId;
+    if (docClass === "ocr") {
+      try {
+        const textBytes = new TextEncoder().encode(extractedText);
+        const metadata: Record<string, unknown> = {};
+        if (archiveId) metadata.source_file_id = archiveId;
 
-      textArchiveId = await archiveFile({
-        fileBytes: textBytes.buffer as ArrayBuffer,
-        sourceType: "ocr_text",
-        label: doc.file_id,
-        ext: "txt",
-        mimeType: "text/plain",
-        metadata,
-      });
-    } catch (err) {
-      error("archive", "OCR text archival failed, continuing", { error: String(err) });
+        await archiveFile({
+          fileBytes: textBytes.buffer as ArrayBuffer,
+          sourceType: "ocr_text",
+          label: doc.file_id,
+          ext: "txt",
+          mimeType: "text/plain",
+          metadata,
+        });
+      } catch (err) {
+        error("archive", "OCR text archival failed, continuing", { error: String(err) });
+      }
     }
-
-    const filename = doc.file_name ?? "document";
-    const caption = ctx.message?.caption;
-    let messageText = `[Document: ${filename}]\n${ocrText}`;
-    if (caption) messageText += `\n\nCaption: ${caption}`;
-
-    const imageMetadata: Record<string, unknown> = {
-      source: "document",
-      telegram_file_id: doc.file_id,
-      mime_type: mimeType,
-      ocr_model: "mistral-ocr-latest",
-      original_filename: doc.file_name,
-    };
-    if (doc.file_size) imageMetadata.file_size_bytes = doc.file_size;
-    if (archiveId) imageMetadata.archive_id = archiveId;
-    if (textArchiveId) imageMetadata.ocr_text_archive_id = textArchiveId;
 
     if (archiveId) {
       await embedArchivedFile({
         archivedFileId: archiveId,
         sourceType: "document",
-        text: ocrText,
+        text: extractedText,
         metadata: { telegram_file_id: doc.file_id, original_filename: doc.file_name },
       });
     }
 
+    const filename = doc.file_name ?? "document";
+    const caption = ctx.message?.caption;
+    let messageText = `[Document: ${filename}]\n${extractedText}`;
+    if (caption) messageText += `\n\nCaption: ${caption}`;
+
     const isPrivate = !chatType || chatType === "private";
     const senderLabel = isPrivate ? "" : `[${senderNameFrom(ctx)}]: `;
     const respond = isPrivate || isAddressedInCaption(ctx);
+
+    const documentMetadata: Record<string, unknown> = {
+      source: "document",
+      telegram_file_id: doc.file_id,
+      mime_type: mimeType,
+      extraction_model: extractionModel,
+      original_filename: doc.file_name,
+    };
+    if (doc.file_size) documentMetadata.file_size_bytes = doc.file_size;
+    if (archiveId) documentMetadata.archive_id = archiveId;
 
     queue.push({
       id: crypto.randomUUID(),
@@ -126,7 +130,7 @@ export async function handleDocumentMessage(
         sender_name: senderNameFrom(ctx),
         sender_id: ctx.from ? String(ctx.from.id) : undefined,
         respond,
-        image_metadata: imageMetadata,
+        document_metadata: documentMetadata,
       },
       createdAt: new Date(),
     });
@@ -154,17 +158,4 @@ function isAddressedInCaption(ctx: Context): boolean {
 function senderNameFrom(ctx: Context): string {
   if (!ctx.from) return "Unknown";
   return [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(" ");
-}
-
-function extensionFromMime(mimeType: string): string {
-  const map: Record<string, string> = {
-    "image/jpeg": "jpg",
-    "image/png": "png",
-    "image/gif": "gif",
-    "image/webp": "webp",
-    "image/tiff": "tiff",
-    "image/bmp": "bmp",
-    "application/pdf": "pdf",
-  };
-  return map[mimeType] ?? "bin";
 }

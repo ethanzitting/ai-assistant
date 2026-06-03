@@ -97,6 +97,7 @@ export async function processEvent(
 function extractMetadata(payload: Record<string, unknown>): Record<string, unknown> {
   return (payload.audio_metadata as Record<string, unknown>)
     ?? (payload.image_metadata as Record<string, unknown>)
+    ?? (payload.document_metadata as Record<string, unknown>)
     ?? {};
 }
 
