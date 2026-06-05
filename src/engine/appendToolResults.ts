@@ -21,7 +21,7 @@ export function appendToolResults(options: AppendToolResultsOptions): void {
 
   if (interruptText && resultBlocks.length > 0) {
     const lastBlock = resultBlocks[resultBlocks.length - 1];
-    lastBlock.content += `\n\n[While you were working, new events arrived: ${interruptText}]`;
+    lastBlock.content += `\n\n[New message from user: ${interruptText}]`;
   }
 
   messages.push({ role: "user", content: resultBlocks });

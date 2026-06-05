@@ -9,6 +9,7 @@ import { handlePhotoMessage } from "@/telegram/handlePhotoMessage.ts";
 import { handleDocumentMessage } from "@/telegram/handleDocumentMessage.ts";
 import { sendTelegramMessage } from "@/telegram/sendTelegramMessage.ts";
 import { requireEnv } from "@/requireEnv.ts";
+import { enqueueWithBatching } from "@/telegram/messageBatcher.ts";
 import { info, warn, error } from "@/logger.ts";
 
 const OWNER_ID = Deno.env.get("TELEGRAM_OWNER_ID");
@@ -47,20 +48,14 @@ export function createTelegramBot(queue: EventQueue): Bot {
 
     if (addressed) {
       const senderPrefix = isPrivate ? "" : `[${senderName(ctx.from)}]: `;
-      queue.push({
-        id: crypto.randomUUID(),
-        type: "user_message",
-        priority: "high",
-        payload: {
-          text: `${senderPrefix}${ctx.message.text}`,
-          chat_id: ctx.chat.id,
-          internal_chat_id: chat.id,
-          chat_type: ctx.chat.type,
-          sender_name: senderName(ctx.from),
-          sender_id: String(ctx.from.id),
-          respond: true,
-        },
-        createdAt: new Date(),
+      enqueueWithBatching(queue, {
+        text: `${senderPrefix}${ctx.message.text}`,
+        chat_id: ctx.chat.id,
+        internal_chat_id: chat.id,
+        chat_type: ctx.chat.type,
+        sender_name: senderName(ctx.from),
+        sender_id: String(ctx.from.id),
+        respond: true,
       });
     } else {
       await persistMessage({

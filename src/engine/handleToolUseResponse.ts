@@ -2,11 +2,12 @@ import type { Message, ToolUnion } from "@anthropic-ai/sdk/resources/messages.mj
 import { sendMessage } from "@/anthropic/sendMessage.ts";
 import { persistMessage } from "@/conversationHistory.ts";
 import { assembleContext } from "@/prompt/assembleContext.ts";
-import type { EventQueue } from "@/engine/eventQueue.ts";
+import type { EventQueue, QueueEvent } from "@/engine/eventQueue.ts";
 import { extractTextContent, getToolUseBlocks } from "@/engine/parseResponse.ts";
 import { executeAllToolCalls } from "@/engine/executeAllToolCalls.ts";
 import { appendToolResults } from "@/engine/appendToolResults.ts";
 import { deliverFinalResponse } from "@/engine/deliverFinalResponse.ts";
+import { persistDrainedMessages } from "@/engine/persistDrainedMessages.ts";
 import { warn } from "@/logger.ts";
 import { trace } from "@/trace.ts";
 
@@ -47,7 +48,8 @@ export async function handleToolUseResponse(options: HandleToolUseOptions): Prom
       messages.push({ role: "assistant", content: currentResponse.content });
     } else {
       const toolResults = await executeAllToolCalls(currentResponse, traceId);
-      const interruptText = drainHighPriorityContext(queue, internalChatId);
+      const { interruptText, drainedEvents } = drainHighPriorityContext(queue, internalChatId);
+      await persistDrainedMessages(drainedEvents, traceId);
       await persistToolCallRecord(currentResponse, internalChatId, traceId);
       appendToolResults({ messages, assistantResponse: currentResponse, toolResults, interruptText });
     }
@@ -82,20 +84,24 @@ export async function handleToolUseResponse(options: HandleToolUseOptions): Prom
   await deliverFinalResponse(currentResponse, hitMaxIterations, telegramChatId, internalChatId, respond, traceId);
 }
 
-function drainHighPriorityContext(queue: EventQueue, currentChatId?: string): string | null {
-  const highPriorityEvents = queue.drainHighPriority();
-  if (highPriorityEvents.length === 0) return null;
+interface DrainResult {
+  interruptText: string | null;
+  drainedEvents: QueueEvent[];
+}
 
-  const matching: string[] = [];
-  const returned: typeof highPriorityEvents = [];
+function drainHighPriorityContext(queue: EventQueue, currentChatId?: string): DrainResult {
+  const highPriorityEvents = queue.drainHighPriority();
+  if (highPriorityEvents.length === 0) return { interruptText: null, drainedEvents: [] };
+
+  const drainedEvents: QueueEvent[] = [];
+  const returned: QueueEvent[] = [];
 
   for (const event of highPriorityEvents) {
     const payload = event.payload as Record<string, unknown>;
     const eventChatId = payload.internal_chat_id as string | undefined;
 
     if (!currentChatId || eventChatId === currentChatId || !eventChatId) {
-      const text = (payload.text as string) ?? JSON.stringify(payload);
-      matching.push(text);
+      drainedEvents.push(event);
     } else {
       returned.push(event);
     }
@@ -105,8 +111,16 @@ function drainHighPriorityContext(queue: EventQueue, currentChatId?: string): st
     queue.push(event);
   }
 
-  if (matching.length === 0) return null;
-  return matching.join("\n");
+  if (drainedEvents.length === 0) return { interruptText: null, drainedEvents: [] };
+
+  const interruptText = drainedEvents
+    .map((event) => {
+      const payload = event.payload as Record<string, unknown>;
+      return (payload.text as string) ?? JSON.stringify(payload);
+    })
+    .join("\n");
+
+  return { interruptText, drainedEvents };
 }
 
 async function persistToolCallRecord(response: Message, chatId: string | undefined, traceId: string): Promise<void> {

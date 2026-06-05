@@ -22,12 +22,12 @@ export async function deliverFinalResponse(
 
   const deliverText = finalText || fallbackText(hitMaxIterations);
 
-  await persistMessage({ role: "assistant", content: deliverText, chatId: internalChatId, traceId });
-
   if (!respond) {
     await trace(traceId, "response.suppressed", { text: deliverText });
     return;
   }
+
+  await persistMessage({ role: "assistant", content: deliverText, chatId: internalChatId, traceId });
 
   info("assistant", deliverText);
   if (telegramChatId) await sendTelegramMessage(telegramChatId, deliverText);
