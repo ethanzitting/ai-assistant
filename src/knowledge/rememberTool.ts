@@ -14,13 +14,15 @@ const ITEM_SCHEMA_HELP = `Each item in the array must have a "type" field and a 
 export const rememberTool: ToolDefinition = {
   schema: {
     name: "remember",
-    description: `Store one or more items into the knowledge graph in a single call. Pass an "items" array — each element is one of:
+    description: `Store items into the knowledge graph. You may call this ONCE per turn — a second call will be rejected and those items will be lost. Batch all entities, facts, and relationships into a single call. For many items (>5), propose them to the user first and wait for approval before calling.
+
+Pass an "items" array — each element is one of:
 
   { type: "entity", entity: { name: "Dr. Nguyen", type: "person", properties: { specialty: "neurology" } } }
   { type: "fact", fact: { entity_name: "Dana Whitfield", attribute: "diagnosis", value: "viral encephalitis" } }
   { type: "relationship", relationship: { entity_a_name: "Robin Whitfield", entity_b_name: "Dana Whitfield", type: "spouse" } }
 
-Create entities BEFORE facts/relationships that reference them. Batch liberally — put all entities first, then facts, then relationships. Old fact values are superseded automatically. Once a remember call succeeds, that data is stored — do not re-store the same information. If the tool says "already known" or "already exists", the data is persisted; move on.`,
+Create entities BEFORE facts/relationships that reference them. Old fact values are superseded automatically. "Already known" or "already exists" means the data is persisted — never retry or rephrase.`,
     input_schema: {
       type: "object" as const,
       properties: {

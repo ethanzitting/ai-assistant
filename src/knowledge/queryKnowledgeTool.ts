@@ -13,7 +13,7 @@ export const queryKnowledgeTool: ToolDefinition = {
   schema: {
     name: "query_knowledge",
     description:
-      "Search the knowledge graph for entities, facts, and relationships about people, places, organizations, and the user's world. Semantic search — a natural-language question, a name, or topic keywords all work (e.g. \"Dana's medications\", \"who is Sam\"). Returns the most relevant facts per entity, not everything stored; for a complete picture of one entity, set include_all_facts: true rather than issuing many narrow queries. Always check existing knowledge before creating duplicates with remember.",
+      "Search the knowledge graph. Check the prefetch block in the user message BEFORE calling this — it may already have what you need. You have a maximum of 2 research calls per turn (this tool + search_archives combined), so make them count. Use broad queries: a name or topic, not narrow attribute lookups. Set include_all_facts: true for a complete entity picture — one broad call beats many narrow ones. Do not rephrase or retry a search that returned results.",
     input_schema: {
       type: "object" as const,
       properties: {

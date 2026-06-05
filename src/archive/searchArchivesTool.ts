@@ -11,7 +11,7 @@ export const searchArchivesTool: ToolDefinition = {
   schema: {
     name: "search_archives",
     description:
-      "Search archived files — voice/audio transcripts and OCR'd photos and documents — by natural language. Use to retrieve the original content the user sent (e.g. \"what did the lab report say\", \"the voicemail about the contractor\"). Returns matching passages with their source file. Distinct from query_knowledge, which searches structured facts and relationships.",
+      "Search archived files — voice/audio transcripts and OCR'd photos and documents — by natural language. Check the prefetch block first — it previews relevant archives. You have a maximum of 2 research calls per turn (this tool + query_knowledge combined). Returns matching passages with their source file. Distinct from query_knowledge, which searches structured facts.",
     input_schema: {
       type: "object" as const,
       properties: {

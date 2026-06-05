@@ -10,6 +10,7 @@ import { sendTelegramMessage } from "@/telegram/sendTelegramMessage.ts";
 import { startTypingIndicator } from "@/telegram/sendTypingIndicator.ts";
 import { advanceWatermark } from "@/telegram/chatRegistry.ts";
 import { clearPendingFlush } from "@/telegram/createTelegramBot.ts";
+import { prefetchContext } from "@/knowledge/prefetchContext.ts";
 import { info, warn, debug } from "@/logger.ts";
 import { trace } from "@/trace.ts";
 
@@ -37,6 +38,11 @@ export async function processEvent(
 
   if (!respond) {
     ensureEndsWithUser(messages, userMessage);
+  }
+
+  const prefetchSummary = await prefetchContext(userMessage);
+  if (prefetchSummary) {
+    appendToLastUserMessage(messages, prefetchSummary);
   }
 
   await trace(traceId, "context.assembled", {
@@ -125,6 +131,14 @@ function ensureEndsWithUser(messages: MessageParam[], userMessage: string): void
   const last = messages[messages.length - 1];
   if (!last || last.role === "user") return;
   messages.push({ role: "user", content: userMessage });
+}
+
+function appendToLastUserMessage(messages: MessageParam[], text: string): void {
+  const last = messages[messages.length - 1];
+  if (!last || last.role !== "user") return;
+  if (typeof last.content === "string") {
+    last.content = `${last.content}\n\n${text}`;
+  }
 }
 
 function logTokenUsage(tokenUsage: TokenUsage): void {
