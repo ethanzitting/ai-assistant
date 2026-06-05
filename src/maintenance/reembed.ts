@@ -93,8 +93,32 @@ async function reembedDocumentChunks(): Promise<void> {
   }
 }
 
+async function reembedEvents(): Promise<void> {
+  const rows = await db`
+    SELECT id, title FROM events
+    WHERE status = 'active'
+      AND (embedding IS NULL OR embedding_model IS DISTINCT FROM ${EMBEDDING_MODEL_TAG})
+  ` as unknown as Array<{ id: string; title: string }>;
+
+  console.log(`Events to (re)embed: ${rows.length}`);
+  for (const row of rows) {
+    try {
+      await sleep(PACING_MS);
+      const vector = await embedText(row.title, "stored-document");
+      await db`
+        UPDATE events SET embedding = ${toVectorLiteral(vector)}::vector, embedding_model = ${EMBEDDING_MODEL_TAG}
+        WHERE id = ${row.id}
+      `;
+      console.log(`  ✓ event: ${row.title}`);
+    } catch (err: unknown) {
+      console.error(`  ✗ event ${row.id}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+}
+
 await reembedEntities();
 await reembedFacts();
 await reembedDocumentChunks();
+await reembedEvents();
 await db.end();
 console.log("Reembed complete.");

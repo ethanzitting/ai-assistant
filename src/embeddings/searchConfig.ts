@@ -27,3 +27,9 @@ export const ARCHIVE_RESULT_LIMIT = 6; // max passages returned
 // missed dedup costs one redundant attribute; a false match silently drops real info.
 // Re-check against fresh data if the embedding model changes.
 export const SEMANTIC_DEDUP_THRESHOLD = 0.06;
+
+// createEvent dedup: scoped to same-day (or both-dateless) active events.
+// Calibrated: rephrased duplicates of "TPO Hearing - Dana Whitfield, Case #000000000"
+// peaked at 0.143; closest genuinely-different event ("Court hearing - custody review")
+// sat at 0.243. 0.18 lands in the gap. Re-check if the embedding model changes.
+export const EVENT_DEDUP_THRESHOLD = 0.18;
