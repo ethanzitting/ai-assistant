@@ -25,7 +25,7 @@ export async function handlePhotoMessage(
       return;
     }
 
-    await ctx.reply("Reading image...");
+    await ctx.react("👀");
 
     const file = await ctx.api.getFile(photo.file_id);
     if (!file.file_path) throw new Error("Telegram did not return a file_path");
@@ -97,6 +97,8 @@ export async function handlePhotoMessage(
     const isPrivate = !chatType || chatType === "private";
     const senderLabel = isPrivate ? "" : `[${senderNameFrom(ctx)}]: `;
     const respond = isPrivate || isAddressedInCaption(ctx);
+
+    await ctx.react("👍");
 
     queue.push({
       id: crypto.randomUUID(),

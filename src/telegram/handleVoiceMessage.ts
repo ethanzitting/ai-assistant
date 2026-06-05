@@ -29,7 +29,7 @@ export async function handleVoiceMessage(
       return;
     }
 
-    await ctx.reply("Transcribing...");
+    await ctx.react("👀");
 
     const file = await ctx.getFile();
     if (!file.file_path) throw new Error("Telegram did not return a file_path");
@@ -100,6 +100,8 @@ export async function handleVoiceMessage(
     const isPrivate = !chatType || chatType === "private";
     const senderLabel = isPrivate ? "" : `[${senderNameFrom(ctx)}]: `;
     const respond = isPrivate || isAddressedInCaption(ctx);
+
+    await ctx.react("👍");
 
     queue.push({
       id: crypto.randomUUID(),

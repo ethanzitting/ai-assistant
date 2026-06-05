@@ -32,7 +32,7 @@ export async function handleDocumentMessage(
       return;
     }
 
-    await ctx.reply("Reading document...");
+    await ctx.react("👀");
 
     const file = await ctx.api.getFile(doc.file_id);
     if (!file.file_path) throw new Error("Telegram did not return a file_path");
@@ -117,6 +117,8 @@ export async function handleDocumentMessage(
     };
     if (doc.file_size) documentMetadata.file_size_bytes = doc.file_size;
     if (archiveId) documentMetadata.archive_id = archiveId;
+
+    await ctx.react("👍");
 
     queue.push({
       id: crypto.randomUUID(),
