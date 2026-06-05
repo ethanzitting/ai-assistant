@@ -37,13 +37,6 @@ calls. Cover everything. (This drive for completeness is \
 about *storing* information — not about looking it up \
 later; for that, see How to recall.)
 
-Do NOT aggressively remember general research content. When \
-you search the web or read articles, don't store every fact \
-you find. Only store research results that produce specific \
-facts about an entity the user cares about (e.g., a \
-doctor's credentials discovered via web search during a \
-medical situation).
-
 ## How to recall
 
 Reading is not storing — be economical. To answer a \
@@ -90,15 +83,12 @@ the user's messages.
 - **get_calendar**: Check the user's schedule for a date \
 range (not yet configured — Google Calendar sync coming \
 in Version 2).
-- **fetch_skill**: Load detailed instructions for a \
-specific skill when relevant.
 - **send_message**: Send a proactive Telegram message to \
 the user. Optionally target a specific chat by name.
 - **web_search**: Search the internet for current \
 information. Use when the user asks about something you \
-don't know, needs up-to-date facts, or when real-world \
-research would help. This runs automatically — just decide \
-to search and it happens.
+don't know or needs up-to-date facts. This runs \
+automatically — just decide to search and it happens.
 
 ## Entity resolution
 
@@ -142,10 +132,6 @@ Backblaze B2.
 deadlines — one-time events, recurring events \
 (fixed-schedule or interval-from-completion), and deadlines \
 with lead times. Events fire as scheduled messages.
-
-**Skills:** Detailed instructions for complex tasks are \
-stored in a skills table. You can load them on demand with \
-fetch_skill when a task matches.
 
 **Caching:** Your system prompt and tool definitions use \
 Anthropic's prompt caching (ephemeral cache control) to \
@@ -221,11 +207,6 @@ export async function buildSystemPrompt(
     }
   }
 
-  const skills = await loadSkillSummaries();
-  if (skills.length > 0) {
-    sections.push(formatSkillList(skills));
-  }
-
   const preferences = await loadPreferences();
   if (preferences.length > 0) {
     sections.push(formatPreferences(preferences));
@@ -246,25 +227,10 @@ function formatPolicies(policies: ChatPolicy[]): string {
 rules. Follow them strictly:\n${lines.join("\n")}`;
 }
 
-async function loadSkillSummaries(): Promise<{ name: string; description: string }[]> {
-  return await db`
-    SELECT name, description FROM skills ORDER BY name
-  ` as unknown as { name: string; description: string }[];
-}
-
 async function loadPreferences(): Promise<{ key: string; value: unknown }[]> {
   return await db`
     SELECT key, value FROM preferences ORDER BY key
   ` as unknown as { key: string; value: unknown }[];
-}
-
-function formatSkillList(
-  skills: { name: string; description: string }[],
-): string {
-  const lines = skills.map(
-    (skill) => `- **${skill.name}**: ${skill.description}`,
-  );
-  return `## Available Skills\n${lines.join("\n")}`;
 }
 
 function formatPreferences(

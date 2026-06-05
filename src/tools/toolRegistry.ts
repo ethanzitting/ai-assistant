@@ -5,7 +5,6 @@ import { searchArchivesTool } from "@/archive/searchArchivesTool.ts";
 import { rememberTool } from "@/knowledge/rememberTool.ts";
 import { manageEventsTool } from "@/events/manageEventsTool.ts";
 import { calendarTool } from "@/tools/calendarTool.ts";
-import { skillTool } from "@/tools/skillTool.ts";
 import { messagingTool } from "@/telegram/messagingTool.ts";
 import { error } from "@/logger.ts";
 
@@ -15,7 +14,6 @@ const toolDefinitions: ToolDefinition[] = [
   rememberTool,
   manageEventsTool,
   calendarTool,
-  skillTool,
   messagingTool,
 ];
 
