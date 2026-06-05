@@ -46,6 +46,7 @@ export async function handleToolUseResponse(options: HandleToolUseOptions): Prom
     if (currentResponse.stop_reason === "pause_turn") {
       await trace(traceId, "server_tool.pause_turn", { iteration });
       messages.push({ role: "assistant", content: currentResponse.content });
+      messages.push({ role: "user", content: [{ type: "text", text: "" }] });
     } else {
       const toolResults = await executeAllToolCalls(currentResponse, traceId);
       const { interruptText, drainedEvents } = drainHighPriorityContext(queue, internalChatId);

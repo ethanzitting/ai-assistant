@@ -1,3 +1,4 @@
+import type { MessageParam } from "@anthropic-ai/sdk/resources/messages.mjs";
 import { sendMessage, type TokenUsage } from "@/anthropic/sendMessage.ts";
 import { getToolSchemas } from "@/tools/toolRegistry.ts";
 import { persistMessage } from "@/conversationHistory.ts";
@@ -33,6 +34,11 @@ export async function processEvent(
   }
 
   const { systemPrompt, messages } = await assembleContext(internalChatId, chatType);
+
+  if (!respond) {
+    ensureEndsWithUser(messages, userMessage);
+  }
+
   await trace(traceId, "context.assembled", {
     messageCount: messages.length,
     systemPromptLength: systemPrompt.length,
@@ -113,6 +119,12 @@ async function deliverResponse(
     chatId,
     text,
   });
+}
+
+function ensureEndsWithUser(messages: MessageParam[], userMessage: string): void {
+  const last = messages[messages.length - 1];
+  if (!last || last.role === "user") return;
+  messages.push({ role: "user", content: userMessage });
 }
 
 function logTokenUsage(tokenUsage: TokenUsage): void {
