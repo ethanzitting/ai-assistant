@@ -29,19 +29,10 @@ const relationshipInput = v.object({
   }),
 });
 
-const preferenceInput = v.object({
-  type: v.literal("preference"),
-  preference: v.object({
-    key: nonEmptyString(),
-    value: v.unknown(),
-  }),
-});
-
 const rememberItemSchema = v.variant("type", [
   entityInput,
   factInput,
   relationshipInput,
-  preferenceInput,
 ]);
 
 export const rememberInputSchema = v.object({
@@ -53,4 +44,3 @@ export type RememberInput = v.InferOutput<typeof rememberInputSchema>;
 export type EntityInput = v.InferOutput<typeof entityInput>["entity"];
 export type FactInput = v.InferOutput<typeof factInput>["fact"];
 export type RelationshipInput = v.InferOutput<typeof relationshipInput>["relationship"];
-export type PreferenceInput = v.InferOutput<typeof preferenceInput>["preference"];

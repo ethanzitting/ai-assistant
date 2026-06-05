@@ -2,7 +2,6 @@ import * as v from "valibot";
 import { storeEntity } from "@/knowledge/storeEntity.ts";
 import { storeFact } from "@/knowledge/storeFact.ts";
 import { storeRelationship } from "@/knowledge/storeRelationship.ts";
-import { storePreference } from "@/knowledge/storePreference.ts";
 import { rememberInputSchema, type RememberItem } from "@/knowledge/rememberSchema.ts";
 import type { ToolDefinition, ToolResult } from "@/tools/toolTypes.ts";
 
@@ -10,8 +9,7 @@ const ITEM_SCHEMA_HELP = `Each item in the array must have a "type" field and a 
 
   { type: "entity", entity: { name, type, properties? } }
   { type: "fact", fact: { entity_name, attribute, value } }
-  { type: "relationship", relationship: { entity_a_name, entity_b_name, type } }
-  { type: "preference", preference: { key, value } }`;
+  { type: "relationship", relationship: { entity_a_name, entity_b_name, type } }`;
 
 export const rememberTool: ToolDefinition = {
   schema: {
@@ -21,9 +19,8 @@ export const rememberTool: ToolDefinition = {
   { type: "entity", entity: { name: "Dr. Nguyen", type: "person", properties: { specialty: "neurology" } } }
   { type: "fact", fact: { entity_name: "Dana Whitfield", attribute: "diagnosis", value: "viral encephalitis" } }
   { type: "relationship", relationship: { entity_a_name: "Robin Whitfield", entity_b_name: "Dana Whitfield", type: "spouse" } }
-  { type: "preference", preference: { key: "timezone", value: "America/Chicago" } }
 
-Create entities BEFORE facts/relationships that reference them. Batch liberally — put all entities first, then facts, then relationships.`,
+Create entities BEFORE facts/relationships that reference them. Batch liberally — put all entities first, then facts, then relationships. Old fact values are superseded automatically. Once a remember call succeeds, that data is stored — do not re-store the same information. If the tool says "already known" or "already exists", the data is persisted; move on.`,
     input_schema: {
       type: "object" as const,
       properties: {
@@ -34,7 +31,7 @@ Create entities BEFORE facts/relationships that reference them. Batch liberally 
             properties: {
               type: {
                 type: "string",
-                enum: ["entity", "fact", "relationship", "preference"],
+                enum: ["entity", "fact", "relationship"],
               },
               entity: {
                 type: "object",
@@ -62,14 +59,6 @@ Create entities BEFORE facts/relationships that reference them. Batch liberally 
                   type: { type: "string" },
                 },
                 required: ["entity_a_name", "entity_b_name", "type"],
-              },
-              preference: {
-                type: "object",
-                properties: {
-                  key: { type: "string" },
-                  value: {},
-                },
-                required: ["key", "value"],
               },
             },
             required: ["type"],
@@ -119,8 +108,6 @@ function storeItem(item: RememberItem, traceId: string): Promise<ToolResult> {
       return storeFact(item.fact, traceId);
     case "relationship":
       return storeRelationship(item.relationship, traceId);
-    case "preference":
-      return storePreference(item.preference, traceId);
     default:
       return Promise.resolve({ content: `Unknown type: ${(item as Record<string, unknown>).type}`, isError: true });
   }

@@ -5,14 +5,8 @@ export interface ChatRow {
   telegram_chat_id: number;
   type: string;
   name: string | null;
-  policies: ChatPolicy[];
   notified_at: Date | null;
   last_processed_at: Date | null;
-}
-
-export interface ChatPolicy {
-  rule: string;
-  added_at: string;
 }
 
 interface ChatInfo {
@@ -41,15 +35,6 @@ export async function getPrivateChat(): Promise<ChatRow | null> {
   ` as unknown as ChatRow[];
 
   return rows[0] ?? null;
-}
-
-export async function loadChatPolicies(chatId: string): Promise<ChatPolicy[]> {
-  const rows = await db`
-    SELECT policies FROM chats WHERE id = ${chatId} LIMIT 1
-  `;
-
-  if (rows.length === 0) return [];
-  return (rows[0].policies as ChatPolicy[]) ?? [];
 }
 
 export async function advanceWatermark(chatId: string, processedAt: Date): Promise<void> {

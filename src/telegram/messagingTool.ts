@@ -51,13 +51,8 @@ export const messagingTool: ToolDefinition = {
 
 async function getOwnerChatId(): Promise<number | null> {
   const chat = await getPrivateChat();
-  if (chat) return chat.telegram_chat_id;
-
-  const rows = await db`
-    SELECT value FROM preferences WHERE key = 'telegram_chat_id' LIMIT 1
-  `;
-  if (rows.length === 0) return null;
-  return rows[0].value as number;
+  if (!chat) return null;
+  return chat.telegram_chat_id;
 }
 
 async function resolveChatByName(name: string): Promise<number | null> {

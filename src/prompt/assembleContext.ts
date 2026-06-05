@@ -14,7 +14,7 @@ export async function assembleContext(
   systemPrompt: string;
   messages: MessageParam[];
 }> {
-  const systemPrompt = await buildSystemPrompt(internalChatId, chatType);
+  const systemPrompt = buildSystemPrompt(chatType);
 
   const recentRows = internalChatId
     ? await loadChatMessages(internalChatId, MAX_RECENT_MESSAGES)

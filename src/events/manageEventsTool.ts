@@ -11,7 +11,7 @@ export const manageEventsTool: ToolDefinition = {
   schema: {
     name: "manage_events",
     description:
-      "Create, update, list, complete, or drop events and reminders. Use for tasks like setting reminders, tracking deadlines, and managing recurring items.",
+      "Create, update, list, complete, or drop events and reminders. Use for setting reminders, tracking deadlines, and managing recurring items. Parse natural language dates from the user's messages into ISO 8601.",
     input_schema: {
       type: "object" as const,
       properties: {
