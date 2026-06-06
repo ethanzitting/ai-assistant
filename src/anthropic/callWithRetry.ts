@@ -22,6 +22,12 @@ export async function callWithRetry<T>(apiFn: () => Promise<T>): Promise<T> {
       return apiFn();
     }
 
+    if (err instanceof Anthropic.APIConnectionError) {
+      warn("anthropic", "Connection error, retrying after 2s");
+      await sleep(2000);
+      return apiFn();
+    }
+
     if (err instanceof Anthropic.AuthenticationError) {
       error("anthropic", "Authentication failed — check ANTHROPIC_API_KEY");
     }
