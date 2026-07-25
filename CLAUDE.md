@@ -17,37 +17,38 @@ Telegram → grammY bot → EventQueue → processEvent → Claude API → tool 
 
 | Subsystem | Purpose | Entry point |
 |-----------|---------|-------------|
-| Knowledge graph | Entities, facts, relationships, preferences | `src/knowledge/` |
+| Knowledge graph | Entities, facts, relationships | `src/knowledge/` |
 | Semantic search | Embeddings + hybrid (vector + keyword) retrieval over the KG and archives | `src/embeddings/`, `src/knowledge/hybridSearch.ts` |
 | Events | Reminders, deadlines, recurring items | `src/events/` |
 | Audio | Voice note transcription (Deepgram nova-2) | `src/audio/` |
 | Archive | File storage to Backblaze B2 | `src/archive/` |
 | Tracing | Full request/response cycle logging | `src/trace.ts` |
-| Skills | Loadable instruction sets for complex tasks | `src/tools/skillTool.ts` |
 | Retry | Backoff/jitter/timeout wrapper for external API calls | `src/retry/` |
+| Maintenance | Dedup/consolidation passes over the KG, re-embedding | `src/maintenance/` |
 
 ### Tool definitions
 
-Tools are registered in `src/tools/toolRegistry.ts`. Each tool is a `ToolDefinition` with a JSON schema (what Claude sees) and a handler function. Current tools:
+Tools are registered in `src/tools/toolRegistry.ts`. Each tool is a `ToolDefinition` with a JSON schema (what Claude sees) and a handler function. `toolRegistry.ts` also enforces per-turn gates: `remember` and `manage_events` `create` may each be called only once per turn, and a second call is rejected with an error telling Claude to batch instead of retry. Current tools:
 
 - `query_knowledge` — hybrid (semantic + keyword) search over the knowledge graph; returns the facts most relevant to the query, ranked, capped per entity (not the entity's whole record)
 - `search_archives` — semantic search over archived file text (voice/audio transcripts, OCR'd photos and documents) stored in `document_chunks`
-- `remember` — batch-store items (entities, facts, relationships, preferences) with Valibot validation
+- `remember` — batch-store items (entities, facts, relationships) with Valibot validation
 - `manage_events` — CRUD for reminders and deadlines
 - `get_calendar` — placeholder (not yet wired to Google Calendar)
-- `fetch_skill` — load skill instructions by name
 - `send_message` — proactive Telegram message
 - `web_search` — Anthropic server-side tool (not client-defined)
 
 ### Database
 
-Postgres with pgvector extension. Tables: `entities`, `facts`, `relationships`, `preferences`, `conversations`, `events`, `skills`, `engine_trace`, `archived_files`, `document_chunks`, `schema_migrations`.
+Postgres with pgvector extension. Tables: `entities`, `facts`, `relationships`, `conversations`, `chats`, `events`, `reminders`, `engine_trace`, `archived_files`, `document_chunks`, `audit_log`, `schema_migrations`.
+
+`audit_log` is a leftover from `004_skills_and_config.sql` — nothing in `src/` reads or writes it.
 
 Facts support temporal validity (`valid_from`/`valid_until`) and are auto-superseded when a new value is stored for the same entity+attribute.
 
 `findExistingEntity.ts` does fuzzy name matching for dedup on write. Read-time recall is semantic: `entities` and `facts` carry `embedding vector(1536)` + `embedding_model`, and `document_chunks` holds embedded chunks of archived file text (permanent archive index — no tier/partition; the hot/warm/cold lifecycle store is future work). Embeddings are `gemini-embedding-001` @ 1536 dims (MRL, L2-normalized), compared by cosine distance. Model identity and the relevance cutoff (`DISTANCE_THRESHOLD`, needs tuning against real data) live in `src/embeddings/embeddingModel.ts`; vectors from different models are not comparable, hence the `embedding_model` stamp on every row.
 
-**Migrations apply in filename-sort order** (`scripts/migrate.sh`). Numbers aren't strictly unique historically (two `006_*` files exist); the latest is `009_semantic_search.sql`, so the next is `010`.
+**Migrations apply in filename-sort order** (`scripts/migrate.sh`). Numbers aren't strictly unique historically (two `006_*` files exist); the latest is `014_drop_chat_policies.sql`, so the next is `015`.
 
 ## Dev workflow
 
@@ -55,13 +56,22 @@ All secrets are in 1Password and injected at runtime via `op run --env-file=.env
 
 ```bash
 make dev                  # start all containers with hot-reload (mounts ./src into agent container)
+make up                   # start all containers detached (no hot-reload)
+make down                 # stop all containers
 make logs                 # tail container logs
 make db                   # psql shell into Postgres
 make migrate              # run pending SQL migrations from migrations/
+make test                 # deno test src/tests/
 make reembed              # (re)embed any null/stale rows: migration, outage recovery, or model change (in-container)
 make backfill-archives    # one-time: populate document_chunks from pre-existing archived files (in-container)
+make prune-duplicates     # dry-run report of duplicate facts/relationships (in-container)
+make consolidate-facts    # dry-run report of fact clusters to merge (in-container)
 make trace                # trace summary (recent traces)
 ```
+
+**The KG cleanup passes are dry-run by default.** `make prune-duplicates` and `make consolidate-facts` only report; the `-apply` variants (`make prune-duplicates-apply`, `make consolidate-facts-apply`) pass `--apply` and actually mutate the graph. Read the dry-run output before applying.
+
+`make backup` is a stub — it prints "not yet implemented (Phase 8)" and does nothing.
 
 **Hot reload**: dev mode mounts `./src` and `./deno.json` into the container and runs with `deno run --watch`. File edits restart the agent — be careful editing files while Jarvis is mid-processing (the turn will be killed and the Telegram message lost).
 
@@ -71,7 +81,7 @@ make trace                # trace summary (recent traces)
 
 **Container-injected env is set at start, not by the watcher.** Adding a new env var means a full `make dev`/`make up` restart to inject it — the hot-reload watcher only reloads code.
 
-**In-container scripts live under `src/`.** The Dockerfile copies only `src/` and `deno.json` into the image, so anything that must run inside the agent container (e.g. Deno backfill scripts in `src/backfill/`, run via `docker compose exec agent deno run …`) belongs under `src/`. `scripts/` is shell-only (`migrate.sh`, `trace.sh`).
+**In-container scripts live under `src/`.** The Dockerfile copies only `src/` and `deno.json` into the image, so anything that must run inside the agent container (e.g. Deno backfill scripts in `src/backfill/`, run via `docker compose exec agent deno run …`) belongs under `src/`. `scripts/` is for host-side tooling and takes any executable — shell, Deno, whatever fits the job — since none of it is copied into the image.
 
 ### Trace script
 
@@ -149,9 +159,9 @@ The `docs/` directory contains architecture docs and development plans. Read the
 | `version-one.md` | V1 scope — conversational chatbot (current) |
 | `version-two.md` | V2 scope — memory, email, security |
 | `group-chat-support.md` | Multi-chat isolation with shared knowledge graph |
-| `natural-language-search.md` | Embeddings + hybrid search over the KG and archived files |
-| `imageocr.md` | Mistral OCR for photos and documents |
-| `workflow-*.md` | Step-by-step traces through realistic use cases (financial, recall, research, tasks, SMS) |
+| `deepresearch.md` | Multi-step research workflow |
+| `event-pipeline-cleanup.md` | Event/reminder pipeline rework |
+| `workflow-*.md` | Step-by-step traces through realistic use cases (financial, recall, research, medical research, tasks, SMS) |
 
 When working on a feature or debugging behavior, check the relevant architecture doc first — the answer is often already documented.
 
@@ -174,12 +184,13 @@ src/
   ocr/                       # Mistral OCR
   telegram/                  # grammY bot, voice/photo/document handlers, messaging tool
   prompt/                    # system prompt assembly, token estimation
-  tools/                     # tool registry, tool types, calendar, skills
+  tools/                     # tool registry, tool types, tool input parsing, calendar
   retry/                     # withRetry + fetchWithRetry (backoff/jitter/timeout) for external APIs
-  maintenance/               # reembed.ts — standing command to (re)embed null/stale rows (run in-container)
+  maintenance/               # standing in-container commands: reembed, dedup pruning, fact consolidation
   backfill/                  # archives.ts — one-time migration: populate document_chunks (run in-container)
+  tests/                     # deno test suite (queue, recurrence, tokens) — run via `make test`
 migrations/                  # numbered SQL files applied by scripts/migrate.sh
-scripts/
+scripts/                     # host-side tooling, any executable (not copied into the image)
   trace.sh                   # trace debugging CLI
   migrate.sh                 # migration runner
 ```
