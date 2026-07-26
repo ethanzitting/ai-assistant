@@ -1,9 +1,9 @@
 import type { Context } from "grammy";
 import type { EventQueue } from "@/engine/eventQueue.ts";
 import { downloadTelegramFile } from "@/audio/downloadTelegramFile.ts";
-import { ocrImage } from "@/ocr/ocrImage.ts";
-import { archiveFile } from "@/archive/archiveFile.ts";
-import { embedArchivedFile } from "@/archive/embedArchivedFile.ts";
+import { indexPhoto } from "@/archive/indexPhoto.ts";
+import { photoEmbeddingText } from "@/embeddings/embeddingText.ts";
+import { VISION_MODEL } from "@/vision/visionModel.ts";
 import { requireEnv } from "@/requireEnv.ts";
 import { error } from "@/logger.ts";
 
@@ -33,46 +33,11 @@ export async function handlePhotoMessage(
     const botToken = requireEnv("TELEGRAM_BOT_TOKEN");
     const fileBytes = await downloadTelegramFile(file.file_path, botToken);
 
-    let archiveId: string | null = null;
-    try {
-      archiveId = await archiveFile({
-        fileBytes,
-        sourceType: "photo",
-        label: photo.file_id,
-        ext: "jpg",
-        mimeType: "image/jpeg",
-      });
-    } catch (err) {
-      error("archive", "Photo archival failed, continuing", { error: String(err) });
-    }
-
-    const ocrText = await ocrImage(fileBytes, "image/jpeg");
-
-    if (!ocrText) {
-      await ctx.reply("I couldn't find any text in that image.");
-      return;
-    }
-
-    let textArchiveId: string | null = null;
-    try {
-      const textBytes = new TextEncoder().encode(ocrText);
-      const metadata: Record<string, unknown> = {};
-      if (archiveId) metadata.source_file_id = archiveId;
-
-      textArchiveId = await archiveFile({
-        fileBytes: textBytes.buffer as ArrayBuffer,
-        sourceType: "ocr_text",
-        label: photo.file_id,
-        ext: "txt",
-        mimeType: "text/plain",
-        metadata,
-      });
-    } catch (err) {
-      error("archive", "OCR text archival failed, continuing", { error: String(err) });
-    }
+    const { archiveId, ocrText, visionDescription } = await indexPhoto(fileBytes, photo.file_id);
 
     const caption = ctx.message?.caption;
-    let messageText = `[Photo]\n${ocrText}`;
+    const describedContent = photoEmbeddingText({ visionDescription, ocrText });
+    let messageText = describedContent ? `[Photo]\n${describedContent}` : "[Photo]";
     if (caption) messageText += `\n\nCaption: ${caption}`;
 
     const imageMetadata: Record<string, unknown> = {
@@ -83,16 +48,7 @@ export async function handlePhotoMessage(
     };
     if (photo.file_size) imageMetadata.file_size_bytes = photo.file_size;
     if (archiveId) imageMetadata.archive_id = archiveId;
-    if (textArchiveId) imageMetadata.ocr_text_archive_id = textArchiveId;
-
-    if (archiveId) {
-      await embedArchivedFile({
-        archivedFileId: archiveId,
-        sourceType: "photo",
-        text: ocrText,
-        metadata: { telegram_file_id: photo.file_id },
-      });
-    }
+    if (visionDescription) imageMetadata.vision_model = VISION_MODEL;
 
     const isPrivate = !chatType || chatType === "private";
     const senderLabel = isPrivate ? "" : `[${senderNameFrom(ctx)}]: `;

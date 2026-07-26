@@ -50,6 +50,7 @@ export async function handleDocumentMessage(
         ext,
         mimeType,
         originalFilename: doc.file_name,
+        telegramFileId: doc.file_id,
       });
     } catch (err) {
       error("archive", "Document archival failed, continuing", { error: String(err) });

@@ -1,8 +1,9 @@
 import { requireEnv } from "@/requireEnv.ts";
 import { fetchWithRetry } from "@/retry/fetchWithRetry.ts";
+import { arrayBufferToBase64 } from "@/encoding/arrayBufferToBase64.ts";
+import { OCR_MODEL } from "@/ocr/ocrModel.ts";
 
 const OCR_URL = "https://api.mistral.ai/v1/ocr";
-const OCR_MODEL = "mistral-ocr-latest";
 
 export async function ocrImage(
   fileBytes: ArrayBuffer,
@@ -36,13 +37,4 @@ export async function ocrImage(
 
   const text = pages.map((p) => p.markdown).join("\n\n").trim();
   return text.length === 0 ? null : text;
-}
-
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
 }

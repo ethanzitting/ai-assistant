@@ -1,4 +1,4 @@
-.PHONY: dev up down logs db migrate reembed backfill-archives prune-duplicates prune-duplicates-apply consolidate-facts consolidate-facts-apply backup test trace
+.PHONY: dev up down logs db migrate reembed reindex-photos backfill-archives prune-duplicates prune-duplicates-apply consolidate-facts consolidate-facts-apply backup test trace
 
 dev:
 	op run --env-file=.env.tpl -- docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
@@ -21,6 +21,9 @@ migrate:
 reembed:
 	docker compose exec agent deno run --allow-net --allow-env --allow-read src/maintenance/reembed.ts
 
+reindex-photos:
+	docker compose exec agent deno run --allow-net --allow-env --allow-read src/maintenance/reindexPhotos.ts
+
 backfill-archives:
 	docker compose exec agent deno run --allow-net --allow-env --allow-read src/backfill/archives.ts
 
@@ -40,7 +43,7 @@ backup:
 	@echo "Backup not yet implemented (Phase 8)"
 
 test:
-	deno test src/tests/
+	deno test src/tests/*.ts
 
 trace:
 	op run --env-file=.env.tpl -- ./scripts/trace.sh $(filter-out $@,$(MAKECMDGOALS))

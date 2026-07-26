@@ -30,6 +30,22 @@ export function entityEmbeddingText(
   }
 }
 
+// A plotted chart survives OCR as little more than its title — Mistral renders the plot area as
+// an ![img-0.jpeg] placeholder — so the vision description carries the retrievable content and
+// leads. OCR text follows because it is the literal ground truth for anything the chart spells
+// out, and keeping it labelled separates what was read off the image from what a model inferred.
+export interface PhotoEmbeddingTextArgs {
+  visionDescription: string | null;
+  ocrText: string | null;
+}
+
+export function photoEmbeddingText(args: PhotoEmbeddingTextArgs): string {
+  const sections: string[] = [];
+  if (args.visionDescription) sections.push(args.visionDescription);
+  if (args.ocrText) sections.push(`Text in image:\n${args.ocrText}`);
+  return sections.join("\n\n");
+}
+
 export function factEmbeddingText(
   entityName: string,
   attribute: string,

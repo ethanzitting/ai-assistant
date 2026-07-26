@@ -8,11 +8,21 @@ interface ArchiveParams {
   ext: string;
   mimeType: string;
   originalFilename?: string;
+  telegramFileId?: string;
   metadata?: Record<string, unknown>;
 }
 
 export async function archiveFile(params: ArchiveParams): Promise<string> {
-  const { fileBytes, sourceType, label, ext, mimeType, originalFilename, metadata = {} } = params;
+  const {
+    fileBytes,
+    sourceType,
+    label,
+    ext,
+    mimeType,
+    originalFilename,
+    telegramFileId,
+    metadata = {},
+  } = params;
 
   const sha256Hex = await hashHex("SHA-256", fileBytes);
   const sha1Hex = await hashHex("SHA-1", fileBytes);
@@ -26,8 +36,8 @@ export async function archiveFile(params: ArchiveParams): Promise<string> {
   await uploadToB2(fileBytes, b2Path, mimeType, sha1Hex);
 
   const [row] = await db`
-    INSERT INTO archived_files (source_type, b2_path, original_filename, mime_type, file_size_bytes, sha256, metadata)
-    VALUES (${sourceType}, ${b2Path}, ${originalFilename ?? null}, ${mimeType}, ${fileBytes.byteLength}, ${sha256Hex}, ${db.json(metadata as never)})
+    INSERT INTO archived_files (source_type, b2_path, original_filename, mime_type, file_size_bytes, sha256, telegram_file_id, metadata)
+    VALUES (${sourceType}, ${b2Path}, ${originalFilename ?? null}, ${mimeType}, ${fileBytes.byteLength}, ${sha256Hex}, ${telegramFileId ?? null}, ${db.json(metadata as never)})
     RETURNING id
   `;
 
