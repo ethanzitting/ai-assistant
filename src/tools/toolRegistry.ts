@@ -2,6 +2,7 @@ import type { ToolUnion } from "@anthropic-ai/sdk/resources/messages.mjs";
 import type { ToolDefinition, ToolHandler, ToolResult } from "@/tools/toolTypes.ts";
 import { queryKnowledgeTool } from "@/knowledge/queryKnowledgeTool.ts";
 import { searchArchivesTool } from "@/archive/searchArchivesTool.ts";
+import { sendImageTool } from "@/archive/sendImageTool.ts";
 import { rememberTool } from "@/knowledge/rememberTool.ts";
 import { manageEventsTool } from "@/events/manageEventsTool.ts";
 import { calendarTool } from "@/tools/calendarTool.ts";
@@ -14,6 +15,7 @@ let lastEventCreateTraceId: string | null = null;
 const toolDefinitions: ToolDefinition[] = [
   queryKnowledgeTool,
   searchArchivesTool,
+  sendImageTool,
   rememberTool,
   manageEventsTool,
   calendarTool,
@@ -37,6 +39,7 @@ export async function executeTool(
   toolName: string,
   toolInput: Record<string, unknown>,
   traceId: string,
+  telegramChatId?: number | null,
 ): Promise<ToolResult> {
   const gateResult = enforcePerTurnGates(toolName, toolInput, traceId);
   if (gateResult) return gateResult;
@@ -48,7 +51,7 @@ export async function executeTool(
   }
 
   try {
-    return await handler(toolInput, traceId);
+    return await handler(toolInput, traceId, telegramChatId);
   } catch (err: unknown) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     error("tool", "Tool execution failed", { toolName, error: errorMessage });

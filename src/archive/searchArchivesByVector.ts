@@ -9,6 +9,8 @@ export interface ArchiveHit {
   source_type: string;
   original_filename: string | null;
   b2_path: string;
+  telegram_file_id: string | null;
+  mime_type: string | null;
   distance: number;
 }
 
@@ -20,7 +22,7 @@ export async function searchArchivesByVector(
   const rows = sourceType
     ? await db`
         SELECT dc.archived_file_id, dc.content, dc.source_type,
-               af.original_filename, af.b2_path,
+               af.original_filename, af.b2_path, af.telegram_file_id, af.mime_type,
                (dc.embedding <=> ${queryVectorLiteral}::vector) AS distance
         FROM document_chunks dc JOIN archived_files af ON af.id = dc.archived_file_id
         WHERE dc.embedding IS NOT NULL AND dc.embedding_model = ${EMBEDDING_MODEL_TAG}
@@ -29,7 +31,7 @@ export async function searchArchivesByVector(
         ORDER BY distance LIMIT ${ARCHIVE_RESULT_LIMIT}`
     : await db`
         SELECT dc.archived_file_id, dc.content, dc.source_type,
-               af.original_filename, af.b2_path,
+               af.original_filename, af.b2_path, af.telegram_file_id, af.mime_type,
                (dc.embedding <=> ${queryVectorLiteral}::vector) AS distance
         FROM document_chunks dc JOIN archived_files af ON af.id = dc.archived_file_id
         WHERE dc.embedding IS NOT NULL AND dc.embedding_model = ${EMBEDDING_MODEL_TAG}

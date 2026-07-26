@@ -20,13 +20,13 @@ export async function searchArchives(query: string, sourceType?: string): Promis
   const rows = sourceType
     ? await db`
         SELECT dc.archived_file_id, dc.content, dc.source_type,
-               af.original_filename, af.b2_path, 2.0 AS distance
+               af.original_filename, af.b2_path, af.telegram_file_id, af.mime_type, 2.0 AS distance
         FROM document_chunks dc JOIN archived_files af ON af.id = dc.archived_file_id
         WHERE dc.source_type = ${sourceType} AND dc.content ILIKE ANY(${patterns})
         LIMIT ${ARCHIVE_RESULT_LIMIT}`
     : await db`
         SELECT dc.archived_file_id, dc.content, dc.source_type,
-               af.original_filename, af.b2_path, 2.0 AS distance
+               af.original_filename, af.b2_path, af.telegram_file_id, af.mime_type, 2.0 AS distance
         FROM document_chunks dc JOIN archived_files af ON af.id = dc.archived_file_id
         WHERE dc.content ILIKE ANY(${patterns})
         LIMIT ${ARCHIVE_RESULT_LIMIT}`;

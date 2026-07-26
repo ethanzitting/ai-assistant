@@ -48,7 +48,7 @@ export async function handleToolUseResponse(options: HandleToolUseOptions): Prom
       messages.push({ role: "assistant", content: currentResponse.content });
       messages.push({ role: "user", content: [{ type: "text", text: "" }] });
     } else {
-      const toolResults = await executeAllToolCalls(currentResponse, traceId);
+      const toolResults = await executeAllToolCalls(currentResponse, traceId, telegramChatId);
       const { interruptText, drainedEvents } = drainHighPriorityContext(queue, internalChatId);
       await persistDrainedMessages(drainedEvents, traceId);
       await persistToolCallRecord(currentResponse, internalChatId, traceId);

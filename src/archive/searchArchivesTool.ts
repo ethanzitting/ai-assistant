@@ -11,7 +11,7 @@ export const searchArchivesTool: ToolDefinition = {
   schema: {
     name: "search_archives",
     description:
-      "Search archived files — voice/audio transcripts and OCR'd photos and documents — by natural language. Check the prefetch block first — it previews relevant archives. You have a maximum of 2 research calls per turn (this tool + query_knowledge combined). Returns matching passages with their source file. Distinct from query_knowledge, which searches structured facts.",
+      "Search archived files — voice/audio transcripts and OCR'd photos and documents — by natural language. Photos are also described by a vision pass at ingest, so charts and graphs are searchable by what they show, not just their title. Check the prefetch block first — it previews relevant archives. You have a maximum of 2 research calls per turn (this tool + query_knowledge combined). Returns matching passages with their source file. Hits marked 'sendable image' can be sent to the user with send_image using the file id shown. Distinct from query_knowledge, which searches structured facts.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -61,5 +61,11 @@ function formatHit(hit: ArchiveHit): string {
   const excerpt = hit.content.length > MAX_EXCERPT
     ? `${hit.content.slice(0, MAX_EXCERPT)}…`
     : hit.content;
-  return `**${label}** (${hit.source_type}, file ${hit.archived_file_id})\n${excerpt}`;
+  const sendable = isSendableImage(hit) ? ", sendable image" : "";
+  return `**${label}** (${hit.source_type}, file ${hit.archived_file_id}${sendable})\n${excerpt}`;
+}
+
+function isSendableImage(hit: ArchiveHit): boolean {
+  if (!hit.telegram_file_id) return false;
+  return hit.mime_type?.startsWith("image/") ?? false;
 }

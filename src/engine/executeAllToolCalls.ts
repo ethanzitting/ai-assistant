@@ -10,7 +10,11 @@ export interface ToolCallResult {
   isError: boolean;
 }
 
-export async function executeAllToolCalls(response: Message, traceId: string): Promise<ToolCallResult[]> {
+export async function executeAllToolCalls(
+  response: Message,
+  traceId: string,
+  telegramChatId?: number | null,
+): Promise<ToolCallResult[]> {
   const toolBlocks = getToolUseBlocks(response);
   const results: ToolCallResult[] = [];
 
@@ -18,7 +22,12 @@ export async function executeAllToolCalls(response: Message, traceId: string): P
     info("tool", block.name, { input: block.input as Record<string, unknown> });
     await trace(traceId, "tool.called", { name: block.name, input: block.input });
 
-    const result = await executeTool(block.name, block.input as Record<string, unknown>, traceId);
+    const result = await executeTool(
+      block.name,
+      block.input as Record<string, unknown>,
+      traceId,
+      telegramChatId,
+    );
 
     debug("tool", "Result", { name: block.name, content: result.content.substring(0, 200) });
     await trace(traceId, "tool.result", {
