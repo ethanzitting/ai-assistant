@@ -21,6 +21,7 @@ Telegram → grammY bot → EventQueue → processEvent → Claude API → tool 
 | Semantic search | Embeddings + hybrid (vector + keyword) retrieval over the KG and archives | `src/embeddings/`, `src/knowledge/hybridSearch.ts` |
 | Events | Reminders, deadlines, recurring items | `src/events/` |
 | Audio | Voice note transcription (Deepgram nova-2) | `src/audio/` |
+| Vision | Describes photos at ingest so charts are searchable by content | `src/vision/` |
 | Archive | File storage to Backblaze B2 | `src/archive/` |
 | Tracing | Full request/response cycle logging | `src/trace.ts` |
 | Retry | Backoff/jitter/timeout wrapper for external API calls | `src/retry/` |
@@ -28,10 +29,11 @@ Telegram → grammY bot → EventQueue → processEvent → Claude API → tool 
 
 ### Tool definitions
 
-Tools are registered in `src/tools/toolRegistry.ts`. Each tool is a `ToolDefinition` with a JSON schema (what Claude sees) and a handler function. `toolRegistry.ts` also enforces per-turn gates: `remember` and `manage_events` `create` may each be called only once per turn, and a second call is rejected with an error telling Claude to batch instead of retry. Current tools:
+Tools are registered in `src/tools/toolRegistry.ts`. Each tool is a `ToolDefinition` with a JSON schema (what Claude sees) and a handler function. Handlers receive `(input, traceId, telegramChatId?)` — the third argument is the chat the current turn came from, so a tool that sends something replies where it was asked instead of defaulting to the owner's private chat. `toolRegistry.ts` also enforces per-turn gates: `remember` and `manage_events` `create` may each be called only once per turn, and a second call is rejected with an error telling Claude to batch instead of retry. Current tools:
 
 - `query_knowledge` — hybrid (semantic + keyword) search over the knowledge graph; returns the facts most relevant to the query, ranked, capped per entity (not the entity's whole record)
-- `search_archives` — semantic search over archived file text (voice/audio transcripts, OCR'd photos and documents) stored in `document_chunks`
+- `search_archives` — semantic search over archived file text (voice/audio transcripts, OCR'd photos and documents) stored in `document_chunks`; marks image hits as "sendable image"
+- `send_image` — send an archived photo back to the user, by `archived_file_id` from a `search_archives` hit
 - `remember` — batch-store items (entities, facts, relationships) with Valibot validation
 - `manage_events` — CRUD for reminders and deadlines
 - `get_calendar` — placeholder (not yet wired to Google Calendar)
@@ -44,11 +46,15 @@ Postgres with pgvector extension. Tables: `entities`, `facts`, `relationships`, 
 
 `audit_log` is a leftover from `004_skills_and_config.sql` — nothing in `src/` reads or writes it.
 
+**`archived_files` is the source of truth for re-indexing.** It carries `telegram_file_id` (re-send a file to Telegram with no bytes — no B2 download, no local cache), plus `ocr_text`, `ocr_model`, `vision_description`, and `vision_model`. **The model stamps are what make re-indexing safe**, exactly like `embedding_model`: a null `ocr_text` *with* `ocr_model` set means OCR ran and the image genuinely had no text, while both null means OCR never succeeded and the row is still owed a retry. `make reindex-photos` gates each unit of work on its own stamp, so it heals a stale vision model, an unrun OCR, or a photo left chunkless by an interrupted run — and costs nothing when everything is current. `document_chunks` holds the *composed* text (description + OCR), so recomposing from a chunk would fold the description back into the OCR on every pass — read the columns, never the chunk. `photoEmbeddingText` in `src/embeddings/embeddingText.ts` is the single composer, shared by the ingest and reindex paths.
+
+**Mistral OCR cannot read plotted charts.** It renders the plot area as an `![img-0.jpeg]` placeholder, so a chart OCRs to little more than its title (one real chart landed at 122 chars). Data *tables* survive intact. This is why photos get a vision description at ingest — it is what makes a graph findable by what it shows.
+
 Facts support temporal validity (`valid_from`/`valid_until`) and are auto-superseded when a new value is stored for the same entity+attribute.
 
 `findExistingEntity.ts` does fuzzy name matching for dedup on write. Read-time recall is semantic: `entities` and `facts` carry `embedding vector(1536)` + `embedding_model`, and `document_chunks` holds embedded chunks of archived file text (permanent archive index — no tier/partition; the hot/warm/cold lifecycle store is future work). Embeddings are `gemini-embedding-001` @ 1536 dims (MRL, L2-normalized), compared by cosine distance. Model identity and the relevance cutoff (`DISTANCE_THRESHOLD`, needs tuning against real data) live in `src/embeddings/embeddingModel.ts`; vectors from different models are not comparable, hence the `embedding_model` stamp on every row.
 
-**Migrations apply in filename-sort order** (`scripts/migrate.sh`). Numbers aren't strictly unique historically (two `006_*` files exist); the latest is `014_drop_chat_policies.sql`, so the next is `015`.
+**Migrations apply in filename-sort order** (`scripts/migrate.sh`). Numbers aren't strictly unique historically (two `006_*` files exist); the latest is `016_ocr_model_stamp.sql`, so the next is `017`.
 
 ## Dev workflow
 
@@ -63,6 +69,7 @@ make db                   # psql shell into Postgres
 make migrate              # run pending SQL migrations from migrations/
 make test                 # deno test src/tests/
 make reembed              # (re)embed any null/stale rows: migration, outage recovery, or model change (in-container)
+make reindex-photos       # heal photo search index: describe, re-OCR, rebuild chunks (in-container, idempotent)
 make backfill-archives    # one-time: populate document_chunks from pre-existing archived files (in-container)
 make prune-duplicates     # dry-run report of duplicate facts/relationships (in-container)
 make consolidate-facts    # dry-run report of fact clusters to merge (in-container)
@@ -180,15 +187,17 @@ src/
   embeddings/                # Gemini embedding client, chunking, vector helpers
   events/                    # event/reminder CRUD
   audio/                     # Deepgram transcription, Telegram file download
-  archive/                   # Backblaze B2 upload, archive embedding + search
+  archive/                   # Backblaze B2 upload, photo indexing, archive embedding + search + send
   ocr/                       # Mistral OCR
+  vision/                    # Claude vision descriptions of images (retrieval text for charts)
+  encoding/                  # arrayBufferToBase64, shared by OCR and vision
   telegram/                  # grammY bot, voice/photo/document handlers, messaging tool
   prompt/                    # system prompt assembly, token estimation
   tools/                     # tool registry, tool types, tool input parsing, calendar
   retry/                     # withRetry + fetchWithRetry (backoff/jitter/timeout) for external APIs
-  maintenance/               # standing in-container commands: reembed, dedup pruning, fact consolidation
+  maintenance/               # standing in-container commands: reembed, reindexPhotos, dedup pruning, fact consolidation
   backfill/                  # archives.ts — one-time migration: populate document_chunks (run in-container)
-  tests/                     # deno test suite (queue, recurrence, tokens) — run via `make test`
+  tests/                     # deno test suite — run via `make test`
 migrations/                  # numbered SQL files applied by scripts/migrate.sh
 scripts/                     # host-side tooling, any executable (not copied into the image)
   trace.sh                   # trace debugging CLI
