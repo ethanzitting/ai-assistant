@@ -16,6 +16,12 @@
 // it exposes the account and routing numbers, which transactions and balances never do.
 
 const PRODUCTS = ["transactions"];
+
+// Plaid defaults to 90 days and, per its docs, "once Transactions has been added to an Item, this
+// value cannot be updated" — not by update mode, not by a new link token. Getting it wrong means
+// removing the Item and linking again, so always ask for the 730-day maximum. Institutions return
+// what they hold; asking for more than they have costs nothing.
+const TRANSACTION_HISTORY_DAYS = 730;
 const POLL_INTERVAL_MS = 5_000;
 const POLL_TIMEOUT_MS = 15 * 60_000;
 
@@ -31,6 +37,7 @@ const created = await plaidCall<{ link_token: string; hosted_link_url: string }>
     country_codes: ["US"],
     user: { client_user_id: "owner" },
     products: PRODUCTS,
+    transactions: { days_requested: TRANSACTION_HISTORY_DAYS },
     hosted_link: {},
   },
 );
