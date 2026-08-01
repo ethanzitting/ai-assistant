@@ -3,6 +3,7 @@ import { EventQueue } from "@/engine/eventQueue.ts";
 import { runEventLoop } from "@/engine/runEventLoop.ts";
 import { createTelegramBot } from "@/telegram/createTelegramBot.ts";
 import { setBotInstance } from "@/telegram/sendTelegramMessage.ts";
+import { startScheduler } from "@/scheduler/startScheduler.ts";
 import { info, warn, error } from "@/logger.ts";
 
 async function healthCheck(): Promise<void> {
@@ -45,6 +46,8 @@ async function main(): Promise<void> {
   setBotInstance(bot);
 
   bot.start({ onStart: () => info("startup", "Telegram bot started") });
+
+  startScheduler();
 
   await runEventLoop(queue);
 }

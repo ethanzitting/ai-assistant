@@ -54,6 +54,10 @@ services:
       B2_BUCKET_ID: ${B2_BUCKET_ID}
       MISTRAL_API_KEY: ${MISTRAL_API_KEY}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
+      PLAID_CLIENT_ID: ${PLAID_CLIENT_ID}
+      PLAID_SECRET: ${PLAID_SECRET}
+      PLAID_ACCESS_TOKEN: ${PLAID_ACCESS_TOKEN}
+      PLAID_ENV: ${PLAID_ENV:-production}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       - telegram-bot-api-data:/var/lib/telegram-bot-api:ro
