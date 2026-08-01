@@ -6,9 +6,11 @@ Single-user AI assistant that runs as a Telegram bot backed by Claude (claude-op
 
 ```
 Telegram → grammY bot → EventQueue → processEvent → Claude API → tool loop → response
+scheduler tick → claim due scheduled_jobs → run handler as plain code → job_runs
 ```
 
 - **Single-threaded event loop**: messages queue up, process one at a time
+- **Scheduler runs beside the event loop, not through it**: `startScheduler()` ticks every 60s and calls job handlers directly. Scheduled work is deterministic code, so it does not spend a Claude turn. A handler that genuinely needs judgment (a future daily briefing) should push a queue event instead of answering for itself. Reminders are still not wired up — the `reminders` table has no runner, but `src/scheduler/jobRegistry.ts` is now the seam for one.
 - **Tool loop**: Claude can call tools up to 50 iterations per turn (MAX_TOOL_ITERATIONS in handleToolUseResponse.ts)
 - **Conversation history**: stored in `conversations` table, truncated to ~20k tokens per turn (assembleContext.ts)
 - **Prompt caching**: system prompt and tool definitions use Anthropic ephemeral cache control
@@ -23,6 +25,8 @@ Telegram → grammY bot → EventQueue → processEvent → Claude API → tool 
 | Audio | Voice note transcription (Deepgram nova-2) | `src/audio/` |
 | Vision | Describes photos at ingest so charts are searchable by content | `src/vision/` |
 | Archive | File storage to Backblaze B2 | `src/archive/` |
+| Scheduler | Runs jobs on a clock, beside the event loop | `src/scheduler/` |
+| Finance | Plaid transaction/balance ingest and spending data | `src/plaid/`, `src/finance/` |
 | Tracing | Full request/response cycle logging | `src/trace.ts` |
 | Retry | Backoff/jitter/timeout wrapper for external API calls | `src/retry/` |
 | Maintenance | Dedup/consolidation passes over the KG, re-embedding | `src/maintenance/` |
@@ -42,7 +46,7 @@ Tools are registered in `src/tools/toolRegistry.ts`. Each tool is a `ToolDefinit
 
 ### Database
 
-Postgres with pgvector extension. Tables: `entities`, `facts`, `relationships`, `conversations`, `chats`, `events`, `reminders`, `engine_trace`, `archived_files`, `document_chunks`, `audit_log`, `schema_migrations`.
+Postgres with pgvector extension. Tables: `entities`, `facts`, `relationships`, `conversations`, `chats`, `events`, `reminders`, `engine_trace`, `archived_files`, `document_chunks`, `audit_log`, `schema_migrations`, `scheduled_jobs`, `job_runs`, `plaid_items`, `accounts`, `transactions`, `category_rules`.
 
 `audit_log` is a leftover from `004_skills_and_config.sql` — nothing in `src/` reads or writes it.
 
@@ -54,7 +58,13 @@ Facts support temporal validity (`valid_from`/`valid_until`) and are auto-supers
 
 `findExistingEntity.ts` does fuzzy name matching for dedup on write. Read-time recall is semantic: `entities` and `facts` carry `embedding vector(1536)` + `embedding_model`, and `document_chunks` holds embedded chunks of archived file text (permanent archive index — no tier/partition; the hot/warm/cold lifecycle store is future work). Embeddings are `gemini-embedding-001` @ 1536 dims (MRL, L2-normalized), compared by cosine distance. Model identity and the relevance cutoff (`DISTANCE_THRESHOLD`, needs tuning against real data) live in `src/embeddings/embeddingModel.ts`; vectors from different models are not comparable, hence the `embedding_model` stamp on every row.
 
-**Migrations apply in filename-sort order** (`scripts/migrate.sh`). Numbers aren't strictly unique historically (two `006_*` files exist); the latest is `016_ocr_model_stamp.sql`, so the next is `017`.
+**Plaid data is read-only by construction, and that is enforced in three places.** Plaid issues no scoped API keys — one `client_id`/`secret` pair reaches every endpoint the account is enabled for. So: (1) no money-movement product (Transfer, Payment Initiation, Virtual Accounts) is enabled on the Plaid account; (2) the Link flow requests only `transactions`, never `auth` — Auth would expose account and routing numbers, which transactions and balances never do; (3) `PLAID_READ_ENDPOINTS` in `src/plaid/plaidEndpoints.ts` is an allow-list and `plaidRequest` throws on anything outside it. The one-time Link script (`scripts/plaid-link.ts`) is host-side and deliberately does *not* use `plaidRequest`, so the agent cannot create or exchange tokens at all.
+
+**Plaid signs a POSITIVE amount as money leaving the account.** That inverts most people's intuition and it is stored unchanged, because every other Plaid field agrees with it. Spending totals SUM to a positive number once `transaction_type = 'expense'` filters out inflows. `classifyTransactionType.ts` also files a credit-card payment as a `transfer`, not an expense — Plaid categorises it under `LOAN_PAYMENTS`, and counting it would double-count roughly a month of card use on top of the purchases it settles.
+
+**The transaction cursor must commit with its page.** `/transactions/sync` returns a page plus a `next_cursor`; `applyTransactionPage.ts` writes both in one `db.begin()`. A hot reload kills the agent mid-sync routinely, and advancing the cursor separately would skip transactions Plaid never offers again — a silent, permanent gap. Replay is safe because every write upserts on `plaid_transaction_id`.
+
+**Migrations apply in filename-sort order** (`scripts/migrate.sh`). Numbers aren't strictly unique historically (two `006_*` files exist); the latest is `017_plaid_ingest.sql`, so the next is `018`.
 
 ## Dev workflow
 
@@ -70,6 +80,8 @@ make migrate              # run pending SQL migrations from migrations/
 make test                 # deno test src/tests/
 make reembed              # (re)embed any null/stale rows: migration, outage recovery, or model change (in-container)
 make reindex-photos       # heal photo search index: describe, re-OCR, rebuild chunks (in-container, idempotent)
+make plaid-link           # one-time: link a bank via Plaid Hosted Link, print the access token (host-side)
+make sync-transactions    # run the Plaid sync once now instead of waiting for the scheduler (in-container)
 make backfill-archives    # one-time: populate document_chunks from pre-existing archived files (in-container)
 make prune-duplicates     # dry-run report of duplicate facts/relationships (in-container)
 make consolidate-facts    # dry-run report of fact clusters to merge (in-container)
@@ -194,6 +206,9 @@ src/
   telegram/                  # grammY bot, voice/photo/document handlers, messaging tool
   prompt/                    # system prompt assembly, token estimation
   tools/                     # tool registry, tool types, tool input parsing, calendar
+  plaid/                     # Plaid REST client — read-endpoint allow-list, balances, transaction pages
+  finance/                   # Plaid sync job: account upsert, page apply, categorization, issue reports
+  scheduler/                 # job registry + tick loop; claims due scheduled_jobs and records job_runs
   retry/                     # withRetry + fetchWithRetry (backoff/jitter/timeout) for external APIs
   maintenance/               # standing in-container commands: reembed, reindexPhotos, dedup pruning, fact consolidation
   backfill/                  # archives.ts — one-time migration: populate document_chunks (run in-container)
