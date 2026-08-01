@@ -50,6 +50,9 @@ async function reportFailure(jobName: string, err: unknown): Promise<void> {
 // An ITEM_ERROR does not clear on its own: every later sync returns nothing until the bank
 // connection is re-linked, and an empty sync reads as "no spending" rather than as a fault. Report
 // it once per episode, tracked by the item's own status rather than by a counter.
+// Unscoped by design: one PLAID_ACCESS_TOKEN means one Item, and a failure in fetchBalances gives
+// no item_id to scope by. Whoever adds a second access token must scope this UPDATE, or one dead
+// connection will flag both and swallow the report for the second one.
 async function reportItemError(err: PlaidError, message: string): Promise<void> {
   const reflagged = await db`
     UPDATE plaid_items SET status = 'login_required'

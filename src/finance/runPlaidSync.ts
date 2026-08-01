@@ -5,7 +5,7 @@ import { fetchTransactionPage } from "@/plaid/fetchTransactionPage.ts";
 import { upsertAccounts } from "@/finance/upsertAccounts.ts";
 import { applyTransactionPage } from "@/finance/applyTransactionPage.ts";
 import type { CategoryRule } from "@/finance/resolveCategory.ts";
-import { info } from "@/logger.ts";
+import { info, warn } from "@/logger.ts";
 
 // A first sync of several years of history is a few dozen pages. This ceiling only exists so a
 // Plaid bug that never clears has_more cannot loop until the container dies.
@@ -18,6 +18,9 @@ export interface PlaidSyncResult {
   added: number;
   modified: number;
   removed: number;
+  // False when the page ceiling cut the run short. No data is lost — the next run resumes from the
+  // committed cursor — but the run is not the full picture and should not read as finished.
+  caughtUp: boolean;
 }
 
 export async function runPlaidSync(): Promise<PlaidSyncResult> {
@@ -35,6 +38,7 @@ export async function runPlaidSync(): Promise<PlaidSyncResult> {
     added: 0,
     modified: 0,
     removed: 0,
+    caughtUp: false,
   };
 
   let cursor = await loadCursor(itemId);
@@ -48,8 +52,15 @@ export async function runPlaidSync(): Promise<PlaidSyncResult> {
     result.modified += page.modified.length;
     result.removed += page.removed.length;
 
-    if (!page.has_more) break;
+    if (!page.has_more) {
+      result.caughtUp = true;
+      break;
+    }
     cursor = page.next_cursor;
+  }
+
+  if (!result.caughtUp) {
+    warn("finance", "Stopped at the page ceiling with more to fetch", { pages: result.pages });
   }
 
   info("finance", "Plaid sync complete", { ...result });

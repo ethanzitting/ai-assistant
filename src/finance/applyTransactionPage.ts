@@ -2,6 +2,7 @@ import { db } from "@/db.ts";
 import type { TransactionPage } from "@/plaid/fetchTransactionPage.ts";
 import type { CategoryRule } from "@/finance/resolveCategory.ts";
 import { toTransactionRow } from "@/finance/toTransactionRow.ts";
+import { ensureAccount } from "@/finance/ensureAccount.ts";
 
 export interface ApplyTransactionPageArgs {
   page: TransactionPage;
@@ -17,8 +18,11 @@ export interface ApplyTransactionPageArgs {
 export async function applyTransactionPage(args: ApplyTransactionPageArgs): Promise<void> {
   await db.begin(async (tx) => {
     for (const transaction of [...args.page.added, ...args.page.modified]) {
-      const accountId = args.accountIdByPlaidId.get(transaction.account_id);
-      if (!accountId) continue;
+      let accountId = args.accountIdByPlaidId.get(transaction.account_id);
+      if (!accountId) {
+        accountId = await ensureAccount(transaction.account_id, args.itemId);
+        args.accountIdByPlaidId.set(transaction.account_id, accountId);
+      }
 
       const row = toTransactionRow({ transaction, accountId, rules: args.rules });
       const values = { ...row, properties: tx.json(row.properties as never) };
@@ -38,7 +42,7 @@ export async function applyTransactionPage(args: ApplyTransactionPageArgs): Prom
           transaction_type        = EXCLUDED.transaction_type,
           payment_channel         = EXCLUDED.payment_channel,
           pending                 = EXCLUDED.pending,
-          properties              = EXCLUDED.properties,
+          properties              = transactions.properties || EXCLUDED.properties,
           removed_at              = NULL,
           updated_at              = now(),
           category = CASE WHEN transactions.category_source = 'manual'

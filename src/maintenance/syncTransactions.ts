@@ -9,15 +9,20 @@ import { runJob } from "@/scheduler/runJob.ts";
 
 await runJob("plaid_sync");
 
-const [summary] = await db`
+const rows = await db`
   SELECT status, detail, error FROM job_runs
   WHERE job_name = 'plaid_sync'
   ORDER BY started_at DESC
   LIMIT 1
-` as unknown as [{ status: string; detail: Record<string, unknown>; error: string | null }];
+` as unknown as { status: string; detail: Record<string, unknown>; error: string | null }[];
 
-console.log(`Status: ${summary.status}`);
-if (summary.error) console.error(`Error: ${summary.error}`);
-console.log(JSON.stringify(summary.detail, null, 2));
+const summary = rows[0];
+if (!summary) {
+  console.error("No plaid_sync run was recorded. Is the job registered in jobRegistry.ts?");
+} else {
+  console.log(`Status: ${summary.status}`);
+  if (summary.error) console.error(`Error: ${summary.error}`);
+  console.log(JSON.stringify(summary.detail, null, 2));
+}
 
 await db.end();
