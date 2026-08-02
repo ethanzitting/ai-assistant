@@ -10,6 +10,7 @@ import { handleDocumentMessage } from "@/telegram/handleDocumentMessage.ts";
 import { sendTelegramMessage } from "@/telegram/sendTelegramMessage.ts";
 import { requireEnv } from "@/requireEnv.ts";
 import { enqueueWithBatching } from "@/telegram/messageBatcher.ts";
+import { handleCategoryCallback } from "@/finance/handleCategoryCallback.ts";
 import { info, warn, error } from "@/logger.ts";
 
 const OWNER_ID = Deno.env.get("TELEGRAM_OWNER_ID");
@@ -28,6 +29,11 @@ export function createTelegramBot(queue: EventQueue): Bot {
 
   bot.on("my_chat_member", async (ctx) => {
     await handleChatMemberUpdate(ctx);
+  });
+
+  // A button press is not more trustworthy than a message, so the owner check runs again here.
+  bot.on("callback_query:data", async (ctx) => {
+    await handleCategoryCallback(ctx, checkAccess(ctx) === "owner");
   });
 
   bot.on("message:text", async (ctx) => {

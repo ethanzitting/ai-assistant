@@ -1,4 +1,5 @@
 import { plaidSyncJob } from "@/finance/plaidSyncJob.ts";
+import { categorizationPromptJob } from "@/finance/categorizationPromptJob.ts";
 
 // A job is plain code on a clock, not a conversation turn. The handler receives its own registered
 // name so it can read its own history in job_runs, and returns whatever detail is worth recording.
@@ -10,6 +11,7 @@ export type JobHandler = (jobName: string) => Promise<Record<string, unknown>>;
 // belongs here too, but its handler should push a queue event rather than answer for itself.
 const handlersByName = new Map<string, JobHandler>([
   ["plaid_sync", plaidSyncJob],
+  ["categorization_prompts", categorizationPromptJob],
 ]);
 
 export function getJobHandler(jobName: string): JobHandler | undefined {
