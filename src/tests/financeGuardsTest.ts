@@ -2,6 +2,7 @@ import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { resolveDateRange } from "@/finance/resolveDateRange.ts";
 import { escapeLikePattern } from "@/finance/escapeLikePattern.ts";
 import { requirePrivateChat } from "@/finance/requirePrivateChat.ts";
+import { unknownValues } from "@/finance/unknownValues.ts";
 
 // Reversed bounds make BETWEEN match nothing, which answered "$0.00 across 0 transactions" — a
 // confident zero rather than an error.
@@ -49,4 +50,14 @@ Deno.test("requirePrivateChat refuses when no owner is configured", () => {
   assertEquals(requirePrivateChat(402864915)?.isError, true);
 
   if (previous !== undefined) Deno.env.set("TELEGRAM_OWNER_ID", previous);
+});
+
+// The bug this guards: "food & drink" is not a category, and returning zero rows for it is
+// indistinguishable from having spent nothing.
+Deno.test("unknownValues finds filter values absent from the data", () => {
+  const known = ["food and drink", "general merchandise"];
+  assertEquals(unknownValues(["food & drink"], known), ["food & drink"]);
+  assertEquals(unknownValues(["food and drink"], known), []);
+  assertEquals(unknownValues(["food and drink", "nope"], known), ["nope"]);
+  assertEquals(unknownValues([], known), []);
 });

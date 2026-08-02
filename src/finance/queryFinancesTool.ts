@@ -4,6 +4,7 @@ import { queryFinancesInputSchema, QUERY_TYPES } from "@/finance/queryFinancesSc
 import { requirePrivateChat } from "@/finance/requirePrivateChat.ts";
 import { resolveDateRange } from "@/finance/resolveDateRange.ts";
 import { financeFilters } from "@/finance/financeFilters.ts";
+import { validateFilters } from "@/finance/validateFilters.ts";
 import { spendingSummary } from "@/finance/spendingSummary.ts";
 import { spendingByCategory } from "@/finance/spendingByCategory.ts";
 import { spendingByMerchant } from "@/finance/spendingByMerchant.ts";
@@ -16,7 +17,7 @@ export const queryFinancesTool: ToolDefinition = {
   schema: {
     name: "query_finances",
     description:
-      "Query the user's bank transactions and balances, synced from Plaid. Use this for ANY question about spending, income, balances, or a specific charge — never query_knowledge, which holds no transaction data. This tool does the arithmetic and returns computed totals: report them as given and do not re-add or re-derive them. Amounts are positive for money spent and negative for money received. Spending figures exclude transfers between the user's own accounts and credit card payments, so they reflect real spending. Dates default to the current calendar month; the range used is always stated in the result. Only checking and one credit card are linked, so this cannot see net worth or accounts elsewhere.",
+      "Query the user's bank transactions and balances, synced from Plaid. Use this for ANY question about spending, income, balances, or a specific charge — never query_knowledge, which holds no transaction data. This tool does the arithmetic and returns computed totals: report them as given and do not re-add or re-derive them.\n\nONE CALL IS USUALLY ENOUGH. \"How much did I spend on X, and how does that compare to last month?\" is a single spending_summary with categories and compare_to: previous_period — do NOT query two ranges separately and subtract. Do not repeat a call you already made.\n\nCategory names are lowercase and spelled out, e.g. 'food and drink' (not 'food & drink'), 'general merchandise', 'rent and utilities'. A filter naming something that does not exist is rejected and the valid names are listed — it is never reported as zero spending.\n\nAmounts are positive for money spent and negative for money received. Spending figures exclude transfers between the user's own accounts and credit card payments, so they reflect real spending. Dates default to the current calendar month; the range used is always stated in the result. Only checking and one credit card are linked, so this cannot see net worth or accounts elsewhere.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -78,6 +79,12 @@ async function handleQueryFinances(
   const args = parsed.data;
   const range = resolveDateRange(args.start_date, args.end_date);
   const filters = financeFilters(range, args);
+
+  const filterProblem = await validateFilters(filters);
+  if (filterProblem) {
+    await trace(traceId, "finance.query.bad_filter", { problem: filterProblem });
+    return { content: filterProblem, isError: true };
+  }
 
   await trace(traceId, "finance.query", { queryType: args.query_type, range });
 
