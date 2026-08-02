@@ -3,31 +3,37 @@ import { resolveCategory, type CategoryRule } from "@/finance/resolveCategory.ts
 
 const groceryRule: CategoryRule = {
   match_type: "merchant",
-  match_value: "Trader Joe's",
-  category: "groceries",
+  match_value: "Ozark Natural Foods",
+  category: "Groceries",
+  policy: "auto",
 };
 
-Deno.test("resolveCategory prefers a matching rule over Plaid's category", () => {
+const askWalmart: CategoryRule = {
+  match_type: "merchant",
+  match_value: "Walmart",
+  category: null,
+  policy: "ask",
+};
+
+Deno.test("resolveCategory applies an auto rule", () => {
   assertEquals(
     resolveCategory({
-      merchantName: "Trader Joe's",
-      description: "TRADER JOES #123",
-      plaidCategoryPrimary: "FOOD_AND_DRINK",
+      merchantName: "Ozark Natural Foods",
+      description: "OZARK NATURAL FOODS",
       rules: [groceryRule],
     }),
-    { category: "groceries", source: "rule" },
+    { category: "Groceries", source: "rule", needsCategory: false },
   );
 });
 
 Deno.test("resolveCategory matches a merchant rule regardless of case", () => {
   assertEquals(
     resolveCategory({
-      merchantName: "TRADER JOE'S",
+      merchantName: "OZARK NATURAL FOODS",
       description: "anything",
-      plaidCategoryPrimary: null,
       rules: [groceryRule],
     }).category,
-    "groceries",
+    "Groceries",
   );
 });
 
@@ -35,44 +41,40 @@ Deno.test("resolveCategory matches a substring of the raw bank description", () 
   assertEquals(
     resolveCategory({
       merchantName: null,
-      description: "SQ *BLUE PLATE CAFE SLC",
-      plaidCategoryPrimary: "FOOD_AND_DRINK",
-      rules: [{ match_type: "description_contains", match_value: "blue plate", category: "dining" }],
+      description: "SWEPCO BILLMATRIX 8829",
+      rules: [{
+        match_type: "description_contains",
+        match_value: "swepco",
+        category: "Utility: Electricity",
+        policy: "auto",
+      }],
     }),
-    { category: "dining", source: "rule" },
+    { category: "Utility: Electricity", source: "rule", needsCategory: false },
   );
 });
 
-Deno.test("resolveCategory humanizes Plaid's taxonomy when no rule matches", () => {
+// The whole point of an 'ask' vendor: it has a rule, but the rule's answer is "put it in the
+// queue", not a category.
+Deno.test("resolveCategory queues an ask-policy vendor rather than categorizing it", () => {
   assertEquals(
     resolveCategory({
-      merchantName: "Delta",
-      description: "DELTA AIR LINES",
-      plaidCategoryPrimary: "TRAVEL",
-      rules: [groceryRule],
+      merchantName: "Walmart",
+      description: "WALMART #123",
+      rules: [askWalmart],
     }),
-    { category: "travel", source: "plaid" },
-  );
-
-  assertEquals(
-    resolveCategory({
-      merchantName: null,
-      description: "x",
-      plaidCategoryPrimary: "FOOD_AND_DRINK",
-      rules: [],
-    }).category,
-    "food and drink",
+    { category: "Unsorted", source: null, needsCategory: true },
   );
 });
 
-Deno.test("resolveCategory returns nothing when it has nothing to go on", () => {
+// Plaid's category is deliberately not consulted. Inheriting it is what produced confident wrong
+// answers — Walmart is GENERAL_MERCHANDISE on all 234 of its transactions.
+Deno.test("resolveCategory leaves an unknown merchant Unsorted and queued", () => {
   assertEquals(
     resolveCategory({
-      merchantName: null,
-      description: "UNKNOWN 8812",
-      plaidCategoryPrimary: null,
-      rules: [],
+      merchantName: "Some New Cafe",
+      description: "SOME NEW CAFE 42",
+      rules: [groceryRule, askWalmart],
     }),
-    { category: null, source: null },
+    { category: "Unsorted", source: null, needsCategory: true },
   );
 });

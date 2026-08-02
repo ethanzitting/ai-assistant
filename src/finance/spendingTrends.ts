@@ -5,9 +5,9 @@ import { formatMoney } from "@/finance/formatMoney.ts";
 export async function spendingTrends(filters: FinanceFilters): Promise<string> {
   const rows = await db`
     SELECT to_char(t.posted_date, 'YYYY-MM') AS month,
-           count(*)::int AS count,
+           count(DISTINCT t.id)::int AS count,
            sum(t.amount) AS total
-    FROM transactions t
+    FROM transaction_categories t
     JOIN accounts a ON a.id = t.account_id
     WHERE t.removed_at IS NULL
       AND t.transaction_type = 'expense'

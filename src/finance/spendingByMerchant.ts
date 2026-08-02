@@ -10,9 +10,9 @@ export async function spendingByMerchant(
 ): Promise<string> {
   const rows = await db`
     SELECT coalesce(t.merchant_name, t.description) AS merchant,
-           count(*)::int AS count,
+           count(DISTINCT t.id)::int AS count,
            sum(t.amount) AS total
-    FROM transactions t
+    FROM transaction_categories t
     JOIN accounts a ON a.id = t.account_id
     WHERE t.removed_at IS NULL
       AND t.transaction_type = 'expense'

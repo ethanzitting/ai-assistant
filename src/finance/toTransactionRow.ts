@@ -13,8 +13,9 @@ export interface TransactionRow {
   merchant_name: string | null;
   plaid_category_primary: string | null;
   plaid_category_detailed: string | null;
-  category: string | null;
+  category: string;
   category_source: string | null;
+  needs_category: boolean;
   transaction_type: string;
   payment_channel: string | null;
   pending: boolean;
@@ -36,7 +37,6 @@ export function toTransactionRow(args: ToTransactionRowArgs): TransactionRow {
   const resolved = resolveCategory({
     merchantName: transaction.merchant_name,
     description: transaction.name,
-    plaidCategoryPrimary,
     rules: args.rules,
   });
 
@@ -53,6 +53,7 @@ export function toTransactionRow(args: ToTransactionRowArgs): TransactionRow {
     plaid_category_detailed: plaidCategoryDetailed,
     category: resolved.category,
     category_source: resolved.source,
+    needs_category: resolved.needsCategory,
     transaction_type: classifyTransactionType({
       plaidCategoryPrimary,
       plaidCategoryDetailed,

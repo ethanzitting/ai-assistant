@@ -80,6 +80,6 @@ async function loadCursor(itemId: string): Promise<string | null> {
 // categorized one way when corrected and another way when Plaid next modified it.
 async function loadCategoryRules(): Promise<CategoryRule[]> {
   return await db`
-    SELECT match_type, match_value, category FROM category_rules ORDER BY created_at DESC
+    SELECT match_type, match_value, category, policy FROM category_rules ORDER BY created_at DESC
   ` as unknown as CategoryRule[];
 }

@@ -37,7 +37,7 @@ function dayCount(filters: FinanceFilters): number {
 async function topCategoryLine(filters: FinanceFilters): Promise<string | null> {
   const rows = await db`
     SELECT coalesce(t.category, 'uncategorized') AS category, sum(t.amount) AS total
-    FROM transactions t
+    FROM transaction_categories t
     JOIN accounts a ON a.id = t.account_id
     WHERE t.removed_at IS NULL
       AND t.transaction_type = 'expense'

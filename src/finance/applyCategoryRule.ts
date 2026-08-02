@@ -63,11 +63,15 @@ async function countMatching(args: ApplyCategoryRuleArgs): Promise<number> {
   return count;
 }
 
+// A split transaction is excluded because the view reads its category from transaction_splits and
+// ignores transactions.category entirely. Without this the rule would update rows that do not
+// change any total, and report having recategorized them.
 function rewritable(args: ApplyCategoryRuleArgs) {
   return db`
     removed_at IS NULL
     AND category_source IS DISTINCT FROM 'manual'
     AND category IS DISTINCT FROM ${args.category}
+    AND NOT EXISTS (SELECT 1 FROM transaction_splits s WHERE s.transaction_id = transactions.id)
   `;
 }
 

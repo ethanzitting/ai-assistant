@@ -62,8 +62,7 @@ async function checkMerchant(merchant: string): Promise<string | null> {
 
 async function distinctCategories(): Promise<string[]> {
   const rows = await db`
-    SELECT DISTINCT lower(category) AS value FROM transactions
-    WHERE removed_at IS NULL AND category IS NOT NULL ORDER BY 1
+    SELECT lower(name) AS value FROM categories ORDER BY sort_order
   ` as unknown as { value: string }[];
   return rows.map((row) => row.value);
 }

@@ -11,8 +11,8 @@ export interface SpendingTotal {
 // every total by roughly the size of the card balance.
 export async function spendingTotal(filters: FinanceFilters): Promise<SpendingTotal> {
   const [row] = await db`
-    SELECT count(*)::int AS count, coalesce(sum(t.amount), 0) AS total
-    FROM transactions t
+    SELECT count(DISTINCT t.id)::int AS count, coalesce(sum(t.amount), 0) AS total
+    FROM transaction_categories t
     JOIN accounts a ON a.id = t.account_id
     WHERE t.removed_at IS NULL
       AND t.transaction_type = 'expense'

@@ -34,8 +34,9 @@ Deno.test("toTransactionRow maps Plaid's field names onto the table's", () => {
   assertEquals(row.merchant_name, "Trader Joe's");
   assertEquals(row.plaid_category_primary, "FOOD_AND_DRINK");
   assertEquals(row.plaid_category_detailed, "FOOD_AND_DRINK_GROCERIES");
-  assertEquals(row.category, "food and drink");
-  assertEquals(row.category_source, "plaid");
+  assertEquals(row.category, "Unsorted");
+  assertEquals(row.category_source, null);
+  assertEquals(row.needs_category, true);
   assertEquals(row.transaction_type, "expense");
   assertEquals(row.source, "plaid");
 });
@@ -80,13 +81,20 @@ Deno.test("toTransactionRow carries the pending transaction link into properties
   assertEquals(unlinked.properties, {});
 });
 
-Deno.test("toTransactionRow applies a category rule ahead of Plaid's category", () => {
+// An auto rule is now the ONLY way a transaction arrives already categorized.
+Deno.test("toTransactionRow applies an auto category rule at ingest", () => {
   const row = toTransactionRow({
     transaction: plaidTransaction(),
     accountId: "acct",
-    rules: [{ match_type: "merchant", match_value: "trader joe's", category: "groceries" }],
+    rules: [{
+      match_type: "merchant",
+      match_value: "trader joe's",
+      category: "Groceries",
+      policy: "auto",
+    }],
   });
 
-  assertEquals(row.category, "groceries");
+  assertEquals(row.category, "Groceries");
   assertEquals(row.category_source, "rule");
+  assertEquals(row.needs_category, false);
 });

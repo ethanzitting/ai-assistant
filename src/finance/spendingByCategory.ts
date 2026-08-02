@@ -11,9 +11,9 @@ interface CategoryRow {
 export async function spendingByCategory(filters: FinanceFilters): Promise<string> {
   const rows = await db`
     SELECT coalesce(t.category, 'uncategorized') AS category,
-           count(*)::int AS count,
+           count(DISTINCT t.id)::int AS count,
            sum(t.amount) AS total
-    FROM transactions t
+    FROM transaction_categories t
     JOIN accounts a ON a.id = t.account_id
     WHERE t.removed_at IS NULL
       AND t.transaction_type = 'expense'

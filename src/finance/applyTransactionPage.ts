@@ -45,10 +45,16 @@ export async function applyTransactionPage(args: ApplyTransactionPageArgs): Prom
           properties              = transactions.properties || EXCLUDED.properties,
           removed_at              = NULL,
           updated_at              = now(),
-          category = CASE WHEN transactions.category_source = 'manual'
+          -- Plaid re-sends a transaction whenever its amount or merchant changes after posting.
+          -- Anything already categorized — by a rule, a button, or a split — must survive that,
+          -- or an answer given last night is silently thrown away today. "Not Unsorted" is the
+          -- test, because it holds regardless of which path assigned the category.
+          category = CASE WHEN transactions.category IS DISTINCT FROM 'Unsorted'
                           THEN transactions.category ELSE EXCLUDED.category END,
-          category_source = CASE WHEN transactions.category_source = 'manual'
-                          THEN 'manual' ELSE EXCLUDED.category_source END
+          category_source = CASE WHEN transactions.category IS DISTINCT FROM 'Unsorted'
+                          THEN transactions.category_source ELSE EXCLUDED.category_source END,
+          needs_category = CASE WHEN transactions.category IS DISTINCT FROM 'Unsorted'
+                          THEN false ELSE EXCLUDED.needs_category END
       `;
 
       // A posted transaction names the pending row it settles. Retiring that row is what stops the
