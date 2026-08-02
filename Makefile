@@ -1,4 +1,4 @@
-.PHONY: dev up down logs db migrate reembed reindex-photos sync-transactions plaid-link backfill-archives prune-duplicates prune-duplicates-apply consolidate-facts consolidate-facts-apply backup test trace
+.PHONY: dev up down logs db migrate reembed reindex-photos sync-transactions reclassify-transactions plaid-link backfill-archives prune-duplicates prune-duplicates-apply consolidate-facts consolidate-facts-apply backup test trace
 
 dev:
 	op run --env-file=.env.tpl -- docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
@@ -26,6 +26,9 @@ reindex-photos:
 
 sync-transactions:
 	docker compose exec agent deno run --allow-net --allow-env --allow-read src/maintenance/syncTransactions.ts
+
+reclassify-transactions:
+	docker compose exec agent deno run --allow-net --allow-env --allow-read src/maintenance/reclassifyTransactions.ts
 
 plaid-link:
 	op run --env-file=.env.tpl -- deno run --allow-net --allow-env scripts/plaid-link.ts

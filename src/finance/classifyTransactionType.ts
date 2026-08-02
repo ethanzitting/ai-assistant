@@ -1,6 +1,11 @@
 export type TransactionType = "expense" | "income" | "transfer";
 
-const TRANSFER_PRIMARIES = new Set(["TRANSFER_IN", "TRANSFER_OUT"]);
+// LOAN_DISBURSEMENTS is where Plaid files the credit-card side of a card payment — it arrives on
+// the card account as "Payment Thank You" with a negative amount. Left as an expense it does not
+// merely fail to count, it actively subtracts: $29,645 of card payments were reducing a two-year
+// spending total rather than being excluded from it. A genuine loan disbursement lands here too,
+// and transfer is right for that as well — borrowed money is neither earned nor spent.
+const TRANSFER_PRIMARIES = new Set(["TRANSFER_IN", "TRANSFER_OUT", "LOAN_DISBURSEMENTS"]);
 
 // A credit card payment moves money between two accounts you already own. Plaid files it under
 // LOAN_PAYMENTS rather than TRANSFER, so without this it counts as spending on top of the card

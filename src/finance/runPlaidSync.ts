@@ -75,8 +75,11 @@ async function loadCursor(itemId: string): Promise<string | null> {
   return (rows[0].transactions_cursor as string | null) ?? null;
 }
 
+// Newest first, because resolveCategory takes the first match. applyCategoryRule replays a new rule
+// over history and lets it win, so ingest has to agree: otherwise the same transaction would be
+// categorized one way when corrected and another way when Plaid next modified it.
 async function loadCategoryRules(): Promise<CategoryRule[]> {
   return await db`
-    SELECT match_type, match_value, category FROM category_rules ORDER BY created_at
+    SELECT match_type, match_value, category FROM category_rules ORDER BY created_at DESC
   ` as unknown as CategoryRule[];
 }

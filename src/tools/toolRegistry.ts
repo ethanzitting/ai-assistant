@@ -5,6 +5,8 @@ import { searchArchivesTool } from "@/archive/searchArchivesTool.ts";
 import { sendImageTool } from "@/archive/sendImageTool.ts";
 import { rememberTool } from "@/knowledge/rememberTool.ts";
 import { manageEventsTool } from "@/events/manageEventsTool.ts";
+import { queryFinancesTool } from "@/finance/queryFinancesTool.ts";
+import { setCategoryRuleTool } from "@/finance/setCategoryRuleTool.ts";
 import { calendarTool } from "@/tools/calendarTool.ts";
 import { messagingTool } from "@/telegram/messagingTool.ts";
 import { error, warn } from "@/logger.ts";
@@ -18,6 +20,8 @@ const toolDefinitions: ToolDefinition[] = [
   sendImageTool,
   rememberTool,
   manageEventsTool,
+  queryFinancesTool,
+  setCategoryRuleTool,
   calendarTool,
   messagingTool,
 ];

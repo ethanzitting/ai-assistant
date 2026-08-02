@@ -41,6 +41,8 @@ Tools are registered in `src/tools/toolRegistry.ts`. Each tool is a `ToolDefinit
 - `remember` — batch-store items (entities, facts, relationships) with Valibot validation
 - `manage_events` — CRUD for reminders and deadlines
 - `get_calendar` — placeholder (not yet wired to Google Calendar)
+- `query_finances` — spending, balances, and transaction search over the Plaid tables; the tool does the arithmetic and returns computed totals so Claude never re-adds them. Private chat only
+- `set_category_rule` — correct a category; writes a `category_rules` row **and replays it over matching history**, so past totals change. Private chat only
 - `send_message` — proactive Telegram message
 - `web_search` — Anthropic server-side tool (not client-defined)
 
@@ -62,6 +64,8 @@ Facts support temporal validity (`valid_from`/`valid_until`) and are auto-supers
 
 **Plaid signs a POSITIVE amount as money leaving the account.** That inverts most people's intuition and it is stored unchanged, because every other Plaid field agrees with it. Spending totals SUM to a positive number once `transaction_type = 'expense'` filters out inflows. `classifyTransactionType.ts` also files a credit-card payment as a `transfer`, not an expense — Plaid categorises it under `LOAN_PAYMENTS`, and counting it would double-count roughly a month of card use on top of the purchases it settles.
 
+**`transaction_type` is derived, so a rule change makes history stale.** `/transactions/sync` only resends what Plaid itself changed, so editing `classifyTransactionType.ts` does nothing to stored rows until `make reclassify-transactions` replays the current rules over them. Two classifications are load-bearing and were both found against real data: a credit card payment is a `transfer` (Plaid files it under `LOAN_PAYMENTS`, and counting it double-counts a month of card use), and `LOAN_DISBURSEMENTS` — where the *card side* of that payment lands as "Payment Thank You" with a negative amount — is also a `transfer`. Left as an expense the latter does not merely fail to count, it subtracts: it was hiding $29,645 of real spending. A negative expense is a refund and is correct.
+
 **The transaction cursor must commit with its page.** `/transactions/sync` returns a page plus a `next_cursor`; `applyTransactionPage.ts` writes both in one `db.begin()`. A hot reload kills the agent mid-sync routinely, and advancing the cursor separately would skip transactions Plaid never offers again — a silent, permanent gap. Replay is safe because every write upserts on `plaid_transaction_id`.
 
 **Migrations apply in filename-sort order** (`scripts/migrate.sh`). Numbers aren't strictly unique historically (two `006_*` files exist); the latest is `018_finance_check_constraints.sql`, so the next is `019`.
@@ -82,6 +86,7 @@ make reembed              # (re)embed any null/stale rows: migration, outage rec
 make reindex-photos       # heal photo search index: describe, re-OCR, rebuild chunks (in-container, idempotent)
 make plaid-link           # one-time: link a bank via Plaid Hosted Link, print the access token (host-side)
 make sync-transactions    # run the Plaid sync once now instead of waiting for the scheduler (in-container)
+make reclassify-transactions  # re-derive transaction_type over stored history after the rules in classifyTransactionType change (in-container, idempotent)
 make backfill-archives    # one-time: populate document_chunks from pre-existing archived files (in-container)
 make prune-duplicates     # dry-run report of duplicate facts/relationships (in-container)
 make consolidate-facts    # dry-run report of fact clusters to merge (in-container)

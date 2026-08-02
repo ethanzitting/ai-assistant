@@ -29,6 +29,32 @@ Deno.test("classifyTransactionType reads both directions of a transfer", () => {
   assertEquals(classifyTransactionType({ ...args, plaidCategoryPrimary: "TRANSFER_IN" }), "transfer");
 });
 
+// The credit-card side of a card payment. As an expense its negative amount subtracts from
+// spending, which understates every total instead of merely inflating one.
+Deno.test("classifyTransactionType treats a loan disbursement as a transfer", () => {
+  assertEquals(
+    classifyTransactionType({
+      plaidCategoryPrimary: "LOAN_DISBURSEMENTS",
+      plaidCategoryDetailed: "LOAN_DISBURSEMENTS_OTHER_DISBURSEMENT",
+      amount: -1757.73,
+    }),
+    "transfer",
+  );
+});
+
+// A refund is genuinely a negative expense and must stay one, so the fix above cannot simply be
+// "no expense may be negative".
+Deno.test("classifyTransactionType keeps a refund as a negative expense", () => {
+  assertEquals(
+    classifyTransactionType({
+      plaidCategoryPrimary: "GENERAL_MERCHANDISE",
+      plaidCategoryDetailed: "GENERAL_MERCHANDISE_ONLINE_MARKETPLACES",
+      amount: -51.22,
+    }),
+    "expense",
+  );
+});
+
 Deno.test("classifyTransactionType recognises income", () => {
   assertEquals(
     classifyTransactionType({
