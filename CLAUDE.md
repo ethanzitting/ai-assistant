@@ -10,7 +10,7 @@ scheduler tick → claim due scheduled_jobs → run handler as plain code → jo
 ```
 
 - **Single-threaded event loop**: messages queue up, process one at a time
-- **Scheduler runs beside the event loop, not through it**: `startScheduler()` ticks every 60s and calls job handlers directly. Scheduled work is deterministic code, so it does not spend a Claude turn. A handler that genuinely needs judgment (a future daily briefing) should push a queue event instead of answering for itself. Reminders are still not wired up — the `reminders` table has no runner, but `src/scheduler/jobRegistry.ts` is now the seam for one.
+- **Scheduler runs beside the event loop, not through it**: `startScheduler()` ticks every 60s and calls job handlers directly. A job is either interval-based (`interval_seconds`) or daily at a wall-clock time (`daily_at_local_time` + `timezone`); the daily case is computed by the `next_daily_run` SQL function inside the same atomic claim, so it neither drifts nor needs DST arithmetic of ours. Scheduled work is deterministic code, so it does not spend a Claude turn. A handler that genuinely needs judgment (a future daily briefing) should push a queue event instead of answering for itself. Reminders are still not wired up — the `reminders` table has no runner, but `src/scheduler/jobRegistry.ts` is now the seam for one.
 - **Tool loop**: Claude can call tools up to 50 iterations per turn (MAX_TOOL_ITERATIONS in handleToolUseResponse.ts)
 - **Conversation history**: stored in `conversations` table, truncated to ~20k tokens per turn (assembleContext.ts)
 - **Prompt caching**: system prompt and tool definitions use Anthropic ephemeral cache control
@@ -26,7 +26,7 @@ scheduler tick → claim due scheduled_jobs → run handler as plain code → jo
 | Vision | Describes photos at ingest so charts are searchable by content | `src/vision/` |
 | Archive | File storage to Backblaze B2 | `src/archive/` |
 | Scheduler | Runs jobs on a clock, beside the event loop | `src/scheduler/` |
-| Finance | Plaid transaction/balance ingest and spending data | `src/plaid/`, `src/finance/` |
+| Finance | Plaid ingest, spending queries, and interactive categorization | `src/plaid/`, `src/finance/` |
 | Tracing | Full request/response cycle logging | `src/trace.ts` |
 | Retry | Backoff/jitter/timeout wrapper for external API calls | `src/retry/` |
 | Maintenance | Dedup/consolidation passes over the KG, re-embedding | `src/maintenance/` |
@@ -43,12 +43,15 @@ Tools are registered in `src/tools/toolRegistry.ts`. Each tool is a `ToolDefinit
 - `get_calendar` — placeholder (not yet wired to Google Calendar)
 - `query_finances` — spending, balances, and transaction search over the Plaid tables; the tool does the arithmetic and returns computed totals so Claude never re-adds them. Private chat only
 - `set_category_rule` — correct a category; writes a `category_rules` row **and replays it over matching history**, so past totals change. Private chat only
+- `split_transaction` — divide one charge across categories, optionally per person; parts must sum to the charge exactly. Private chat only
+- `list_pending_categorizations` — charges awaiting a category, with ids; how a receipt photo gets matched to a charge. Private chat only
+- `set_vendor_policy` — `auto` files a merchant silently, `ask` queues every charge for the nightly question. Private chat only
 - `send_message` — proactive Telegram message
 - `web_search` — Anthropic server-side tool (not client-defined)
 
 ### Database
 
-Postgres with pgvector extension. Tables: `entities`, `facts`, `relationships`, `conversations`, `chats`, `events`, `reminders`, `engine_trace`, `archived_files`, `document_chunks`, `audit_log`, `schema_migrations`, `scheduled_jobs`, `job_runs`, `plaid_items`, `accounts`, `transactions`, `category_rules`.
+Postgres with pgvector extension. Tables: `entities`, `facts`, `relationships`, `conversations`, `chats`, `events`, `reminders`, `engine_trace`, `archived_files`, `document_chunks`, `audit_log`, `schema_migrations`, `scheduled_jobs`, `job_runs`, `plaid_items`, `accounts`, `transactions`, `category_rules`, `categories`, `people`, `transaction_splits`, `categorization_prompts`, plus the `transaction_categories` view.
 
 `audit_log` is a leftover from `004_skills_and_config.sql` — nothing in `src/` reads or writes it.
 
@@ -62,13 +65,19 @@ Facts support temporal validity (`valid_from`/`valid_until`) and are auto-supers
 
 **Plaid data is read-only by construction, and that is enforced in three places.** Plaid issues no scoped API keys — one `client_id`/`secret` pair reaches every endpoint the account is enabled for. So: (1) no money-movement product (Transfer, Payment Initiation, Virtual Accounts) is enabled on the Plaid account; (2) the Link flow requests only `transactions`, never `auth` — Auth would expose account and routing numbers, which transactions and balances never do; (3) `PLAID_READ_ENDPOINTS` in `src/plaid/plaidEndpoints.ts` is an allow-list and `plaidRequest` throws on anything outside it. The one-time Link script (`scripts/plaid-link.ts`) is host-side and deliberately does *not* use `plaidRequest`, so the agent cannot create or exchange tokens at all.
 
+**Categories are a closed list, and Plaid's are not used at all.** Plaid was wrong *consistently* rather than erratically (Walmart is `GENERAL_MERCHANDISE` on all 234 of its transactions), so there is no disagreement signal to mine and inheriting it produced confident wrong answers. The 31 user-defined categories live in `categories` and are referenced **by name** — `categories.name` is UNIQUE, so a foreign key can point at it, which buys integrity without touching the query layer, and `ON UPDATE CASCADE` makes a rename one statement. `plaid_category_primary` is still stored (it drives `transaction_type`) but never becomes a category.
+
+**Splits are exposed through the `transaction_categories` view, and `count(*)` over it counts PARTS, not charges.** Every spending query reads the view so none of them knows what a split is; every reported *transaction count* must therefore be `count(DISTINCT id)`. `transactionSearch` additionally groups by transaction, or a split charge prints once per part.
+
+**A charge is prompted only after it posts.** A pending charge posts as a *new* `transaction_id` carrying `pending_transaction_id`, so prompting earlier would ask twice for one purchase and discard the first answer when the pending row is retired. `categorizationPromptJob` filters `NOT pending` for exactly this reason.
+
 **Plaid signs a POSITIVE amount as money leaving the account.** That inverts most people's intuition and it is stored unchanged, because every other Plaid field agrees with it. Spending totals SUM to a positive number once `transaction_type = 'expense'` filters out inflows. `classifyTransactionType.ts` also files a credit-card payment as a `transfer`, not an expense — Plaid categorises it under `LOAN_PAYMENTS`, and counting it would double-count roughly a month of card use on top of the purchases it settles.
 
 **`transaction_type` is derived, so a rule change makes history stale.** `/transactions/sync` only resends what Plaid itself changed, so editing `classifyTransactionType.ts` does nothing to stored rows until `make reclassify-transactions` replays the current rules over them. Two classifications are load-bearing and were both found against real data: a credit card payment is a `transfer` (Plaid files it under `LOAN_PAYMENTS`, and counting it double-counts a month of card use), and `LOAN_DISBURSEMENTS` — where the *card side* of that payment lands as "Payment Thank You" with a negative amount — is also a `transfer`. Left as an expense the latter does not merely fail to count, it subtracts: it was hiding $29,645 of real spending. A negative expense is a refund and is correct.
 
 **The transaction cursor must commit with its page.** `/transactions/sync` returns a page plus a `next_cursor`; `applyTransactionPage.ts` writes both in one `db.begin()`. A hot reload kills the agent mid-sync routinely, and advancing the cursor separately would skip transactions Plaid never offers again — a silent, permanent gap. Replay is safe because every write upserts on `plaid_transaction_id`.
 
-**Migrations apply in filename-sort order** (`scripts/migrate.sh`). Numbers aren't strictly unique historically (two `006_*` files exist); the latest is `018_finance_check_constraints.sql`, so the next is `019`.
+**Migrations apply in filename-sort order** (`scripts/migrate.sh`). Numbers aren't strictly unique historically (two `006_*` files exist); the latest is `020_daily_jobs.sql`, so the next is `021`.
 
 ## Dev workflow
 

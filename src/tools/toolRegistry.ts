@@ -7,6 +7,9 @@ import { rememberTool } from "@/knowledge/rememberTool.ts";
 import { manageEventsTool } from "@/events/manageEventsTool.ts";
 import { queryFinancesTool } from "@/finance/queryFinancesTool.ts";
 import { setCategoryRuleTool } from "@/finance/setCategoryRuleTool.ts";
+import { splitTransactionTool } from "@/finance/splitTransactionTool.ts";
+import { listPendingCategorizationsTool } from "@/finance/listPendingCategorizationsTool.ts";
+import { setVendorPolicyTool } from "@/finance/setVendorPolicyTool.ts";
 import { calendarTool } from "@/tools/calendarTool.ts";
 import { messagingTool } from "@/telegram/messagingTool.ts";
 import { error, warn } from "@/logger.ts";
@@ -22,6 +25,9 @@ const toolDefinitions: ToolDefinition[] = [
   manageEventsTool,
   queryFinancesTool,
   setCategoryRuleTool,
+  splitTransactionTool,
+  listPendingCategorizationsTool,
+  setVendorPolicyTool,
   calendarTool,
   messagingTool,
 ];
