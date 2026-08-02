@@ -1,6 +1,6 @@
 import type { ToolDefinition, ToolResult } from "@/tools/toolTypes.ts";
 import { parseToolInput } from "@/tools/parseToolInput.ts";
-import { setCategoryRuleInputSchema } from "@/finance/queryFinancesSchema.ts";
+import { setCategoryRuleInputSchema } from "@/finance/setCategoryRuleSchema.ts";
 import { requirePrivateChat } from "@/finance/requirePrivateChat.ts";
 import { applyCategoryRule } from "@/finance/applyCategoryRule.ts";
 import { trace } from "@/trace.ts";
@@ -40,7 +40,7 @@ async function handleSetCategoryRule(
   traceId: string,
   telegramChatId?: number | null,
 ): Promise<ToolResult> {
-  const refusal = await requirePrivateChat(telegramChatId);
+  const refusal = requirePrivateChat(telegramChatId);
   if (refusal) return refusal;
 
   const parsed = parseToolInput(
@@ -51,13 +51,23 @@ async function handleSetCategoryRule(
   if (!parsed.success) return parsed.error;
 
   const { match_type: matchType, match_value: matchValue, category } = parsed.data;
-  const updated = await applyCategoryRule({ matchType, matchValue, category });
+  const result = await applyCategoryRule({ matchType, matchValue, category });
 
-  await trace(traceId, "finance.category_rule", { matchType, matchValue, category, updated });
+  await trace(traceId, "finance.category_rule", { matchType, matchValue, category, ...result });
+
+  if (result.refusedAsTooBroad) {
+    return {
+      content:
+        `Not saved — "${matchValue}" matches ${result.refusedAsTooBroad} transactions, which is too ` +
+        `broad to rewrite in one step. Use a more specific match_value, or 'merchant' instead of ` +
+        `'description_contains'.`,
+      isError: true,
+    };
+  }
 
   return {
-    content: updated === 0
+    content: result.updated === 0
       ? `Rule saved: ${matchValue} → ${category}. No stored transactions matched, so it applies to future ones.`
-      : `Rule saved: ${matchValue} → ${category}. Recategorized ${updated} existing transaction(s), so past totals for both categories have changed.`,
+      : `Rule saved: ${matchValue} → ${category}. Recategorized ${result.updated} existing transaction(s), so past totals for both categories have changed.`,
   };
 }

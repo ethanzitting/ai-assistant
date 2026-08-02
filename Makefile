@@ -52,7 +52,7 @@ backup:
 	@echo "Backup not yet implemented (Phase 8)"
 
 test:
-	deno test src/tests/*.ts
+	deno test --allow-env src/tests/*.ts
 
 trace:
 	op run --env-file=.env.tpl -- ./scripts/trace.sh $(filter-out $@,$(MAKECMDGOALS))

@@ -65,7 +65,7 @@ async function handleQueryFinances(
   traceId: string,
   telegramChatId?: number | null,
 ): Promise<ToolResult> {
-  const refusal = await requirePrivateChat(telegramChatId);
+  const refusal = requirePrivateChat(telegramChatId);
   if (refusal) return refusal;
 
   const parsed = parseToolInput(

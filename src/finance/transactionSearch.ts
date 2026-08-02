@@ -13,6 +13,7 @@ interface TransactionRow {
   description: string;
   account: string;
   pending: boolean;
+  total_matches: number;
 }
 
 // The only query type that does not filter to expenses: when the user is hunting for a specific
@@ -26,7 +27,8 @@ export async function transactionSearch(
 
   const rows = await db`
     SELECT t.posted_date, t.amount, t.transaction_type, t.category,
-           t.merchant_name, t.description, a.name AS account, t.pending
+           t.merchant_name, t.description, a.name AS account, t.pending,
+           count(*) OVER ()::int AS total_matches
     FROM transactions t
     JOIN accounts a ON a.id = t.account_id
     WHERE t.removed_at IS NULL
@@ -50,5 +52,13 @@ export async function transactionSearch(
     return `${date}  ${formatMoney(row.amount)}  ${label} — ${row.category ?? "uncategorized"}, ${row.account}${kind}${pending}`;
   });
 
-  return `${rows.length} match(es):\n${lines.join("\n")}`;
+  // The window count is evaluated before LIMIT, so it is the real number of matches. Reporting
+  // rows.length alone said "25 match(es)" for a month holding 156, and the system prompt tells
+  // Claude to repeat these figures rather than re-derive them.
+  const matched = rows[0].total_matches;
+  const header = matched > rows.length
+    ? `${matched} matches, showing the ${rows.length} most recent:`
+    : `${matched} match(es):`;
+
+  return `${header}\n${lines.join("\n")}`;
 }

@@ -22,9 +22,3 @@ export const queryFinancesInputSchema = v.object({
   compare_to: v.optional(v.picklist(["previous_period", "same_period_last_year"])),
   limit: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(100))),
 });
-
-export const setCategoryRuleInputSchema = v.object({
-  match_type: v.picklist(["merchant", "description_contains"]),
-  match_value: v.pipe(v.string(), v.minLength(2)),
-  category: v.pipe(v.string(), v.minLength(2)),
-});

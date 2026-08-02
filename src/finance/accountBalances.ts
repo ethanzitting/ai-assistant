@@ -1,5 +1,6 @@
 import { db } from "@/db.ts";
 import { formatMoney } from "@/finance/formatMoney.ts";
+import { userTimezone } from "@/userTimezone.ts";
 
 interface AccountRow {
   name: string;
@@ -22,10 +23,19 @@ export async function accountBalances(): Promise<string> {
   const lines = rows.map(describeAccount);
   const asOf = rows[0].balance_as_of;
 
-  return [
-    ...lines,
-    asOf ? `As of the last sync, ${asOf.toISOString().slice(0, 16).replace("T", " ")} UTC.` : "",
-  ].filter(Boolean).join("\n");
+  return [...lines, asOf ? `As of the last sync, ${inUserTimezone(asOf)}.` : ""]
+    .filter(Boolean)
+    .join("\n");
+}
+
+// Every other date in these results is in the user's own calendar, so a UTC stamp here would be
+// the one figure they have to convert in their head.
+function inUserTimezone(when: Date): string {
+  return when.toLocaleString("en-US", {
+    timeZone: userTimezone(),
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 }
 
 // A credit card's "current balance" is what is owed, not what is available to spend, so the two

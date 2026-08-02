@@ -29,9 +29,13 @@ export async function spendingByCategory(filters: FinanceFilters): Promise<strin
 
   const grandTotal = rows.reduce((sum, row) => sum + row.total, 0);
 
+  // Shares only mean something against a positive total. A refund-heavy range sums to zero or
+  // below, which would divide by zero or print negative percentages that read as real figures.
+  const showShare = grandTotal > 0;
+
   const lines = rows.map((row) => {
-    const share = ((row.total / grandTotal) * 100).toFixed(0);
-    return `${row.category}: ${formatMoney(row.total)} (${share}%, ${row.count} txns)`;
+    const share = showShare ? `${((row.total / grandTotal) * 100).toFixed(0)}%, ` : "";
+    return `${row.category}: ${formatMoney(row.total)} (${share}${row.count} txns)`;
   });
 
   return `${lines.join("\n")}\nTotal: ${formatMoney(grandTotal)}`;

@@ -16,8 +16,11 @@ export function todayIso(): string {
 // so a default is never silently assumed on the user's behalf.
 export function resolveDateRange(startDate?: string, endDate?: string): DateRange {
   const today = todayIso();
-  return {
-    start: startDate ?? `${today.slice(0, 7)}-01`,
-    end: endDate ?? today,
-  };
+  const start = startDate ?? `${today.slice(0, 7)}-01`;
+  const end = endDate ?? today;
+
+  // BETWEEN with reversed bounds matches nothing, so "July 31 back to July 1" would answer
+  // "$0.00 across 0 transactions" — a confident zero that reads like a real result. Ordering the
+  // pair is safe because every caller prints the range it used, so the correction is visible.
+  return start <= end ? { start, end } : { start: end, end: start };
 }

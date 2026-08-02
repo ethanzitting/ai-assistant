@@ -1,27 +1,29 @@
-import { getPrivateChat } from "@/telegram/chatRegistry.ts";
 import type { ToolResult } from "@/tools/toolTypes.ts";
 import { warn } from "@/logger.ts";
 
-// Balances and spending history go to the owner's private chat and nowhere else. Jarvis sits in
-// group chats, and the group addendum in the system prompt tells it to share freely there — so
-// without this, one casual question would put account balances in front of everyone in the room.
-// Deny by default: an unknown chat is not the private chat.
-export async function requirePrivateChat(
-  telegramChatId?: number | null,
-): Promise<ToolResult | null> {
-  const privateChat = await getPrivateChat();
+// Balances and spending history go to the owner and nowhere else. Jarvis sits in group chats, and
+// the group addendum tells it to share freely there — so without this, one casual question would
+// put account balances in front of everyone in the room.
+//
+// Keyed on TELEGRAM_OWNER_ID rather than a chats row: for a private chat Telegram's chat id IS the
+// user id, so this compares against the identity the bot's own access control uses instead of
+// against "whichever private chat row is oldest". Deny by default.
+export function requirePrivateChat(telegramChatId?: number | null): ToolResult | null {
+  const ownerId = Deno.env.get("TELEGRAM_OWNER_ID");
 
-  if (!privateChat) {
-    warn("finance", "No private chat registered, refusing finance tool");
+  if (!ownerId) {
+    warn("finance", "TELEGRAM_OWNER_ID is unset, refusing finance tool");
     return {
-      content: "No private chat is registered, so financial data cannot be shared.",
+      content: "The owner is not configured, so financial data cannot be shared.",
       isError: true,
     };
   }
 
-  if (telegramChatId === privateChat.telegram_chat_id) return null;
+  if (telegramChatId !== undefined && telegramChatId !== null && String(telegramChatId) === ownerId) {
+    return null;
+  }
 
-  warn("finance", "Blocked finance tool outside the private chat", { telegramChatId });
+  warn("finance", "Blocked finance tool outside the owner's private chat", { telegramChatId });
   return {
     content:
       "Financial data is only available in Ethan's private chat. Say so plainly and do not " +
