@@ -42,23 +42,28 @@ Living architecture and operational docs. Each file covers one concern and is me
 
 ## Shipping changes
 
+Jarvis runs on **ezbox**, an always-on Linux box on the home LAN. The `Makefile` drives ezbox's Docker daemon over SSH, so `make` commands run from the Mac and act on ezbox. That host runs other services and owns its own firewall — see [infrastructure.md](docs/infrastructure.md) before changing anything about networking.
+
 ### Code changes (no schema change)
 
-1. Test locally: `make dev`, verify the change works
-2. Commit and push
-3. On the droplet: `git pull && make up`
+`/opt/ai-assistant/src` on ezbox is bind-mounted into the agent, which runs `deno --watch`. **A code edit needs no deploy at all** — save it and the agent restarts.
 
-Docker Compose recreates the agent container with the new code. Postgres data is on a persistent volume — restarting containers doesn't touch it. The in-memory event queue is lost on restart, but pending reminders and events are in Postgres and will be picked up when the event processing loop starts again.
+1. Edit `/opt/ai-assistant/src` over `ssh ezbox`
+2. Watch it reload: `make logs`
+3. Commit and push from ezbox, then `git pull` on the Mac to stay in sync
+
+**Do not save during a turn.** The reload kills the turn in flight and loses that Telegram message.
+
+For a Dockerfile, compose, or env change, a rebuild is needed: `make deploy`. Postgres data is on a persistent volume — recreating containers doesn't touch it. The in-memory event queue is lost on restart, but pending reminders and events are in Postgres and will be picked up when the event processing loop starts again.
 
 ### Database schema changes
 
 **Never modify a migration that has already been applied.** Always create a new numbered migration file.
 
 1. Write the new migration: `migrations/NNN_description.sql`
-2. Test locally: `make migrate`, verify with `make db`
-3. **Before deploying: take a manual backup.** Run `make backup` on the droplet. Verify it succeeded. Schema migrations are the most common cause of data loss — always have a restore point.
+2. **Take a manual backup first.** Schema migrations are the most common cause of data loss — always have a restore point. `make backup` is still a stub, so dump by hand: `docker compose exec -T postgres pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" | gzip > backup.sql.gz`
+3. `make migrate`, verify with `make db`
 4. Commit and push
-5. On the droplet: `git pull && make migrate && make up`
 
 If the migration fails partway through, restore from the backup you just took. Do not attempt to fix a half-applied migration by hand unless you are certain you understand the state.
 

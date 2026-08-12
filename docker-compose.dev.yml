@@ -1,6 +1,10 @@
+# Hot reload. JARVIS_ROOT is the repo path ON THE DOCKER HOST, not on the machine running the
+# compose CLI — a bind mount source is resolved by the daemon. Deploys go to ezbox through an SSH
+# context, so `./src` would point at a Mac path that does not exist there. The Makefile sets
+# JARVIS_ROOT=/opt/ai-assistant for ezbox; it defaults to `.` for a local stack.
 services:
   agent:
     volumes:
-      - ./src:/app/src
-      - ./deno.json:/app/deno.json
+      - ${JARVIS_ROOT:-.}/src:/app/src
+      - ${JARVIS_ROOT:-.}/deno.json:/app/deno.json
     command: ["deno", "run", "--watch", "--allow-net", "--allow-env", "--allow-read", "src/main.ts"]

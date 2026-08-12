@@ -9,6 +9,12 @@ services:
       - telegram-bot-api-data:/var/lib/telegram-bot-api
     networks:
       - internal
+    # The LAN's resolver. Set explicitly because the host resolves over loopback, and Docker
+    # refuses to hand a container a loopback nameserver — it would silently fall back to a public
+    # resolver instead, bypassing the host's own DNS policy.
+    dns: [192.168.10.1]
+    mem_limit: 512m
+    cpus: 1.0
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8081 2>&1 | grep -q ''"]
@@ -27,6 +33,9 @@ services:
       - pgdata:/var/lib/postgresql/data
     networks:
       - internal
+    dns: [192.168.10.1]
+    mem_limit: 1g
+    cpus: 2.0
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
@@ -68,10 +77,28 @@ services:
         condition: service_healthy
     networks:
       - internal
+    dns: [192.168.10.1]
+    mem_limit: 1g
+    cpus: 2.0
     restart: unless-stopped
 
+# Both pins below are load-bearing on the deployment host and harmless anywhere else. Read
+# "Sharing the host" in docs/infrastructure.md before changing either.
+#
+# The bridge NAME is pinned because the host's own firewall grants the containers internet access
+# by interface name. Docker would otherwise call it br-<hash> and rename it whenever the network is
+# recreated, which strips the containers of internet access with no error message anywhere —
+# Jarvis just stops answering.
+#
+# The SUBNET is pinned so the containers are a stable, recognisable identity to the host's DNS and
+# firewall rather than a new unexplained one after every recreate.
 networks:
   internal:
+    driver_opts:
+      com.docker.network.bridge.name: jarvis0
+    ipam:
+      config:
+        - subnet: 172.31.240.0/24
 
 volumes:
   pgdata:

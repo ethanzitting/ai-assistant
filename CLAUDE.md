@@ -83,9 +83,12 @@ Facts support temporal validity (`valid_from`/`valid_until`) and are auto-supers
 
 All secrets are in 1Password and injected at runtime via `op run --env-file=.env.tpl`.
 
+**Jarvis runs on `ezbox`, an always-on Linux box on the LAN, not on this Mac.** The Makefile exports `DOCKER_CONTEXT=ezbox`, so every `make` target below runs here but acts on ezbox's Docker daemon over SSH. `op run` stays on the Mac, so no secret is ever written to that host's disk. **ezbox runs other services and owns its own firewall** — read "Sharing the host" in `docs/infrastructure.md` before touching `docker-compose.yml`, the `Dockerfile`, or anything to do with networking. A careless change there breaks more than Jarvis, and the host's configuration lives in a separate private repository, not this one.
+
 ```bash
-make dev                  # start all containers with hot-reload (mounts ./src into agent container)
-make up                   # start all containers detached (no hot-reload)
+make deploy               # pull on ezbox, rebuild, recreate containers (the normal way to ship)
+make dev                  # LOCAL stack on this Mac — collides with production over the bot token
+make up                   # start all containers detached on ezbox
 make down                 # stop all containers
 make logs                 # tail container logs
 make db                   # psql shell into Postgres
@@ -106,9 +109,13 @@ make trace                # trace summary (recent traces)
 
 `make backup` is a stub — it prints "not yet implemented (Phase 8)" and does nothing.
 
-**Hot reload**: dev mode mounts `./src` and `./deno.json` into the container and runs with `deno run --watch`. File edits restart the agent — be careful editing files while Jarvis is mid-processing (the turn will be killed and the Telegram message lost).
+**Hot reload is on in production, deliberately.** ezbox runs the `docker-compose.dev.yml` overlay permanently: `/opt/ai-assistant/src` is bind-mounted into the agent, which runs `deno run --watch`. There is only one stack, and development happens on it — edit over `ssh ezbox`, and the change is live in seconds with no deploy. The cost is that a save while Jarvis is mid-processing kills the turn and loses the Telegram message.
 
-**WARNING: Always use `make` commands, never raw `docker compose`.** Secrets are injected via `op run --env-file=.env.tpl` which the Makefile handles. Running `docker compose up` or `docker compose restart` directly bypasses 1Password injection and starts containers with blank env vars — the agent will crash or silently fail on any API call.
+**A bind mount source is resolved by the daemon, not by the compose CLI.** That is why `docker-compose.dev.yml` reads `${JARVIS_ROOT:-.}/src` and the Makefile sets `JARVIS_ROOT=/opt/ai-assistant` — a bare `./src` would point at a Mac path that does not exist on ezbox. Note also that the *image* is built from this Mac's working tree (the CLI ships its own build context to the remote daemon) while the *running* code is ezbox's bind mount. Keep the two in sync through git.
+
+**Only `make deploy` needs the Mac.** Reboots do not: `restart: unless-stopped` brings the containers back with the environment already baked in, so ezbox recovers from a power cut or an unattended-upgrade reboot with nobody present.
+
+**WARNING: Always use `make` commands, never raw `docker compose`.** Two reasons now. Secrets are injected via `op run --env-file=.env.tpl` which the Makefile handles — a direct `docker compose up` starts containers with blank env vars, and the agent crashes or silently fails on any API call. And the Makefile sets `DOCKER_CONTEXT`, so a raw command hits this Mac's Docker instead of ezbox's, quietly starting a second Jarvis that fights the real one for the Telegram bot token (Telegram answers 409 and drops messages).
 
 **WARNING: `op run` fails closed on unresolved secrets.** Adding a new secret reference to `.env.tpl` breaks *every* `op run` make command (`dev`, `up`, `migrate`, `trace`) until that item actually exists in the `ai.assistant` 1Password vault. Create the secret in 1Password *first*, then add its reference.
 
@@ -232,4 +239,5 @@ migrations/                  # numbered SQL files applied by scripts/migrate.sh
 scripts/                     # host-side tooling, any executable (not copied into the image)
   trace.sh                   # trace debugging CLI
   migrate.sh                 # migration runner
+  # NOTE: host setup (Docker install, firewall grants) lives in ezbox's own private repo, not here
 ```

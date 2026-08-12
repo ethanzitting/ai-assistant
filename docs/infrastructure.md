@@ -4,9 +4,17 @@ Where the system runs, how big it needs to be, and what it costs to operate. Sec
 
 ## Server setup
 
-**Single VPS, Docker Compose.** Everything runs on one machine.
+**Single machine, Docker Compose.** Everything runs on one always-on Linux box on the home LAN, reached over Tailscale and referred to here as `ezbox`. It replaced a MacBook Air in August 2026, after the laptop slept through nine days and nobody noticed Jarvis was down. A cloud VPS remains a viable alternative — see "Why not a VPS" below.
 
-**Recommended:** DigitalOcean droplet — 4 vCPUs, 8GB RAM, 80-160GB SSD. $15-30/month. Hetzner is a viable alternative at similar specs.
+| Item | Value |
+|---|---|
+| Hardware | Small-form-factor desktop — 4 cores, 7.1 GB RAM, 233 GB NVMe |
+| OS | Ubuntu 26.04 LTS, x86_64 |
+| Reached by | `ssh ezbox` over Tailscale, key only |
+| Repo path | `/opt/ai-assistant` |
+| Measured load | ~152 MB RAM for all three containers; 66 MB database |
+
+> **The host has other jobs**, and they constrain this deployment more than any capacity question does. Its network configuration is managed by a separate private repository, and Jarvis must not fight it. See "Sharing the host" below. Host-specific addresses, firewall rules and setup scripts live in that private repo, not here.
 
 Docker Compose defines the services — see `docker-compose.yml` for the actual definitions. Version 1 runs Postgres and Agent only. Ingestion and Sandbox containers are added in Version 2 and Version 3 respectively.
 
@@ -19,9 +27,47 @@ Docker Compose defines the services — see `docker-compose.yml` for the actual 
 
 The LLM reasoning layer is **not hosted** — it's API calls to Claude or OpenAI. No GPU needed. The server is an orchestrator.
 
+## Sharing the host
+
+**The host's firewall is owned by another project, and Docker must not fight it.** That box manages its own `nftables` ruleset from a single hand-written file, which is deliberately the only thing on the machine that touches netfilter.
+
+A default Docker install breaks that arrangement badly. Docker sets the filter `FORWARD` policy to drop and installs its own chains, so two systems end up mutating netfilter state, and reloading either one breaks the other. On a host that only runs containers this is invisible; on this host it is not.
+
+Docker is therefore configured to leave netfilter alone entirely, and the host's own ruleset grants the container bridge what it needs. Three things in **this** repo exist to hold up that arrangement:
+
+| Setting | File | Why it matters |
+|---|---|---|
+| `com.docker.network.bridge.name: jarvis0` | `docker-compose.yml` | The host's firewall grants access **by interface name**. Docker would otherwise use `br-<hash>` and rename it on every recreate, silently cutting the containers off with no error anywhere — Jarvis would just stop answering |
+| Pinned subnet `172.31.240.0/24` | `docker-compose.yml` | A stable, recognisable identity to the host's DNS and firewall, rather than a new unexplained one after each recreate |
+| `mem_limit` / `cpus` per service | `docker-compose.yml` | A leak in Jarvis must never starve the services it shares the box with |
+
+**Do not change the bridge name, the subnet, or the `dns:` entries without reading the host's own repository first.** The daemon configuration, the firewall rules, the setup script, and the recovery procedure all live there — deliberately, because that repo is private and this one is public.
+
+## Why not a VPS
+
+A cloud VPS would avoid sharing a host at all, and the docs originally assumed one (DigitalOcean, 4 vCPU / 8 GB, $15–30/month). Against that: the home machine already exists and already runs without interruption, it costs nothing further, and the household's private financial and knowledge data stays on hardware in the house. The measured footprint — 152 MB of RAM against 6.3 GB free — makes the capacity argument moot.
+
+The real cost of the choice is blast radius, and that is what the resource limits and the netfilter arrangement above are for.
+
 ## Development environment
 
-Dev and production use the same Docker Compose stack. `docker-compose.dev.yml` adds volume mounts for hot-reload and relaxed resource limits. `Makefile` wraps common operations. See [setup.md](setup.md) for the full reference.
+Dev and production are the same stack, on ezbox. There is no second copy: `/opt/ai-assistant/src` is bind-mounted into the agent container and Deno runs with `--watch`, so an edit over SSH restarts the agent within seconds.
+
+Two consequences follow:
+
+- **A save during a turn kills that turn**, and the Telegram message that provoked it is lost.
+- **`make dev` on the Mac collides with production.** Both would poll the same bot token, Telegram answers 409, and messages are dropped. Stop ezbox's stack first, or use a second bot token.
+
+Deploys run from the Mac against ezbox's Docker daemon over SSH:
+
+```bash
+docker context create ezbox --docker "host=ssh://ezbox"   # once
+make deploy                                                # pull on ezbox, rebuild, recreate
+```
+
+`DOCKER_CONTEXT=ezbox` is exported by the `Makefile` rather than passed as a `--context` flag, so it also reaches `scripts/migrate.sh` and `scripts/trace.sh` and both work unchanged.
+
+**`op run` stays on the Mac.** It resolves each secret and passes it in the container-create call, so no secret file is ever written to the router's disk, and `docs/security.md`'s "no `.env` files" rule survives the move. Deploys need the Mac and 1Password; reboots do not, because `restart: unless-stopped` restarts the containers with the environment already baked in.
 
 ## Storage sizing
 
@@ -46,8 +92,9 @@ Everything is in one Postgres database — one backup strategy covers relational
 
 - Automated daily backups: `pg_dump` → compressed → encrypted → shipped to object storage (different provider than hosting). Each backup includes a metrics snapshot for comparison.
 - Weekly backup verification: restore to a temporary Docker container, compare metrics, tear down.
-- VPS provider volume snapshots as belt-and-suspenders.
-- Recovery: spin up new VPS, pull docker-compose repo, retrieve secrets from 1Password, restore from latest backup. **Max data loss: 24 hours.**
+- Recovery: rebuild the host from its own repository's setup script, retrieve secrets from 1Password, restore from latest backup, `make deploy`. **Max data loss: 24 hours.**
+
+> **None of this exists yet.** `make backup` is a stub that prints "not yet implemented". The database holds two years of Plaid history that Plaid will not re-serve past 730 days, plus the whole knowledge graph, on a single NVMe in a house. This is the largest open gap in the deployment. The host already runs a weekly state backup on a timer, so there is an obvious place to add a nightly `pg_dump` to the Backblaze B2 bucket Jarvis already uses.
 
 ### Agent knowledge corruption
 
@@ -77,11 +124,13 @@ The sandbox runs LLM-generated code inside a locked-down Docker container with D
 
 | Item | Estimated cost |
 |---|---|
-| VPS (4 vCPU, 8GB RAM) | $15–30 |
+| Hosting (ezbox — owned hardware, already running as the router) | $0 + a few watts |
 | Object storage (archive + backups) | < $1 |
 | Embedding API (Gemini `gemini-embedding-001`) | < $1 |
 | Transcription API (Deepgram nova-2) | < $1 |
-| **Subtotal** | **~$17–32** |
+| **Subtotal** | **~$3** |
+
+Hosting on hardware that already runs for another reason is what removes the $15–30 line. The trade is blast radius, not money — see "Living on the router".
 
 ### LLM API costs
 

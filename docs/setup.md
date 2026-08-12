@@ -99,17 +99,25 @@ After first run, populate the system with baseline data:
 - **Skills:** insert initial skills into the skills table.
 - **Test events:** create a few reminders and recurring events to verify the event engine.
 
-## Deploying to Digital Ocean
+## Deploying to ezbox
 
-1. Provision a droplet (see [infrastructure.md](infrastructure.md) for specs)
-2. Install Docker and Docker Compose on the droplet
-3. Install the 1Password CLI and configure a service account token (different from your personal token — scoped to the vault the app uses)
-4. Clone the repo
-5. Run `make up` (production mode — no hot-reload, no dev overrides)
-6. Verify: check logs, send a Telegram message, confirm event engine runs
-7. Set up the backup cron job (see below)
+Jarvis runs on `ezbox`, an always-on Linux box on the home LAN, reached over Tailscale.
 
-Access is via SSH through the DO console initially; WireGuard VPN replaces this in Version 2.
+**That host runs other services and owns its own firewall.** Read "Sharing the host" in [infrastructure.md](infrastructure.md) before you begin — a default Docker install would fight the host's `nftables` ruleset and break more than Jarvis.
+
+On the host, once — the setup script lives in **that host's own (private) repository**, not here. It preseeds `/etc/docker/daemon.json` so Docker never manages netfilter, installs Docker, verifies Docker claimed no rules, reloads the host ruleset, and clones this repo to `/opt/ai-assistant`.
+
+On the Mac, once:
+
+1. `docker context create ezbox --docker "host=ssh://ezbox"`
+
+Then, to deploy:
+
+2. `make migrate`, then `make deploy`
+3. Verify: `make logs`, send a Telegram message, confirm the scheduler runs
+4. Confirm the host's other services are unharmed — see its own repo for that checklist
+
+**No 1Password CLI is installed on the host and none is needed.** `op run` stays on the Mac and passes the secrets in the container-create call over the SSH context, so nothing sensitive is written to the host's disk. Access is over Tailscale (`ssh ezbox`), key only.
 
 ## Backups
 
@@ -168,7 +176,9 @@ test:              # Run test suite
 
 If you're reading this because everything is broken:
 
-1. **Server dead?** Provision a new droplet, clone the repo, configure 1Password service account, restore from backup, `make up`.
-2. **Database corrupted?** Restore from the latest backup. Max data loss: 24 hours.
-3. **Credentials compromised?** Follow the breach runbook in [security.md](security.md) — kill droplet, revoke OAuth, revoke API key, rotate 1Password token.
-4. **Forgot how something works?** Start with [README.md](README.md) for the reading order, then the specific doc for that concern.
+1. **Jarvis silent?** `ssh ezbox`, then `make logs` from the Mac. The containers restart themselves after a reboot or a power cut, so silence usually means a crash loop, not a stopped host.
+2. **Something on the host's network broke after a Jarvis change?** The host's ruleset is reloadable in one command and restores a known-good state — see its own repository. Reach the box over Tailscale rather than the LAN when doing this.
+3. **Host dead?** Restore the host from its own repository first, since Jarvis is not the only thing running on it. Then restore the database from backup and `make deploy`.
+4. **Database corrupted?** Restore from the latest backup. **`make backup` is still a stub**, so check what backup actually exists before relying on this line.
+5. **Credentials compromised?** Follow the breach runbook in [security.md](security.md) — revoke OAuth, revoke API keys, rotate the 1Password items.
+6. **Forgot how something works?** Start with [README.md](README.md) for the reading order, then the specific doc for that concern.
