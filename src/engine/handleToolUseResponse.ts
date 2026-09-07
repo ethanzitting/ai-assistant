@@ -1,9 +1,12 @@
-import type { Message, ToolUnion } from "@anthropic-ai/sdk/resources/messages.mjs";
-import { sendMessage } from "@/anthropic/sendMessage.ts";
+import type { ModelMessage, ToolSet } from "ai";
+import {
+  generateModelResponse,
+  type ModelResult,
+} from "@/ai/generateModelResponse.ts";
+import { getAssistantMessage } from "@/ai/getAssistantMessage.ts";
+import { toTraceTokenUsage } from "@/ai/toTraceTokenUsage.ts";
 import { persistMessage } from "@/conversationHistory.ts";
-import { assembleContext } from "@/prompt/assembleContext.ts";
 import type { EventQueue, QueueEvent } from "@/engine/eventQueue.ts";
-import { extractTextContent, getToolUseBlocks } from "@/engine/parseResponse.ts";
 import { executeAllToolCalls } from "@/engine/executeAllToolCalls.ts";
 import { appendToolResults } from "@/engine/appendToolResults.ts";
 import { deliverFinalResponse } from "@/engine/deliverFinalResponse.ts";
@@ -12,9 +15,10 @@ import { warn } from "@/logger.ts";
 import { trace } from "@/trace.ts";
 
 interface HandleToolUseOptions {
-  initialResponse: Message;
+  initialResponse: ModelResult;
+  messages: ModelMessage[];
   systemPrompt: string;
-  tools: ToolUnion[];
+  tools: ToolSet;
   queue: EventQueue;
   telegramChatId: number | null;
   internalChatId?: string;
@@ -23,66 +27,97 @@ interface HandleToolUseOptions {
   stopTyping: () => void;
 }
 
-export async function handleToolUseResponse(options: HandleToolUseOptions): Promise<void> {
+export async function handleToolUseResponse(
+  options: HandleToolUseOptions,
+): Promise<void> {
   const {
-    initialResponse, systemPrompt, tools, queue,
-    telegramChatId, internalChatId, respond, traceId, stopTyping,
+    initialResponse,
+    messages,
+    systemPrompt,
+    tools,
+    queue,
+    telegramChatId,
+    internalChatId,
+    respond,
+    traceId,
+    stopTyping,
   } = options;
   const MAX_TOOL_ITERATIONS = 50;
   let currentResponse = initialResponse;
   let iteration = 0;
   let hitMaxIterations = false;
 
-  while (currentResponse.stop_reason === "tool_use" || currentResponse.stop_reason === "pause_turn") {
+  while (currentResponse.toolCalls.length > 0) {
     if (++iteration > MAX_TOOL_ITERATIONS) {
       hitMaxIterations = true;
       warn("tool-loop", "Hit max iterations", { max: MAX_TOOL_ITERATIONS });
-      await trace(traceId, "tool-loop.max_iterations", { iteration, max: MAX_TOOL_ITERATIONS });
+      await trace(traceId, "tool-loop.max_iterations", {
+        iteration,
+        max: MAX_TOOL_ITERATIONS,
+      });
       break;
     }
 
-    const { messages } = await assembleContext(internalChatId);
+    const toolResults = await executeAllToolCalls(
+      currentResponse,
+      traceId,
+      telegramChatId,
+    );
+    const { interruptText, drainedEvents } = drainHighPriorityContext(
+      queue,
+      internalChatId,
+    );
+    await persistDrainedMessages(drainedEvents, traceId);
+    await persistToolCallRecord(currentResponse, internalChatId, traceId);
+    appendToolResults({
+      messages,
+      assistantMessage: getAssistantMessage(currentResponse),
+      toolResults,
+      interruptText,
+    });
 
-    if (currentResponse.stop_reason === "pause_turn") {
-      await trace(traceId, "server_tool.pause_turn", { iteration });
-      messages.push({ role: "assistant", content: currentResponse.content });
-      messages.push({ role: "user", content: [{ type: "text", text: "" }] });
-    } else {
-      const toolResults = await executeAllToolCalls(currentResponse, traceId, telegramChatId);
-      const { interruptText, drainedEvents } = drainHighPriorityContext(queue, internalChatId);
-      await persistDrainedMessages(drainedEvents, traceId);
-      await persistToolCallRecord(currentResponse, internalChatId, traceId);
-      appendToolResults({ messages, assistantResponse: currentResponse, toolResults, interruptText });
-    }
+    await trace(traceId, "model.request", {
+      iteration,
+      messageCount: messages.length,
+    });
 
-    await trace(traceId, "claude.request", { iteration, messageCount: messages.length });
-
-    const { response: nextResponse, tokenUsage } = await sendMessage({
+    const nextResponse = await generateModelResponse({
       systemPrompt,
       messages,
       tools,
     });
 
-    await trace(traceId, "claude.response", {
-      ...tokenUsage,
-      stopReason: nextResponse.stop_reason,
+    await trace(traceId, "model.response", {
+      ...toTraceTokenUsage(nextResponse.usage),
+      stopReason: nextResponse.finishReason,
+      rawStopReason: nextResponse.rawFinishReason,
       iteration,
     });
-    await trace(traceId, "claude.response.body", {
+    await trace(traceId, "model.response.body", {
       iteration,
-      content: nextResponse.content,
+      content: getAssistantMessage(nextResponse).content,
     });
 
-    const intermediateText = extractTextContent(nextResponse);
+    const intermediateText = nextResponse.text;
     if (intermediateText.trim()) {
-      await trace(traceId, "assistant.intermediate", { iteration, text: intermediateText });
+      await trace(traceId, "assistant.intermediate", {
+        iteration,
+        text: intermediateText,
+      });
     }
 
     currentResponse = nextResponse;
   }
 
   stopTyping();
-  await deliverFinalResponse(currentResponse, hitMaxIterations, telegramChatId, internalChatId, respond, traceId);
+  await deliverFinalResponse(
+    currentResponse,
+    hitMaxIterations,
+    telegramChatId,
+    internalChatId,
+    respond,
+    traceId,
+  );
 }
 
 interface DrainResult {
@@ -90,9 +125,14 @@ interface DrainResult {
   drainedEvents: QueueEvent[];
 }
 
-function drainHighPriorityContext(queue: EventQueue, currentChatId?: string): DrainResult {
+function drainHighPriorityContext(
+  queue: EventQueue,
+  currentChatId?: string,
+): DrainResult {
   const highPriorityEvents = queue.drainHighPriority();
-  if (highPriorityEvents.length === 0) return { interruptText: null, drainedEvents: [] };
+  if (highPriorityEvents.length === 0) {
+    return { interruptText: null, drainedEvents: [] };
+  }
 
   const drainedEvents: QueueEvent[] = [];
   const returned: QueueEvent[] = [];
@@ -112,7 +152,9 @@ function drainHighPriorityContext(queue: EventQueue, currentChatId?: string): Dr
     queue.push(event);
   }
 
-  if (drainedEvents.length === 0) return { interruptText: null, drainedEvents: [] };
+  if (drainedEvents.length === 0) {
+    return { interruptText: null, drainedEvents: [] };
+  }
 
   const interruptText = drainedEvents
     .map((event) => {
@@ -124,8 +166,17 @@ function drainHighPriorityContext(queue: EventQueue, currentChatId?: string): Dr
   return { interruptText, drainedEvents };
 }
 
-async function persistToolCallRecord(response: Message, chatId: string | undefined, traceId: string): Promise<void> {
-  const toolBlocks = getToolUseBlocks(response);
-  const summary = toolBlocks.map((block) => `[called ${block.name}]`).join(" ");
-  await persistMessage({ role: "tool_call", content: summary, chatId, traceId });
+async function persistToolCallRecord(
+  response: ModelResult,
+  chatId: string | undefined,
+  traceId: string,
+): Promise<void> {
+  const summary = response.toolCalls.map((call) => `[called ${call.toolName}]`)
+    .join(" ");
+  await persistMessage({
+    role: "tool_call",
+    content: summary,
+    chatId,
+    traceId,
+  });
 }

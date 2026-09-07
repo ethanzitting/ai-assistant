@@ -1,7 +1,5 @@
-import { getClient } from "@/anthropic/getClient.ts";
-import { callWithRetry } from "@/anthropic/callWithRetry.ts";
-import { arrayBufferToBase64 } from "@/encoding/arrayBufferToBase64.ts";
-import { VISION_MODEL } from "@/vision/visionModel.ts";
+import { generateText } from "ai";
+import { getModel } from "@/ai/models.ts";
 import type { SupportedMediaType } from "@/vision/isSupportedMediaType.ts";
 import { warn } from "@/logger.ts";
 
@@ -35,30 +33,21 @@ export async function describeImage(
   mediaType: SupportedMediaType,
 ): Promise<string | null> {
   try {
-    const response = await callWithRetry(() =>
-      getClient().messages.create({
-        model: VISION_MODEL,
-        max_tokens: MAX_DESCRIPTION_TOKENS,
-        system: DESCRIPTION_PROMPT,
-        messages: [{
-          role: "user",
-          content: [
-            {
-              type: "image",
-              source: {
-                type: "base64",
-                media_type: mediaType,
-                data: arrayBufferToBase64(imageBytes),
-              },
-            },
-            { type: "text", text: "Describe this image for search." },
-          ],
-        }],
-      })
-    );
+    const response = await generateText({
+      model: getModel("vision"),
+      maxOutputTokens: MAX_DESCRIPTION_TOKENS,
+      maxRetries: 1,
+      system: DESCRIPTION_PROMPT,
+      messages: [{
+        role: "user",
+        content: [
+          { type: "file", data: imageBytes, mediaType },
+          { type: "text", text: "Describe this image for search." },
+        ],
+      }],
+    });
 
-    const block = response.content[0];
-    const text = block?.type === "text" ? block.text.trim() : "";
+    const text = response.text.trim();
     return text.length === 0 ? null : text;
   } catch (err: unknown) {
     warn("vision", "Image description failed", {

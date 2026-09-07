@@ -12,7 +12,7 @@ export const searchArchivesTool: ToolDefinition = {
     name: "search_archives",
     description:
       "Search archived files — voice/audio transcripts and OCR'd photos and documents — by natural language. Photos are also described by a vision pass at ingest, so charts and graphs are searchable by what they show, not just their title. Check the prefetch block first — it previews relevant archives. You have a maximum of 2 research calls per turn (this tool + query_knowledge combined). Returns matching passages with their source file. Hits marked 'sendable image' can be sent to the user with send_image using the file id shown. Distinct from query_knowledge, which searches structured facts.",
-    input_schema: {
+    inputSchema: {
       type: "object" as const,
       properties: {
         query: {

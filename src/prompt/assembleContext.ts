@@ -1,5 +1,5 @@
-import type { MessageParam } from "@anthropic-ai/sdk/resources/messages.mjs";
-import { loadRecentMessages, loadChatMessages } from "@/conversationHistory.ts";
+import type { ModelMessage } from "ai";
+import { loadChatMessages, loadRecentMessages } from "@/conversationHistory.ts";
 import { truncateToTokenBudget } from "@/prompt/tokenEstimation.ts";
 import { buildSystemPrompt } from "@/prompt/buildSystemPrompt.ts";
 
@@ -7,12 +7,17 @@ const CONVERSATION_TOKEN_BUDGET = 20_000;
 const MAX_RECENT_MESSAGES = 200;
 const MIN_RESPONDED_TURNS = 5;
 
+type ConversationModelMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
 export async function assembleContext(
   internalChatId?: string,
   chatType?: string,
 ): Promise<{
   systemPrompt: string;
-  messages: MessageParam[];
+  messages: ModelMessage[];
 }> {
   const systemPrompt = buildSystemPrompt(chatType);
 
@@ -21,7 +26,10 @@ export async function assembleContext(
     : await loadRecentMessages(MAX_RECENT_MESSAGES);
 
   const chronological = recentRows.reverse();
-  const byTokens = truncateToTokenBudget(chronological, CONVERSATION_TOKEN_BUDGET);
+  const byTokens = truncateToTokenBudget(
+    chronological,
+    CONVERSATION_TOKEN_BUDGET,
+  );
   const byTurns = keepMinRespondedTurns(chronological, MIN_RESPONDED_TURNS);
 
   const kept = byTurns.length > byTokens.length ? byTurns : byTokens;
@@ -32,25 +40,34 @@ export async function assembleContext(
 
 function toMessageParams(
   rows: { role: string; content: string }[],
-): MessageParam[] {
+): ConversationModelMessage[] {
   return rows
-    .filter((row) => row.role === "user" || row.role === "assistant" || row.role === "context")
+    .filter((row) =>
+      row.role === "user" || row.role === "assistant" || row.role === "context"
+    )
     .map((row) => ({
-      role: (row.role === "context" ? "user" : row.role) as "user" | "assistant",
+      role: (row.role === "context" ? "user" : row.role) as
+        | "user"
+        | "assistant",
       content: row.content,
     }));
 }
 
-function mergeConsecutiveRoles(messages: MessageParam[]): MessageParam[] {
+function mergeConsecutiveRoles(
+  messages: ConversationModelMessage[],
+): ModelMessage[] {
   if (messages.length === 0) return [];
 
-  const merged: MessageParam[] = [messages[0]];
+  const merged: ConversationModelMessage[] = [messages[0]];
 
   for (let index = 1; index < messages.length; index++) {
     const previous = merged[merged.length - 1];
     const current = messages[index];
 
-    if (previous.role === current.role && typeof previous.content === "string" && typeof current.content === "string") {
+    if (
+      previous.role === current.role && typeof previous.content === "string" &&
+      typeof current.content === "string"
+    ) {
       merged[merged.length - 1] = {
         role: previous.role,
         content: `${previous.content}\n${current.content}`,

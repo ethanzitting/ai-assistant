@@ -18,7 +18,7 @@ export const listPendingCategorizationsTool: ToolDefinition = {
     name: "list_pending_categorizations",
     description:
       "List charges still waiting for a category. Call this when the user answers a categorization question in text, or sends a receipt photo — you need the transaction_id before you can call split_transaction. Match a receipt to a charge by its TOTAL amount; if no pending charge matches the receipt total, say so rather than guessing at the nearest one.",
-    input_schema: { type: "object" as const, properties: {} },
+    inputSchema: { type: "object" as const, properties: {} },
   },
   handle: handleListPending,
 };

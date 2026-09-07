@@ -19,7 +19,7 @@ export interface FinanceFilterInput {
   accounts?: string[];
 }
 
-// Matching is case-insensitive because these values reach us from Claude paraphrasing the user,
+// Matching is case-insensitive because these values reach us from the model paraphrasing the user,
 // not from a picker. "Groceries" and "groceries" must be the same filter.
 export function financeFilters(range: DateRange, input: FinanceFilterInput): FinanceFilters {
   return {

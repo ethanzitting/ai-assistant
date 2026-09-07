@@ -17,7 +17,7 @@ export const setVendorPolicyTool: ToolDefinition = {
     name: "set_vendor_policy",
     description:
       "Decide how a merchant is handled from now on. policy 'auto' with a category files every charge from that merchant silently AND applies the category to matching charges already stored, so past totals change — say so. policy 'ask' queues every charge from that merchant for a nightly question instead, which is right for a shop that could be several categories, like a supermarket. Use 'merchant' when the merchant name is known and 'description_contains' when only the raw bank text identifies it, which is the case for charges with no merchant name.",
-    input_schema: {
+    inputSchema: {
       type: "object" as const,
       properties: {
         match_type: { type: "string", enum: ["merchant", "description_contains"] },

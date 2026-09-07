@@ -5,7 +5,7 @@ export const calendarTool: ToolDefinition = {
     name: "get_calendar",
     description:
       "Fetch calendar events for a date range from the locally synced Google Calendar data.",
-    input_schema: {
+    inputSchema: {
       type: "object" as const,
       properties: {
         start_date: {
@@ -21,6 +21,7 @@ export const calendarTool: ToolDefinition = {
     },
   },
   handle: async () => ({
-    content: "Calendar sync is not yet configured (Version 2). No calendar data available.",
+    content:
+      "Calendar sync is not yet configured (Version 2). No calendar data available.",
   }),
 };

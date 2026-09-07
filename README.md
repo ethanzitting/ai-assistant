@@ -38,7 +38,7 @@ Living architecture and operational docs. Each file covers one concern and is me
 
 ### Code
 
-- [CLAUDE.md](CLAUDE.md) — architecture, subsystems, database, file layout, and coding conventions
+- [AGENTS.md](AGENTS.md) — architecture, subsystems, database, file layout, and coding conventions
 
 ## Shipping changes
 

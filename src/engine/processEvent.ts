@@ -1,17 +1,18 @@
-import type { MessageParam } from "@anthropic-ai/sdk/resources/messages.mjs";
-import { sendMessage, type TokenUsage } from "@/anthropic/sendMessage.ts";
+import type { LanguageModelUsage, ModelMessage } from "ai";
+import { generateModelResponse } from "@/ai/generateModelResponse.ts";
+import { getAssistantMessage } from "@/ai/getAssistantMessage.ts";
+import { toTraceTokenUsage } from "@/ai/toTraceTokenUsage.ts";
 import { getToolSchemas } from "@/tools/toolRegistry.ts";
 import { persistMessage } from "@/conversationHistory.ts";
 import { assembleContext } from "@/prompt/assembleContext.ts";
-import { type QueueEvent, EventQueue } from "@/engine/eventQueue.ts";
+import { EventQueue, type QueueEvent } from "@/engine/eventQueue.ts";
 import { handleToolUseResponse } from "@/engine/handleToolUseResponse.ts";
-import { extractTextContent, hasToolUse } from "@/engine/parseResponse.ts";
 import { sendTelegramMessage } from "@/telegram/sendTelegramMessage.ts";
 import { startTypingIndicator } from "@/telegram/sendTypingIndicator.ts";
 import { advanceWatermark } from "@/telegram/chatRegistry.ts";
 import { clearPendingFlush } from "@/telegram/createTelegramBot.ts";
 import { prefetchContext } from "@/knowledge/prefetchContext.ts";
-import { info, warn, debug } from "@/logger.ts";
+import { debug, info, warn } from "@/logger.ts";
 import { trace } from "@/trace.ts";
 
 export async function processEvent(
@@ -27,14 +28,30 @@ export async function processEvent(
   const respond = (payload.respond as boolean) ?? true;
   const metadata = extractMetadata(payload);
 
-  await trace(traceId, "event.received", { type: event.type, priority: event.priority });
-  await trace(traceId, "user.message", { text: userMessage, chatId: telegramChatId, respond });
+  await trace(traceId, "event.received", {
+    type: event.type,
+    priority: event.priority,
+  });
+  await trace(traceId, "user.message", {
+    text: userMessage,
+    chatId: telegramChatId,
+    respond,
+  });
 
   if (respond) {
-    await persistMessage({ role: "user", content: userMessage, chatId: internalChatId, metadata, traceId });
+    await persistMessage({
+      role: "user",
+      content: userMessage,
+      chatId: internalChatId,
+      metadata,
+      traceId,
+    });
   }
 
-  const { systemPrompt, messages } = await assembleContext(internalChatId, chatType);
+  const { systemPrompt, messages } = await assembleContext(
+    internalChatId,
+    chatType,
+  );
 
   if (!respond) {
     ensureEndsWithUser(messages, userMessage);
@@ -53,42 +70,63 @@ export async function processEvent(
   });
 
   const tools = getToolSchemas();
-  await trace(traceId, "claude.request", { messageCount: messages.length, toolCount: tools.length });
+  await trace(traceId, "model.request", {
+    messageCount: messages.length,
+    toolCount: Object.keys(tools).length,
+  });
 
-  const stopTyping = (respond && telegramChatId) ? startTypingIndicator(telegramChatId) : () => {};
+  const stopTyping = (respond && telegramChatId)
+    ? startTypingIndicator(telegramChatId)
+    : () => {};
 
   try {
-    const { response, tokenUsage } = await sendMessage({
+    const response = await generateModelResponse({
       systemPrompt,
       messages,
       tools,
     });
 
-    logTokenUsage(tokenUsage);
-    await trace(traceId, "claude.response", {
-      ...tokenUsage,
-      stopReason: response.stop_reason,
+    logTokenUsage(response.usage);
+    await trace(traceId, "model.response", {
+      ...toTraceTokenUsage(response.usage),
+      stopReason: response.finishReason,
+      rawStopReason: response.rawFinishReason,
     });
-    await trace(traceId, "claude.response.body", {
+    await trace(traceId, "model.response.body", {
       iteration: 0,
-      content: response.content,
+      content: getAssistantMessage(response).content,
     });
 
-    if (hasToolUse(response)) {
+    if (response.toolCalls.length > 0) {
       await handleToolUseResponse({
-        initialResponse: response, systemPrompt, tools, queue,
-        telegramChatId, internalChatId, respond, traceId, stopTyping,
+        initialResponse: response,
+        messages,
+        systemPrompt,
+        tools,
+        queue,
+        telegramChatId,
+        internalChatId,
+        respond,
+        traceId,
+        stopTyping,
       });
       return;
     }
 
-    const assistantText = extractTextContent(response);
+    const assistantText = response.text;
     if (!assistantText.trim()) {
       warn("event", "Empty assistant response, skipping delivery");
-      await trace(traceId, "response.empty", { stopReason: response.stop_reason });
+      await trace(traceId, "response.empty", {
+        stopReason: response.finishReason,
+      });
       return;
     }
-    await persistMessage({ role: "assistant", content: assistantText, chatId: internalChatId, traceId });
+    await persistMessage({
+      role: "assistant",
+      content: assistantText,
+      chatId: internalChatId,
+      traceId,
+    });
 
     stopTyping();
     if (respond) {
@@ -106,11 +144,13 @@ export async function processEvent(
   }
 }
 
-function extractMetadata(payload: Record<string, unknown>): Record<string, unknown> {
-  return (payload.audio_metadata as Record<string, unknown>)
-    ?? (payload.image_metadata as Record<string, unknown>)
-    ?? (payload.document_metadata as Record<string, unknown>)
-    ?? {};
+function extractMetadata(
+  payload: Record<string, unknown>,
+): Record<string, unknown> {
+  return (payload.audio_metadata as Record<string, unknown>) ??
+    (payload.image_metadata as Record<string, unknown>) ??
+    (payload.document_metadata as Record<string, unknown>) ??
+    {};
 }
 
 async function deliverResponse(
@@ -127,13 +167,16 @@ async function deliverResponse(
   });
 }
 
-function ensureEndsWithUser(messages: MessageParam[], userMessage: string): void {
+function ensureEndsWithUser(
+  messages: ModelMessage[],
+  userMessage: string,
+): void {
   const last = messages[messages.length - 1];
   if (!last || last.role === "user") return;
   messages.push({ role: "user", content: userMessage });
 }
 
-function appendToLastUserMessage(messages: MessageParam[], text: string): void {
+function appendToLastUserMessage(messages: ModelMessage[], text: string): void {
   const last = messages[messages.length - 1];
   if (!last || last.role !== "user") return;
   if (typeof last.content === "string") {
@@ -141,11 +184,11 @@ function appendToLastUserMessage(messages: MessageParam[], text: string): void {
   }
 }
 
-function logTokenUsage(tokenUsage: TokenUsage): void {
+function logTokenUsage(usage: LanguageModelUsage): void {
   debug("tokens", "Usage", {
-    inputTokens: tokenUsage.inputTokens,
-    outputTokens: tokenUsage.outputTokens,
-    cacheCreation: tokenUsage.cacheCreationTokens,
-    cacheRead: tokenUsage.cacheReadTokens,
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+    cacheCreation: usage.inputTokenDetails.cacheWriteTokens,
+    cacheRead: usage.inputTokenDetails.cacheReadTokens,
   });
 }

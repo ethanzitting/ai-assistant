@@ -18,7 +18,7 @@ export const sendImageTool: ToolDefinition = {
     name: "send_image",
     description:
       "Send an archived image back to the user in Telegram. Use the file id from a search_archives hit marked 'sendable image'. The image itself is delivered — do not also describe it at length or paste its indexed text. Call once per image; sending two images means two calls.",
-    input_schema: {
+    inputSchema: {
       type: "object" as const,
       properties: {
         archived_file_id: {
@@ -61,7 +61,7 @@ async function handleSendImage(
   }
 
   // An image is nearly always the answer to something asked in this chat, so the turn's own chat
-  // wins unless Claude names a different one. Falling back to resolveChatId covers proactive sends
+  // wins unless the model names a different one. Falling back to resolveChatId covers proactive sends
   // from scheduled events, which have no originating chat.
   const chatId = chat ? await resolveChatId(chat) : telegramChatId ?? await resolveChatId();
   if (!chatId) {

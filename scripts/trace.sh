@@ -85,12 +85,12 @@ if [ "$TRACE_ID" = "cost" ]; then
 SELECT
     left(trace_id, 8) AS trace,
     to_char(MIN(created_at), 'YYYY-MM-DD HH24:MI:SS') AS started,
-    SUM((detail->>'inputTokens')::int) FILTER (WHERE step = 'claude.response') AS input_tok,
-    SUM((detail->>'outputTokens')::int) FILTER (WHERE step = 'claude.response') AS output_tok,
-    SUM((detail->>'cacheReadTokens')::int) FILTER (WHERE step = 'claude.response') AS cache_tok,
-    COUNT(*) FILTER (WHERE step = 'claude.response') AS api_calls
+    SUM((detail->>'inputTokens')::int) FILTER (WHERE step = 'model.response') AS input_tok,
+    SUM((detail->>'outputTokens')::int) FILTER (WHERE step = 'model.response') AS output_tok,
+    SUM((detail->>'cacheReadTokens')::int) FILTER (WHERE step = 'model.response') AS cache_tok,
+    COUNT(*) FILTER (WHERE step = 'model.response') AS api_calls
 FROM engine_trace
-WHERE step IN ('claude.response', 'event.received')
+WHERE step IN ('model.response', 'event.received')
 GROUP BY trace_id
 ORDER BY MIN(created_at) DESC
 LIMIT :limit;

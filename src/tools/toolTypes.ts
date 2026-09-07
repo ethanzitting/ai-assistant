@@ -1,8 +1,12 @@
-import type { Tool } from "@anthropic-ai/sdk/resources/messages.mjs";
-
 export interface ToolResult {
   content: string;
   isError?: boolean;
+}
+
+export interface ToolSchema {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
 }
 
 // telegramChatId is the chat the current turn came from, so a tool that sends something can reply
@@ -14,6 +18,6 @@ export type ToolHandler = (
 ) => Promise<ToolResult>;
 
 export interface ToolDefinition {
-  schema: Tool;
+  schema: ToolSchema;
   handle: ToolHandler;
 }

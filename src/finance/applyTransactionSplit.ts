@@ -33,7 +33,7 @@ export async function applyTransactionSplit(
   if (amountProblem) return { ok: false, problem: amountProblem };
 
   // Names are checked here rather than left to the foreign key, because a raw
-  // "violates foreign key constraint" tells Claude nothing it can act on. Resolving
+  // "violates foreign key constraint" tells the model nothing it can act on. Resolving
   // case-insensitively also lets a lowercase "groceries" through as "Groceries".
   const resolved = await resolveNames(parts);
   if ("problem" in resolved) return { ok: false, problem: resolved.problem };

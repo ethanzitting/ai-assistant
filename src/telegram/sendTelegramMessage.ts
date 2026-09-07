@@ -1,6 +1,6 @@
-import { InputFile, type Bot } from "grammy";
-import { getClient } from "@/anthropic/getClient.ts";
-import { withRetry } from "@/retry/withRetry.ts";
+import { type Bot, InputFile } from "grammy";
+import { generateText } from "ai";
+import { getModel } from "@/ai/models.ts";
 import { warn } from "@/logger.ts";
 
 let botInstance: Bot | null = null;
@@ -53,19 +53,25 @@ async function sendAsDocument(chatId: number, text: string): Promise<void> {
 
 async function generateFilename(text: string): Promise<string> {
   try {
-    const response = await withRetry(
-      () => getClient().messages.create({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 30,
-        messages: [{
-          role: "user",
-          content: `Write a short filename (2-5 words, lowercase, hyphens, no extension) for this text:\n\n${text.slice(0, 300)}`,
-        }],
-      }),
-      { maxRetries: 1, signal: AbortSignal.timeout(10_000) },
+    const response = await generateText({
+      model: getModel("filename"),
+      maxOutputTokens: 30,
+      maxRetries: 1,
+      reasoning: "none",
+      abortSignal: AbortSignal.timeout(10_000),
+      messages: [{
+        role: "user",
+        content:
+          `Write a short filename (2-5 words, lowercase, hyphens, no extension) for this text:\n\n${
+            text.slice(0, 300)
+          }`,
+      }],
+    });
+    const raw = response.text;
+    const slug = raw.trim().toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(
+      /^-|-$/g,
+      "",
     );
-    const raw = response.content[0].type === "text" ? response.content[0].text : "";
-    const slug = raw.trim().toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-|-$/g, "");
     if (slug.length > 0 && slug.length <= 80) return slug + ".txt";
   } catch (error: unknown) {
     warn("telegram", "Filename generation failed", {

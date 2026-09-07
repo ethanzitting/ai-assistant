@@ -1,5 +1,9 @@
-import type { ToolUnion } from "@anthropic-ai/sdk/resources/messages.mjs";
-import type { ToolDefinition, ToolHandler, ToolResult } from "@/tools/toolTypes.ts";
+import { jsonSchema, tool, type ToolSet } from "ai";
+import type {
+  ToolDefinition,
+  ToolHandler,
+  ToolResult,
+} from "@/tools/toolTypes.ts";
 import { queryKnowledgeTool } from "@/knowledge/queryKnowledgeTool.ts";
 import { searchArchivesTool } from "@/archive/searchArchivesTool.ts";
 import { sendImageTool } from "@/archive/sendImageTool.ts";
@@ -36,13 +40,15 @@ const handlersByName = new Map<string, ToolHandler>(
   toolDefinitions.map((def) => [def.schema.name, def.handle]),
 );
 
-const serverTools: ToolUnion[] = [
-  { type: "web_search_20250305", name: "web_search", max_uses: 5 },
-];
-
-export function getToolSchemas(): ToolUnion[] {
-  const clientTools: ToolUnion[] = toolDefinitions.map((def) => def.schema);
-  return [...clientTools, ...serverTools];
+export function getToolSchemas(): ToolSet {
+  return Object.fromEntries(toolDefinitions.map((definition) => [
+    definition.schema.name,
+    tool({
+      description: definition.schema.description,
+      inputSchema: jsonSchema(definition.schema.inputSchema as never),
+      outputSchema: jsonSchema({ type: "string" }),
+    }),
+  ]));
 }
 
 export async function executeTool(
@@ -78,7 +84,8 @@ function enforcePerTurnGates(
     if (lastRememberTraceId === traceId) {
       warn("tool", "Blocked second remember call in same turn", { traceId });
       return {
-        content: "remember already called this turn. Batch all items in one call. Do not retry.",
+        content:
+          "remember already called this turn. Batch all items in one call. Do not retry.",
         isError: true,
       };
     }
@@ -87,9 +94,12 @@ function enforcePerTurnGates(
 
   if (toolName === "manage_events" && toolInput.action === "create") {
     if (lastEventCreateTraceId === traceId) {
-      warn("tool", "Blocked second manage_events create in same turn", { traceId });
+      warn("tool", "Blocked second manage_events create in same turn", {
+        traceId,
+      });
       return {
-        content: "manage_events create already called this turn. Batch all events in one call. Do not retry.",
+        content:
+          "manage_events create already called this turn. Batch all events in one call. Do not retry.",
         isError: true,
       };
     }

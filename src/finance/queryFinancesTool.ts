@@ -18,7 +18,7 @@ export const queryFinancesTool: ToolDefinition = {
     name: "query_finances",
     description:
       "Query the user's bank transactions and balances, synced from Plaid. Use this for ANY question about spending, income, balances, or a specific charge — never query_knowledge, which holds no transaction data. This tool does the arithmetic and returns computed totals: report them as given and do not re-add or re-derive them.\n\nONE CALL IS USUALLY ENOUGH. \"How much did I spend on X, and how does that compare to last month?\" is a single spending_summary with categories and compare_to: previous_period — do NOT query two ranges separately and subtract. Do not repeat a call you already made.\n\nCategory names are lowercase and spelled out, e.g. 'food and drink' (not 'food & drink'), 'general merchandise', 'rent and utilities'. A filter naming something that does not exist is rejected and the valid names are listed — it is never reported as zero spending.\n\nAmounts are positive for money spent and negative for money received. Spending figures exclude transfers between the user's own accounts and credit card payments, so they reflect real spending. Dates default to the current calendar month; the range used is always stated in the result. Only checking and one credit card are linked, so this cannot see net worth or accounts elsewhere.",
-    input_schema: {
+    inputSchema: {
       type: "object" as const,
       properties: {
         query_type: {

@@ -20,7 +20,7 @@ Create a vault (or use an existing one) with these items:
 
 | Item | Fields |
 |---|---|
-| **Anthropic API** | `api_key` |
+| **FIREWORKS_API_KEY** | `notesPlain` |
 | **Deepgram** | `api_key` — for audio/video transcription with speaker diarization |
 | **Mistral** | `api_key` — for photo/document OCR |
 | **Gemini** | `api_key` — for embeddings (semantic search over the knowledge graph and archives) |

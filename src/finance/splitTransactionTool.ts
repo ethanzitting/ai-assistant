@@ -23,7 +23,7 @@ export const splitTransactionTool: ToolDefinition = {
     name: "split_transaction",
     description:
       "Divide one charge across several categories — a Walmart run that was part groceries and part household, or a receipt the user photographed. Get the transaction_id from list_pending_categorizations or query_finances. The parts MUST add up to the charge total exactly; if they do not, the call is rejected and nothing is written. State the split you are about to make in the chat before calling, so a misread receipt is visible. Replaces any previous split on that charge. Optionally attribute a part to a person.",
-    input_schema: {
+    inputSchema: {
       type: "object" as const,
       properties: {
         transaction_id: { type: "string", description: "The charge's id." },

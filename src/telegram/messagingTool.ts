@@ -14,7 +14,7 @@ export const messagingTool: ToolDefinition = {
   schema: {
     name: "send_message",
     description: "Send a proactive message to the user via Telegram. Defaults to the owner's private chat. Pass 'chat' to target a specific group by name.",
-    input_schema: {
+    inputSchema: {
       type: "object" as const,
       properties: {
         text: {

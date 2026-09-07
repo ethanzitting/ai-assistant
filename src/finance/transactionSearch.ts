@@ -66,7 +66,7 @@ export async function transactionSearch(
   });
 
   // Reporting rows.length alone said "25 match(es)" for a month holding 156, and the system prompt
-  // tells Claude to repeat these figures rather than re-derive them.
+  // tells the model to repeat these figures rather than re-derive them.
   const matched = rows[0].total_matches;
   const header = matched > rows.length
     ? `${matched} matches, showing the ${rows.length} most recent:`

@@ -10,7 +10,7 @@ export const setCategoryRuleTool: ToolDefinition = {
     name: "set_category_rule",
     description:
       "Correct how transactions are categorized. Use when the user says a merchant or charge belongs in a different category than the one shown. The rule applies to matching transactions already stored AND to future ones, so past totals change immediately — say so when reporting the result. Call once per rule. Prefer match_type 'merchant' when the merchant name is known; use 'description_contains' when only the raw bank text identifies it.",
-    input_schema: {
+    inputSchema: {
       type: "object" as const,
       properties: {
         match_type: {

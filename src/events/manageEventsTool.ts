@@ -12,7 +12,7 @@ export const manageEventsTool: ToolDefinition = {
     name: "manage_events",
     description:
       "Create, update, list, complete, or drop events and reminders. The create action may be called ONCE per turn — batch all new events in a single call. A second create will be rejected. List, update, complete, and drop are unrestricted. Parse natural language dates into ISO 8601.",
-    input_schema: {
+    inputSchema: {
       type: "object" as const,
       properties: {
         action: {

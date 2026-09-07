@@ -1,22 +1,23 @@
-import type { Message } from "@anthropic-ai/sdk/resources/messages.mjs";
+import type { ModelResult } from "@/ai/generateModelResponse.ts";
 import { persistMessage } from "@/conversationHistory.ts";
-import { extractTextContent } from "@/engine/parseResponse.ts";
 import { sendTelegramMessage } from "@/telegram/sendTelegramMessage.ts";
 import { info, warn } from "@/logger.ts";
 import { trace } from "@/trace.ts";
 
 export async function deliverFinalResponse(
-  response: Message,
+  response: ModelResult,
   hitMaxIterations: boolean,
   telegramChatId: number | null,
   internalChatId: string | undefined,
   respond: boolean,
   traceId: string,
 ): Promise<void> {
-  const finalText = extractTextContent(response).trim();
+  const finalText = response.text.trim();
 
   if (!finalText) {
-    warn("tool-loop", "Empty final response, using fallback", { hitMaxIterations });
+    warn("tool-loop", "Empty final response, using fallback", {
+      hitMaxIterations,
+    });
     await trace(traceId, "response.empty", { hitMaxIterations });
   }
 
@@ -27,7 +28,12 @@ export async function deliverFinalResponse(
     return;
   }
 
-  await persistMessage({ role: "assistant", content: deliverText, chatId: internalChatId, traceId });
+  await persistMessage({
+    role: "assistant",
+    content: deliverText,
+    chatId: internalChatId,
+    traceId,
+  });
 
   info("assistant", deliverText);
   if (telegramChatId) await sendTelegramMessage(telegramChatId, deliverText);

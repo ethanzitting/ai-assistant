@@ -32,7 +32,7 @@ Entire server behind a **WireGuard VPN** — nothing exposed to the public inter
 
 ### 5. Treat the LLM API as a data exfiltration channel
 
-Rich personal context is sent to Anthropic/OpenAI with every query. Mitigations:
+Rich personal context is sent to Fireworks AI with every model query. Selected content also reaches the task-specific Google, Mistral, and Deepgram services. Mitigations:
 
 - Enable zero data retention on LLM APIs.
 - Prompt injection defense is critical — see the dedicated section below.
@@ -49,7 +49,7 @@ Anomaly alerts: API calls at unusual hours, spikes in database queries, access f
 - **Breach runbook** — a checklist executable from your phone when the server is fully compromised:
   1. **Kill the droplet** from DigitalOcean's control panel (mobile app or web)
   2. **Revoke OAuth tokens** — Google security settings for Gmail/Calendar, Telegram for the bot token
-  3. **Revoke the Anthropic API key** — stops LLM usage on your account
+  3. **Revoke the Fireworks AI API key** — stops model usage on your account
   4. **Rotate the 1Password service account token** — invalidates any cached credentials
   
   Each step is independent. The on-server kill switch (SSH CLI, 1Password flag) is useless if the server itself is compromised — these external revocations are the real emergency stop.
@@ -105,7 +105,7 @@ Processes all untrusted external input: emails, Telegram messages, Plaid transac
 **Container monitoring:** Core actively watches the ingestion container for signs of compromise or exploitation attempts:
 
 - **Permission denial log watching.** Core tails the ingestion container's stderr via Docker's log API. Deno writes `PermissionDenied` errors when anything attempts an unauthorized action (network call to an unlisted domain, subprocess spawn, filesystem write outside allowed paths). Any permission denial triggers an immediate Telegram alert — it means a prompt injection is actively attempting exploitation.
-- **Network connection auditing.** Core periodically inspects active network connections from the ingestion container via Docker's API. Expected connections: Gmail API, Calendar API, Anthropic API, Deepgram API, the Postgres emission table. Any connection to an unexpected destination is flagged and alerted.
+- **Network connection auditing.** Core periodically inspects active network connections from the ingestion container via Docker's API. Expected connections include Gmail, Calendar, Fireworks AI, Mistral, Google embeddings, Deepgram, and the Postgres emission table. Any connection to an unexpected destination is flagged and alerted.
 - **Process auditing.** Core periodically checks the ingestion container's process list. Only Deno should be running. Any additional process indicates something bypassed `--deny-run`, which warrants killing the container immediately.
 
 **Emission stream monitoring:** Core also watches the emission data for anomalies:
@@ -134,7 +134,7 @@ The only trusted component. Coordinates ingestion and sandbox, handles user inte
 
 **Database permissions enforce append-only at the Postgres level.** The agent's database role has SELECT, INSERT, and UPDATE on knowledge graph tables (entities, relationships, facts) — no DELETE, no TRUNCATE. This means "every write is an append" (principle #3 in [vision.md](vision.md)) is enforced by the database, not just application code. UPDATE is needed for setting `valid_until` timestamps on superseded facts. DELETE is granted narrowly only on tables that require it (e.g., `ingestion_emissions` for clearing processed rows). The backup script runs as a separate Postgres superuser role not accessible to the application.
 
-**The agent never processes untrusted external content directly.** *(Target posture — the isolation boundary is not yet built.)* In the V2+ architecture, web search results and fetched web pages are routed through the ingestion container rather than the agent's LLM calls, so the agent reasons only over trusted, already-validated context (knowledge graph data, validated emissions, user messages) and prompt injection in web content cannot influence a privileged LLM call. **Today** there is no ingestion container: `web_search` is Anthropic's server-side tool invoked directly by the agent. The intent above is the design this doc describes. See [ingestion.md](ingestion.md).
+**The agent never processes untrusted external content directly.** *(Target posture — the isolation boundary is not yet built.)* Direct web search is disabled. In the V2+ architecture, web search results and fetched web pages will be routed through the ingestion container rather than the agent's privileged LLM calls. See [ingestion.md](ingestion.md).
 
 **Sole authority for:**
 - Database writes (beyond the ingestion emission table)
@@ -151,7 +151,7 @@ Prompt injection is the #1 vulnerability in LLM applications and the threat is e
 
 1. **Container separation.** The ingestion container processes all untrusted content in isolation — emails, documents, web search results, and fetched web pages. Even if an injected prompt fully controls the ingestion LLM, it can only emit structured records through the schema-validated emission channel — it cannot trigger actions, read the knowledge graph, or access other services. Core never processes untrusted external content directly, so prompt injection cannot reach a privileged LLM call. This is the most important layer.
 
-2. **Structural prompt separation.** All ingested content (emails, documents, transcripts, OCR output) is placed in clearly delimited data sections of the prompt with explicit system instructions that this content is data, not instructions. Use Anthropic's and OpenAI's structured prompt patterns for this.
+2. **Structural prompt separation.** All ingested content (emails, documents, transcripts, OCR output, web results) is placed in clearly delimited data sections of the prompt with explicit system instructions that this content is data, not instructions. Keep this separation provider-neutral.
 
 3. **Output schema validation.** Constrain agent outputs to structured formats (typed tool calls, JSON schemas) wherever possible. Freeform output is where injection payloads produce the most damage.
 
@@ -180,4 +180,3 @@ The email pipeline is the highest-risk injection surface. An attacker who knows 
 5. **Use separate email addresses.** Your assistant monitors `you@yourdomain.com`. Your bank, brokerage, infrastructure passwords, and primary Google/Apple account use a completely separate `secure@yourdomain.com` that the assistant has no credentials for. The attacker can own your assistant's email token completely and still can't receive password reset emails for your bank.
 
 6. **Monitor OAuth token usage.** Google Workspace and Microsoft 365 support audit logging independent of your server. Flag anomalous token usage: reads outside normal polling schedule, keyword searches the assistant would never make.
-

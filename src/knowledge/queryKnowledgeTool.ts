@@ -14,7 +14,7 @@ export const queryKnowledgeTool: ToolDefinition = {
     name: "query_knowledge",
     description:
       "Search the knowledge graph. Check the prefetch block in the user message BEFORE calling this — it may already have what you need. You have a maximum of 2 research calls per turn (this tool + search_archives combined), so make them count. Use broad queries: a name or topic, not narrow attribute lookups. Set include_all_facts: true for a complete entity picture — one broad call beats many narrow ones. Do not rephrase or retry a search that returned results.",
-    input_schema: {
+    inputSchema: {
       type: "object" as const,
       properties: {
         query: {

@@ -1,42 +1,62 @@
-import type { Tool } from "@anthropic-ai/sdk/resources/messages.mjs";
-import { getClient } from "@/anthropic/getClient.ts";
-import { callWithRetry } from "@/anthropic/callWithRetry.ts";
-import type { TokenUsage } from "@/anthropic/sendMessage.ts";
+import { generateText, jsonSchema, type LanguageModelUsage, tool } from "ai";
+import { getModel } from "@/ai/models.ts";
 import type { FactCluster } from "@/maintenance/factClusters.ts";
+import {
+  type ConsolidatedFact,
+  validateConsolidationDecision,
+} from "@/maintenance/validateConsolidationDecision.ts";
 
-const MODEL = "claude-opus-4-6";
-
-export type ConsolidatedFact = { attribute: string; value: string };
 export type ConsolidationDecision = {
   consolidatedFacts: ConsolidatedFact[];
   reasoning: string;
-  tokenUsage: TokenUsage;
+  tokenUsage: LanguageModelUsage;
 };
 
-const CONSOLIDATION_TOOL: Tool = {
-  name: "submit_consolidation",
+const CONSOLIDATION_TOOL = tool({
   description: "Submit the consolidated, de-duplicated facts for this group.",
-  input_schema: {
+  inputSchema: jsonSchema({
     type: "object",
     properties: {
       consolidated_facts: {
         type: "array",
+        minItems: 1,
+        maxItems: 50,
         description:
           "The smallest set of canonical facts that together preserve EVERY unique detail from the input group. Usually one; more only if the group genuinely holds distinct sub-facts.",
         items: {
           type: "object",
+          additionalProperties: false,
           properties: {
-            attribute: { type: "string", description: "Clear snake_case attribute name." },
-            value: { type: "string", description: "Complete value retaining every specific (dates, numbers, names, doses) from all variants." },
+            attribute: {
+              type: "string",
+              minLength: 1,
+              maxLength: 100,
+              pattern: "^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$",
+              description: "Clear snake_case attribute name.",
+            },
+            value: {
+              type: "string",
+              minLength: 1,
+              maxLength: 10000,
+              description:
+                "Complete value retaining every specific (dates, numbers, names, doses) from all variants.",
+            },
           },
           required: ["attribute", "value"],
         },
       },
-      reasoning: { type: "string", description: "One or two sentences on what was merged or dropped." },
+      reasoning: {
+        type: "string",
+        minLength: 1,
+        maxLength: 2000,
+        description: "One or two sentences on what was merged or dropped.",
+      },
     },
     required: ["consolidated_facts", "reasoning"],
-  },
-};
+    additionalProperties: false,
+  }),
+  outputSchema: jsonSchema({ type: "string" }),
+});
 
 const SYSTEM_PROMPT =
   `You curate a personal knowledge graph. You receive a group of near-duplicate facts about one entity that accumulated through attribute-name drift — the same information re-saved under slightly different attribute names and wordings.
@@ -55,37 +75,45 @@ export async function proposeConsolidation(
   cluster: FactCluster,
   context: { today: string; note?: string },
 ): Promise<ConsolidationDecision> {
-  const factList = cluster.facts.map((fact, index) => `${index + 1}. ${fact.attribute}: ${fact.value}`).join("\n");
+  const factList = cluster.facts.map((fact, index) =>
+    `${index + 1}. ${fact.attribute}: ${fact.value}`
+  ).join("\n");
   const guidance = context.note ? `Curator guidance: ${context.note}\n` : "";
 
-  const response = await callWithRetry(() =>
-    getClient().messages.create({
-      model: MODEL,
-      max_tokens: 4096,
-      system: SYSTEM_PROMPT,
-      tools: [CONSOLIDATION_TOOL],
-      tool_choice: { type: "tool", name: "submit_consolidation" },
-      messages: [{
-        role: "user",
-        content: `Today's date is ${context.today}.\n${guidance}\nEntity: ${cluster.entityName}\n\nNear-duplicate facts:\n${factList}`,
-      }],
-    })
-  );
+  const response = await generateText({
+    model: getModel("consolidation"),
+    maxOutputTokens: 4096,
+    maxRetries: 1,
+    reasoning: "low",
+    system: SYSTEM_PROMPT,
+    tools: { submit_consolidation: CONSOLIDATION_TOOL },
+    toolChoice: { type: "tool", toolName: "submit_consolidation" },
+    messages: [{
+      role: "user",
+      content:
+        `Today's date is ${context.today}.\n${guidance}\nEntity: ${cluster.entityName}\n\nNear-duplicate facts:\n${factList}`,
+    }],
+  });
 
-  const toolUse = response.content.find((block) => block.type === "tool_use");
-  if (!toolUse || toolUse.type !== "tool_use") {
-    throw new Error(`Model did not return a consolidation for the ${cluster.entityName} cluster`);
+  const toolUse = response.toolCalls.find((call) =>
+    call.toolName === "submit_consolidation"
+  );
+  if (!toolUse) {
+    throw new Error(
+      `Model did not return a consolidation for the ${cluster.entityName} cluster`,
+    );
   }
-  const input = toolUse.input as { consolidated_facts: ConsolidatedFact[]; reasoning: string };
-  const usage = response.usage as unknown as Record<string, number>;
-  return {
+  const input = isRecord(toolUse.input) ? toolUse.input : {};
+  const decision = validateConsolidationDecision({
     consolidatedFacts: input.consolidated_facts,
     reasoning: input.reasoning,
-    tokenUsage: {
-      inputTokens: usage.input_tokens,
-      outputTokens: usage.output_tokens,
-      cacheCreationTokens: usage.cache_creation_input_tokens ?? 0,
-      cacheReadTokens: usage.cache_read_input_tokens ?? 0,
-    },
+  });
+  return {
+    ...decision,
+    tokenUsage: response.usage,
   };
+}
+
+function isRecord(input: unknown): input is Record<string, unknown> {
+  return typeof input === "object" && input !== null;
 }

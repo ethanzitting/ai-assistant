@@ -1,28 +1,33 @@
-import type { MessageParam, Message } from "@anthropic-ai/sdk/resources/messages.mjs";
+import type { AssistantModelMessage, ModelMessage, ToolModelMessage } from "ai";
 import type { ToolCallResult } from "@/engine/executeAllToolCalls.ts";
 
 interface AppendToolResultsOptions {
-  messages: MessageParam[];
-  assistantResponse: Message;
+  messages: ModelMessage[];
+  assistantMessage: AssistantModelMessage;
   toolResults: ToolCallResult[];
   interruptText: string | null;
 }
 
 export function appendToolResults(options: AppendToolResultsOptions): void {
-  const { messages, assistantResponse, toolResults, interruptText } = options;
+  const { messages, assistantMessage, toolResults, interruptText } = options;
 
-  messages.push({ role: "assistant", content: assistantResponse.content });
+  messages.push(assistantMessage);
 
   const resultBlocks = toolResults.map((result) => ({
-    type: "tool_result" as const,
-    tool_use_id: result.toolUseId,
-    content: result.content,
+    type: "tool-result" as const,
+    toolCallId: result.toolUseId,
+    toolName: result.toolName,
+    output: result.isError
+      ? { type: "error-text" as const, value: result.content }
+      : { type: "text" as const, value: result.content },
   }));
 
-  if (interruptText && resultBlocks.length > 0) {
-    const lastBlock = resultBlocks[resultBlocks.length - 1];
-    lastBlock.content += `\n\n[New message from user: ${interruptText}]`;
+  const toolMessage: ToolModelMessage = { role: "tool", content: resultBlocks };
+  messages.push(toolMessage);
+  if (interruptText) {
+    messages.push({
+      role: "user",
+      content: `[New message from user: ${interruptText}]`,
+    });
   }
-
-  messages.push({ role: "user", content: resultBlocks });
 }

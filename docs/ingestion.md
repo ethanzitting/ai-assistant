@@ -2,7 +2,7 @@
 
 What data comes into the assistant, what doesn't, and how it gets in. Implements the "senses" primitive from [primitives.md](primitives.md). Per-source processing pipelines (what happens *after* ingestion) live in [data-lifecycle.md](data-lifecycle.md).
 
-> **Status:** The isolated **ingestion container** described here is the target architecture and is **not yet built**. Today, all processing — Telegram intake, Deepgram transcription, Mistral OCR, and Gemini embeddings — runs inside the **agent container**, and `web_search` is Anthropic's server-side tool invoked directly by the agent. The isolation boundary, emission channel, and email/web-fetch pipelines are future work (V2). Sections below describe that target.
+> **Status:** The isolated **ingestion container** described here is the target architecture and is **not yet built**. Today, Telegram intake, Deepgram transcription, Mistral OCR, and Gemini embeddings run inside the **agent container**. Direct web search is disabled; the isolation boundary, emission channel, and email/web-fetch pipelines are future work (V2). Sections below describe that target.
 
 ## Data trust principle
 
@@ -37,14 +37,14 @@ The Telegram bot is also the primary inbound interface during the prototype phas
 
 ## Web search and fetching (research flows)
 
-All web interaction — Anthropic web search and direct URL fetching — runs through the ingestion container, never the agent. Web search results and fetched pages are untrusted external content, just like emails and documents, so they belong behind the same isolation boundary: processed by the ingestion LLM, emitted as structured records through the schema-validated emission channel, validated by the agent before acting on them.
+In the target architecture, all web interaction — search and direct URL fetching — runs through the ingestion container, never the agent. Web search results and fetched pages are untrusted external content, just like emails and documents, so they belong behind the same isolation boundary: processed by the ingestion LLM, emitted as structured records through the schema-validated emission channel, validated by the agent before acting on them.
 
 This prevents a critical attack vector: if web search ran directly in the agent, a prompt injection in a search result could influence an LLM call with full system privileges (database writes, knowledge graph updates, preference changes). Routing through ingestion means a successful injection can only produce schema-valid emissions — the same constrained blast radius as a compromised email.
 
 **Two constraints on web fetching:**
 
 1. **Only triggered by explicit user requests routed through the agent.** The ingestion container never autonomously follows URLs found in emails, documents, or other ingested content. The agent decides "user wants this researched" and instructs ingestion to search or fetch. This breaks the email → URL → injection chain. See [security.md](security.md).
-2. **The agent never enables web search on its own LLM calls.** The agent's Anthropic API calls are for reasoning over trusted, already-validated context (knowledge graph data, validated emissions, user messages). Untrusted web content never enters a privileged LLM call.
+2. **The agent never receives raw web content.** Its model calls reason over trusted, already-validated context (knowledge graph data, validated emissions, user messages). Direct web search remains disabled until this boundary exists.
 
 ### Research archive policy
 

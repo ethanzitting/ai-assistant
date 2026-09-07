@@ -25,7 +25,7 @@ Docker Compose defines the services — see `docker-compose.yml` for the actual 
 
 **No `.env` files.** All secrets live in 1Password and are retrieved at runtime via `op run`. See [security.md](security.md).
 
-The LLM reasoning layer is **not hosted** — it's API calls to Claude or OpenAI. No GPU needed. The server is an orchestrator.
+The LLM reasoning layer is **not hosted** — Vercel AI SDK currently routes model calls to Fireworks AI's US endpoint. No GPU needed. The server is an orchestrator, and the provider boundary can be changed later in `src/ai/models.ts`.
 
 ## Sharing the host
 

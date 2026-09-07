@@ -23,7 +23,7 @@ Pass an "items" array — each element is one of:
   { type: "relationship", relationship: { entity_a_name: "Robin Whitfield", entity_b_name: "Dana Whitfield", type: "spouse" } }
 
 Create entities BEFORE facts/relationships that reference them. Old fact values are superseded automatically. "Already known" or "already exists" means the data is persisted — never retry or rephrase.`,
-    input_schema: {
+    inputSchema: {
       type: "object" as const,
       properties: {
         items: {
