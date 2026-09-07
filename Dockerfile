@@ -10,4 +10,4 @@ COPY src/ src/
 
 RUN deno install
 
-CMD ["deno", "run", "--allow-net", "--allow-env", "--allow-read", "src/main.ts"]
+CMD ["deno", "run", "--allow-net", "--allow-env", "--allow-read", "--allow-sys=hostname", "src/main.ts"]

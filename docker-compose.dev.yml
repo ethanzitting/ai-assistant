@@ -7,4 +7,4 @@ services:
     volumes:
       - ${JARVIS_ROOT:-.}/src:/app/src
       - ${JARVIS_ROOT:-.}/deno.json:/app/deno.json
-    command: ["deno", "run", "--watch", "--allow-net", "--allow-env", "--allow-read", "src/main.ts"]
+    command: ["deno", "run", "--watch", "--allow-net", "--allow-env", "--allow-read", "--allow-sys=hostname", "src/main.ts"]
