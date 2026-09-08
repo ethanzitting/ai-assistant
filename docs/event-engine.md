@@ -1,49 +1,60 @@
 # Event & Cadence Engine
 
-The "clock" primitive — handles scheduling, reminders, and recurring tasks. Overview in [primitives.md](primitives.md). Implementation: `src/events/`.
+The clock primitive handles reminders, deadlines, and recurring tasks. The
+implementation lives in `src/events/` and runs through the scheduler in
+`src/scheduler/`.
 
-## Priority system
+## Model
 
-Every event has a priority that controls how aggressively the agent reminds you:
+- `events` stores the durable reminder or recurring series.
+- `event_occurrences` stores independently resolvable scheduled alerts.
+- `reminders` is the delivery outbox and attempt history.
 
-- **High.** Escalates across channels and repeats until acknowledged. Missed deadlines with real consequences.
-- **Medium.** Surfaces in the daily briefing and sends a notification at the appropriate time. Most events live here.
-- **Low.** Surfaces once in the daily briefing and waits. No push notification unless you ask.
+Dismiss, confirm, and complete all resolve the current occurrence. Dropping an
+event deletes the future series. Multiple alerts for one deadline are
+independent, so resolving an early alert does not cancel later ones.
 
-## Event types
+## Priority behavior
 
-- **Fixed events.** One-time, date-specific. Dentist appointment June 12 at 2pm.
-- **Deadline-driven sequences.** Hard deadline with a lead-time offset — the reminder fires based on how far in advance you need to act, not when the deadline hits.
+- **High:** sends when due, then every two hours until the occurrence is
+  resolved. There are no quiet hours.
+- **Medium:** sends when due, then appears in each daily digest until resolved.
+- **Low:** sends once when due. A date without a time becomes 8:00 AM.
 
-## Reminder rules
+All reminders are delivered to the owner's private Telegram chat. Delivery
+messages are deterministic and consume no model tokens.
 
-Every event gets reminders through one of two paths:
+## Cadences
 
-- **Custom reminders.** Specific times or offsets you define for that event.
-- **Category defaults.** Events belong to a category with default reminder offsets. Custom reminders override category defaults.
+- **One-time:** one exact date and time.
+- **Deadline sequence:** independent alerts at one or more minute offsets before
+  a deadline.
+- **Fixed recurring:** advances from the previous scheduled time, regardless of
+  when the prior occurrence is resolved.
+- **Interval from completion:** advances from the time the current occurrence is
+  resolved.
+- **Monthly calendar patterns:** nth weekday or first/last Monday-Friday.
+  Holiday calendars are not applied.
 
-If an event has neither, it falls back to a global default based on its priority.
+Cadences support days, weeks, months, and years. Every event carries an IANA
+timezone; the default is `America/Chicago`. Calendar arithmetic preserves the
+local wall-clock time across DST.
 
-## Recurring event types
+Only one unresolved occurrence is retained when a fixed recurring reminder is
+missed repeatedly. Its series continues advancing to the next future schedule.
 
-Two distinct recurrence models — implementation in `src/events/computeNextDueAt.ts`:
+## Daily digest
 
-### Fixed-schedule recurring
+At 8:00 AM America/Chicago, a scheduled event asks the primary model to write a
+concise digest. It receives every reminder due in the next seven days plus
+overdue unresolved medium-priority reminders. The scheduled turn has no tools,
+so digest generation cannot mutate reminder state.
 
-Happens on a calendar rhythm regardless of completion. *"Trash goes out every Thursday."* If you miss Thursday, the next occurrence is still next Thursday. A missed occurrence becomes an **unresolved item** tracked until explicitly resolved.
+## Delivery
 
-### Interval-from-completion recurring
+The scheduler runs `reminder_delivery` every minute. It atomically claims due
+outbox rows, sends them through Telegram with retry, and records successful
+delivery. Stale claims return to the pending state after ten minutes. Dropping
+or resolving an occurrence cancels its pending deliveries.
 
-Needs at least N days/weeks/months between occurrences. *"Change furnace filter every 90 days."* Completing the task resets the timer — the next occurrence is computed from the actual completion date.
-
-Both types require explicit resolution when missed. The distinction matters for scheduling: fixed-schedule keeps the calendar rhythm, interval-from-completion resets from actual completion.
-
-### Computed column: `next_due_at`
-
-The `events` table includes `next_due_at TIMESTAMPTZ` that caches the next due date. Application code updates it on completion or recurrence computation. Schema: `migrations/005_events_next_due_at.sql`. This turns "what's due this week" into an indexed lookup instead of computing next occurrence for every active recurring event.
-
-## Conditional triggers
-
-Remind based on state changes, not dates. *"When checking balance drops below $2,000."* *"If I haven't heard back from the contractor in 5 days."*
-
-> **Open question:** Conditional triggers need a polling/eval loop. Designed alongside the reasoning layer or as its own scheduler?
+Conditional triggers and snoozing are intentionally not implemented.

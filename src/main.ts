@@ -4,11 +4,10 @@ import { runEventLoop } from "@/engine/runEventLoop.ts";
 import { createTelegramBot } from "@/telegram/createTelegramBot.ts";
 import { setBotInstance } from "@/telegram/sendTelegramMessage.ts";
 import { startScheduler } from "@/scheduler/startScheduler.ts";
-import { info, warn, error } from "@/logger.ts";
+import { error, info, warn } from "@/logger.ts";
 
 async function healthCheck(): Promise<void> {
-  const result =
-    await db`SELECT now() AS time, current_database() AS database`;
+  const result = await db`SELECT now() AS time, current_database() AS database`;
   info("startup", "Connected to database", {
     database: result[0].database,
     time: String(result[0].time),
@@ -47,7 +46,7 @@ async function main(): Promise<void> {
 
   bot.start({ onStart: () => info("startup", "Telegram bot started") });
 
-  startScheduler();
+  startScheduler(queue);
 
   await runEventLoop(queue);
 }

@@ -1,11 +1,15 @@
 import { getJobHandler } from "@/scheduler/jobRegistry.ts";
 import { startJobRun } from "@/scheduler/startJobRun.ts";
 import { finishJobRun } from "@/scheduler/finishJobRun.ts";
-import { info, warn, error } from "@/logger.ts";
+import { error, info, warn } from "@/logger.ts";
+import type { EventQueue } from "@/engine/eventQueue.ts";
 
 // Shared by the scheduler tick and the manual make target, so a hand-run sync lands in job_runs
 // with the same bookkeeping as a scheduled one.
-export async function runJob(jobName: string): Promise<void> {
+export async function runJob(
+  jobName: string,
+  queue?: EventQueue,
+): Promise<void> {
   const handler = getJobHandler(jobName);
   if (!handler) {
     warn("scheduler", "No handler registered for job", { jobName });
@@ -16,7 +20,7 @@ export async function runJob(jobName: string): Promise<void> {
   info("scheduler", "Running job", { jobName });
 
   try {
-    const detail = await handler(jobName);
+    const detail = await handler(jobName, queue);
     await finishJobRun({ runId, status: "ok", detail });
     info("scheduler", "Job finished", { jobName, ...detail });
   } catch (err: unknown) {

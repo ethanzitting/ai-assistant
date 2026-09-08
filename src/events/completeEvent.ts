@@ -1,44 +1,108 @@
 import { db } from "@/db.ts";
 import { computeNextDueAt } from "@/events/computeNextDueAt.ts";
+import { insertEventOccurrences } from "@/events/insertEventOccurrences.ts";
 import type { RecurrenceRule } from "@/events/manageEventsSchema.ts";
 import type { ToolResult } from "@/tools/toolTypes.ts";
 import { trace } from "@/trace.ts";
 
-export async function completeEvent(eventId: string, traceId: string): Promise<ToolResult> {
-  const result = await db`
-    UPDATE events
-    SET status = 'completed', last_completed_at = now()
-    WHERE id = ${eventId} AND status = 'active'
-    RETURNING id, title, recurrence_rule
-  `;
-
-  if (result.length === 0) {
-    return { content: `No active event found with id ${eventId}.`, isError: true };
-  }
-
-  const completedEvent = result[0];
-  await trace(traceId, "db.update", { table: "events", id: eventId, op: "complete", title: completedEvent.title });
-
-  if (completedEvent.recurrence_rule) {
-    await advanceRecurrence(eventId, completedEvent.recurrence_rule as RecurrenceRule, traceId);
-    return { content: `Completed "${completedEvent.title}" and scheduled next occurrence.` };
-  }
-
-  return { content: `Completed "${completedEvent.title}".` };
+interface ActiveEvent {
+  id: string;
+  title: string;
+  type: string;
+  recurrence_rule: RecurrenceRule | null;
+  timezone: string;
 }
 
-async function advanceRecurrence(
+export async function completeEvent(
   eventId: string,
-  recurrenceRule: RecurrenceRule,
   traceId: string,
-): Promise<void> {
-  const nextDueAt = computeNextDueAt({ recurrence_rule: recurrenceRule });
-  if (!nextDueAt) return;
+): Promise<ToolResult> {
+  let resolved = false;
+  let event: ActiveEvent | undefined;
 
-  await db`
-    UPDATE events
-    SET status = 'active', next_due_at = ${nextDueAt}
-    WHERE id = ${eventId}
+  await db.begin(async (tx) => {
+    const rows = await tx`
+      SELECT id, title, type, recurrence_rule, timezone
+      FROM events WHERE id = ${eventId} AND status = 'active'
+      FOR UPDATE
+    `;
+    event = rows[0] as unknown as ActiveEvent | undefined;
+    if (!event) return;
+
+    const occurrences = await tx`
+      UPDATE event_occurrences
+      SET status = 'resolved', resolved_at = now()
+      WHERE id = (
+        SELECT id FROM event_occurrences
+        WHERE event_id = ${eventId} AND status IN ('pending', 'unresolved')
+        ORDER BY notified_at DESC NULLS LAST, due_at
+        LIMIT 1
+      )
+      RETURNING id
+    `;
+    if (occurrences.length === 0) return;
+    resolved = true;
+
+    await tx`
+      UPDATE reminders SET status = 'cancelled', claimed_at = NULL
+      WHERE occurrence_id = ${
+      occurrences[0].id
+    } AND status IN ('pending', 'sending')
+    `;
+    await advanceAfterResolution(tx, event);
+  });
+
+  if (!event) {
+    return {
+      content: `No active reminder found with id ${eventId}.`,
+      isError: true,
+    };
+  }
+  if (!resolved) {
+    return {
+      content: `No unresolved occurrence found for "${event.title}".`,
+      isError: true,
+    };
+  }
+
+  await trace(traceId, "db.update", {
+    table: "event_occurrences",
+    eventId,
+    op: "resolve",
+  });
+  return { content: `Resolved the current occurrence of "${event.title}".` };
+}
+
+async function advanceAfterResolution(
+  sql: any,
+  event: ActiveEvent,
+): Promise<void> {
+  if (event.type === "interval_recurring" && event.recurrence_rule) {
+    const nextDueAt = computeNextDueAt(
+      event.recurrence_rule,
+      new Date(),
+      event.timezone,
+    );
+    await insertEventOccurrences(sql, event.id, nextDueAt, [0]);
+    await sql`UPDATE events SET last_completed_at = now() WHERE id = ${event.id}`;
+    return;
+  }
+
+  if (event.type === "fixed_recurring") {
+    await sql`UPDATE events SET last_completed_at = now() WHERE id = ${event.id}`;
+    return;
+  }
+
+  const [remaining] = await sql`
+    SELECT id FROM event_occurrences
+    WHERE event_id = ${event.id} AND status IN ('pending', 'unresolved')
+    LIMIT 1
   `;
-  await trace(traceId, "db.update", { table: "events", id: eventId, op: "advance_recurrence", nextDueAt });
+  await sql`
+    UPDATE events
+    SET status = ${
+    remaining ? "active" : "completed"
+  }, last_completed_at = now()
+    WHERE id = ${event.id}
+  `;
 }

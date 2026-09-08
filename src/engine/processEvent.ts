@@ -2,6 +2,7 @@ import type { LanguageModelUsage, ModelMessage } from "ai";
 import { generateModelResponse } from "@/ai/generateModelResponse.ts";
 import { getAssistantMessage } from "@/ai/getAssistantMessage.ts";
 import { toTraceTokenUsage } from "@/ai/toTraceTokenUsage.ts";
+import { currentTimeContext } from "@/currentTimeContext.ts";
 import { getToolSchemas } from "@/tools/toolRegistry.ts";
 import { persistMessage } from "@/conversationHistory.ts";
 import { assembleContext } from "@/prompt/assembleContext.ts";
@@ -27,6 +28,7 @@ export async function processEvent(
   const chatType = (payload.chat_type as string) ?? undefined;
   const respond = (payload.respond as boolean) ?? true;
   const metadata = extractMetadata(payload);
+  const persistInbound = respond && event.type === "user_message";
 
   await trace(traceId, "event.received", {
     type: event.type,
@@ -38,7 +40,7 @@ export async function processEvent(
     respond,
   });
 
-  if (respond) {
+  if (persistInbound) {
     await persistMessage({
       role: "user",
       content: userMessage,
@@ -53,11 +55,18 @@ export async function processEvent(
     chatType,
   );
 
-  if (!respond) {
-    ensureEndsWithUser(messages, userMessage);
+  if (event.type === "scheduled") {
+    messages.push({ role: "user", content: userMessage });
+  } else if (!persistInbound) {
+    appendUnpersistedUserMessage(messages, userMessage);
+  }
+  if (event.type === "user_message") {
+    appendToLastUserMessage(messages, currentTimeContext());
   }
 
-  const prefetchSummary = await prefetchContext(userMessage);
+  const prefetchSummary = event.type === "user_message"
+    ? await prefetchContext(userMessage)
+    : null;
   if (prefetchSummary) {
     appendToLastUserMessage(messages, prefetchSummary);
   }
@@ -69,7 +78,7 @@ export async function processEvent(
     messages,
   });
 
-  const tools = getToolSchemas();
+  const tools = event.type === "scheduled" ? {} : getToolSchemas();
   await trace(traceId, "model.request", {
     messageCount: messages.length,
     toolCount: Object.keys(tools).length,
@@ -167,12 +176,15 @@ async function deliverResponse(
   });
 }
 
-function ensureEndsWithUser(
+function appendUnpersistedUserMessage(
   messages: ModelMessage[],
   userMessage: string,
 ): void {
   const last = messages[messages.length - 1];
-  if (!last || last.role === "user") return;
+  if (last?.role === "user" && typeof last.content === "string") {
+    last.content = `${last.content}\n\n${userMessage}`;
+    return;
+  }
   messages.push({ role: "user", content: userMessage });
 }
 

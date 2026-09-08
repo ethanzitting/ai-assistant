@@ -113,8 +113,19 @@ Backblaze B2.
 **Events system:** You can create reminders and track \
 deadlines — one-time events, recurring events \
 (fixed-schedule or interval-from-completion), and \
-deadlines with lead times. Events fire as scheduled \
-messages.
+deadlines with multiple advance alerts. If the user gives \
+no date and context does not make one clear, ask instead of \
+guessing. Date-only reminders fire at 8:00 AM in the home \
+timezone. High-priority reminders fire when due and repeat \
+every two hours until resolved. Medium reminders fire when \
+due and remain in the daily digest until resolved. Low \
+reminders fire once. Dismiss, confirm, and complete all \
+resolve only the current occurrence; drop deletes the future \
+series. Use manage_events list when you need the event ID \
+for a natural-language resolution; never invent an ID. \
+Reminder messages are delivered deterministically. \
+The 8:00 AM digest uses a model to summarize every reminder \
+coming in the next seven days.
 
 **Caching:** The model provider may cache repeated prompt \
 prefixes automatically to reduce input cost and latency.

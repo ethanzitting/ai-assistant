@@ -13,16 +13,16 @@ scheduler tick → claim due scheduled_jobs → run handler as plain code → jo
 ```
 
 - **Single-threaded event loop**: messages queue up, process one at a time
-- **Scheduler runs beside the event loop, not through it**: `startScheduler()`
-  ticks every 60s and calls job handlers directly. A job is either
-  interval-based (`interval_seconds`) or daily at a wall-clock time
-  (`daily_at_local_time` + `timezone`); the daily case is computed by the
-  `next_daily_run` SQL function inside the same atomic claim, so it neither
-  drifts nor needs DST arithmetic of ours. Scheduled work is deterministic code,
-  so it does not spend a model turn. A handler that genuinely needs judgment (a
-  future daily briefing) should push a queue event instead of answering for
-  itself. Reminders are still not wired up — the `reminders` table has no
-  runner, but `src/scheduler/jobRegistry.ts` is now the seam for one.
+- **Scheduler runs beside the event loop**: `startScheduler(queue)` ticks every
+  60s and calls job handlers directly. A job is either interval-based
+  (`interval_seconds`) or daily at a wall-clock time (`daily_at_local_time` +
+  `timezone`); the daily case is computed by the `next_daily_run` SQL function
+  inside the same atomic claim, so it neither drifts nor needs DST arithmetic of
+  ours. Scheduled work is deterministic code, so it does not spend a model turn.
+  A handler that genuinely needs judgment (a contextual response) pushes a queue
+  event instead of answering for itself. Reminder delivery is deterministic and
+  polls once a minute; the 8:00 AM reminder digest enters the event queue for
+  model-written context.
 - **Tool loop**: the model can call tools up to 50 iterations per turn
   (`MAX_TOOL_ITERATIONS` in `handleToolUseResponse.ts`)
 - **Conversation history**: stored in `conversations` table, truncated to ~20k
@@ -37,7 +37,7 @@ scheduler tick → claim due scheduled_jobs → run handler as plain code → jo
 | --------------- | ------------------------------------------------------------------------- | -------------------------------------------------- |
 | Knowledge graph | Entities, facts, relationships                                            | `src/knowledge/`                                   |
 | Semantic search | Embeddings + hybrid (vector + keyword) retrieval over the KG and archives | `src/embeddings/`, `src/knowledge/hybridSearch.ts` |
-| Events          | Reminders, deadlines, recurring items                                     | `src/events/`                                      |
+| Events          | Reminder occurrences, delivery, deadlines, recurring items                | `src/events/`                                      |
 | Audio           | Voice note transcription (Deepgram nova-2)                                | `src/audio/`                                       |
 | Vision          | Describes photos at ingest so charts are searchable by content            | `src/vision/`                                      |
 | Archive         | File storage to Backblaze B2                                              | `src/archive/`                                     |
@@ -68,7 +68,8 @@ with an error telling the model to batch instead of retry. Current tools:
   from a `search_archives` hit
 - `remember` — batch-store items (entities, facts, relationships) with Valibot
   validation
-- `manage_events` — CRUD for reminders and deadlines
+- `manage_events` — create/update/list reminders, resolve one occurrence, or
+  delete a series
 - `get_calendar` — placeholder (not yet wired to Google Calendar)
 - `query_finances` — spending, balances, and transaction search over the Plaid
   tables; the tool does the arithmetic and returns computed totals so the model
@@ -86,10 +87,10 @@ with an error telling the model to batch instead of retry. Current tools:
 ### Database
 
 Postgres with pgvector extension. Tables: `entities`, `facts`, `relationships`,
-`conversations`, `chats`, `events`, `reminders`, `engine_trace`,
-`archived_files`, `document_chunks`, `audit_log`, `schema_migrations`,
-`scheduled_jobs`, `job_runs`, `plaid_items`, `accounts`, `transactions`,
-`category_rules`, `categories`, `people`, `transaction_splits`,
+`conversations`, `chats`, `events`, `event_occurrences`, `reminders`,
+`engine_trace`, `archived_files`, `document_chunks`, `audit_log`,
+`schema_migrations`, `scheduled_jobs`, `job_runs`, `plaid_items`, `accounts`,
+`transactions`, `category_rules`, `categories`, `people`, `transaction_splits`,
 `categorization_prompts`, plus the `transaction_categories` view.
 
 `audit_log` is a leftover from `004_skills_and_config.sql` — nothing in `src/`
@@ -191,7 +192,7 @@ silent, permanent gap. Replay is safe because every write upserts on
 
 **Migrations apply in filename-sort order** (`scripts/migrate.sh`). Numbers
 aren't strictly unique historically (two `006_*` files exist); the latest is
-`020_daily_jobs.sql`, so the next is `021`.
+`021_reminder_delivery.sql`, so the next is `022`.
 
 ## Dev workflow
 

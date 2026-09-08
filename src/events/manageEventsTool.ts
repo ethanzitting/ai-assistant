@@ -4,79 +4,36 @@ import { updateEvent } from "@/events/updateEvent.ts";
 import { listEvents } from "@/events/listEvents.ts";
 import { completeEvent } from "@/events/completeEvent.ts";
 import { dropEvent } from "@/events/dropEvent.ts";
-import { manageEventsInputSchema } from "@/events/manageEventsSchema.ts";
+import {
+  type EventData,
+  manageEventsInputSchema,
+} from "@/events/manageEventsSchema.ts";
+import { manageEventsToolSchema } from "@/events/manageEventsToolSchema.ts";
 import { parseToolInput } from "@/tools/parseToolInput.ts";
 
 export const manageEventsTool: ToolDefinition = {
-  schema: {
-    name: "manage_events",
-    description:
-      "Create, update, list, complete, or drop events and reminders. The create action may be called ONCE per turn — batch all new events in a single call. A second create will be rejected. List, update, complete, and drop are unrestricted. Parse natural language dates into ISO 8601.",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
-        action: {
-          type: "string",
-          enum: ["create", "update", "list", "complete", "drop"],
-          description: "The action to perform",
-        },
-        event: {
-          type: "object",
-          properties: {
-            title: { type: "string" },
-            type: {
-              type: "string",
-              enum: ["fixed", "deadline", "fixed_recurring", "interval_recurring"],
-            },
-            priority: { type: "string", enum: ["high", "medium", "low"] },
-            dtstart: { type: "string", description: "ISO 8601 datetime" },
-            dtend: { type: "string", description: "ISO 8601 datetime" },
-            deadline: { type: "string", description: "ISO 8601 datetime" },
-            lead_time_days: { type: "number" },
-            recurrence_rule: {
-              type: "object",
-              properties: {
-                interval: { type: "number" },
-                unit: { type: "string", enum: ["days", "weeks", "months"] },
-                from_completion: { type: "boolean" },
-              },
-            },
-            category: { type: "string" },
-          },
-          description: "Event details for create/update actions",
-        },
-        event_id: { type: "string", description: "Event ID for update/complete/drop" },
-        filter: {
-          type: "object",
-          properties: {
-            status: { type: "string", enum: ["active", "completed", "missed", "dropped"] },
-            type: { type: "string" },
-            from: { type: "string", description: "ISO 8601 date — list events due after this" },
-            to: { type: "string", description: "ISO 8601 date — list events due before this" },
-          },
-          description: "Filters for the list action",
-        },
-      },
-      required: ["action"],
-    },
-  },
+  schema: manageEventsToolSchema,
   handle: handleManageEvents,
 };
 
-const SCHEMA_HELP = `action="create":   { action: "create", event: { title, type, priority?, dtstart?, ... } }
-action="update":   { action: "update", event_id: "...", event: { title?, priority?, ... } }
-action="list":     { action: "list", filter?: { status?, from?, to? } }
-action="complete": { action: "complete", event_id: "..." }
-action="drop":     { action: "drop", event_id: "..." }`;
+const SCHEMA_HELP =
+  `create: { action: "create", event: {...} } or { action: "create", events: [...] }
+update: { action: "update", event_id: "...", event: {...} }
+list: { action: "list", filter?: {...} }
+complete: { action: "complete", event_id: "..." } resolves the current occurrence
+drop: { action: "drop", event_id: "..." } deletes future occurrences`;
 
-async function handleManageEvents(input: Record<string, unknown>, traceId: string): Promise<ToolResult> {
+async function handleManageEvents(
+  input: Record<string, unknown>,
+  traceId: string,
+): Promise<ToolResult> {
   const parsed = parseToolInput(manageEventsInputSchema, input, SCHEMA_HELP);
   if (!parsed.success) return parsed.error;
 
   const data = parsed.data;
   switch (data.action) {
     case "create":
-      return createEvent(data.event, traceId);
+      return createEvents(data.event, data.events, traceId);
     case "update":
       return updateEvent(data.event_id, data.event, traceId);
     case "list":
@@ -86,4 +43,25 @@ async function handleManageEvents(input: Record<string, unknown>, traceId: strin
     case "drop":
       return dropEvent(data.event_id, traceId);
   }
+}
+
+async function createEvents(
+  event: EventData | undefined,
+  events: EventData[] | undefined,
+  traceId: string,
+): Promise<ToolResult> {
+  const requested = events ?? (event ? [event] : []);
+  if (requested.length === 0) {
+    return {
+      content: "Create requires event or a non-empty events array.",
+      isError: true,
+    };
+  }
+
+  const results: ToolResult[] = [];
+  for (const item of requested) results.push(await createEvent(item, traceId));
+  return {
+    content: results.map((result) => result.content).join("\n"),
+    isError: results.every((result) => result.isError),
+  };
 }
