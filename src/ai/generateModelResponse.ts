@@ -1,7 +1,7 @@
 import { generateText, type ModelMessage, type ToolSet } from "ai";
 import { getModel } from "@/ai/models.ts";
 
-const MAX_OUTPUT_TOKENS = 8192;
+const MAX_OUTPUT_TOKENS = 32_768;
 
 interface GenerateModelResponseOptions {
   systemPrompt: string;
