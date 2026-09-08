@@ -4,6 +4,7 @@ import { updateEvent } from "@/events/updateEvent.ts";
 import { listEvents } from "@/events/listEvents.ts";
 import { completeEvent } from "@/events/completeEvent.ts";
 import { dropEvent } from "@/events/dropEvent.ts";
+import { eventToolResult } from "@/events/eventToolResult.ts";
 import {
   type EventData,
   manageEventsInputSchema,
@@ -28,7 +29,13 @@ async function handleManageEvents(
   traceId: string,
 ): Promise<ToolResult> {
   const parsed = parseToolInput(manageEventsInputSchema, input, SCHEMA_HELP);
-  if (!parsed.success) return parsed.error;
+  if (!parsed.success) {
+    return eventToolResult({
+      operation: "invalid",
+      changed: false,
+      reason: parsed.error.content,
+    });
+  }
 
   const data = parsed.data;
   switch (data.action) {
@@ -52,16 +59,20 @@ async function createEvents(
 ): Promise<ToolResult> {
   const requested = events ?? (event ? [event] : []);
   if (requested.length === 0) {
-    return {
-      content: "Create requires event or a non-empty events array.",
-      isError: true,
-    };
+    return eventToolResult({
+      operation: "create",
+      changed: false,
+      reason: "missing_event",
+    });
   }
 
   const results: ToolResult[] = [];
   for (const item of requested) results.push(await createEvent(item, traceId));
-  return {
-    content: results.map((result) => result.content).join("\n"),
-    isError: results.every((result) => result.isError),
-  };
+  const itemResults = results.map((result) => JSON.parse(result.content) as Record<string, unknown>);
+  return eventToolResult({
+    operation: "create",
+    changed: results.some((result) => !result.isError),
+    results: itemResults,
+    reason: results.every((result) => result.isError) ? "no_event_created" : undefined,
+  });
 }

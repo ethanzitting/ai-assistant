@@ -1,4 +1,5 @@
 import { db } from "@/db.ts";
+import { eventToolResult } from "@/events/eventToolResult.ts";
 import type { ToolResult } from "@/tools/toolTypes.ts";
 import { trace } from "@/trace.ts";
 
@@ -27,10 +28,12 @@ export async function dropEvent(
   });
 
   if (!title) {
-    return {
-      content: `No active event found with id ${eventId}.`,
-      isError: true,
-    };
+    return eventToolResult({
+      operation: "drop",
+      changed: false,
+      eventId,
+      reason: "no_active_event",
+    });
   }
 
   await trace(traceId, "db.update", {
@@ -39,5 +42,11 @@ export async function dropEvent(
     op: "drop",
     title,
   });
-  return { content: `Deleted reminder "${title}" and all future occurrences.` };
+  return eventToolResult({
+    operation: "drop",
+    changed: true,
+    eventId,
+    title,
+    status: "dropped",
+  });
 }

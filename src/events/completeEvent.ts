@@ -1,5 +1,6 @@
 import { db } from "@/db.ts";
 import { computeNextDueAt } from "@/events/computeNextDueAt.ts";
+import { eventToolResult } from "@/events/eventToolResult.ts";
 import { insertEventOccurrences } from "@/events/insertEventOccurrences.ts";
 import type { RecurrenceRule } from "@/events/manageEventsSchema.ts";
 import type { ToolResult } from "@/tools/toolTypes.ts";
@@ -53,16 +54,21 @@ export async function completeEvent(
   });
 
   if (!event) {
-    return {
-      content: `No active reminder found with id ${eventId}.`,
-      isError: true,
-    };
+    return eventToolResult({
+      operation: "complete",
+      changed: false,
+      eventId,
+      reason: "no_active_event",
+    });
   }
   if (!resolved) {
-    return {
-      content: `No unresolved occurrence found for "${event.title}".`,
-      isError: true,
-    };
+    return eventToolResult({
+      operation: "complete",
+      changed: false,
+      eventId,
+      title: event.title,
+      reason: "no_unresolved_occurrence",
+    });
   }
 
   await trace(traceId, "db.update", {
@@ -70,7 +76,12 @@ export async function completeEvent(
     eventId,
     op: "resolve",
   });
-  return { content: `Resolved the current occurrence of "${event.title}".` };
+  return eventToolResult({
+    operation: "complete",
+    changed: true,
+    eventId,
+    title: event.title,
+  });
 }
 
 async function advanceAfterResolution(

@@ -1,5 +1,6 @@
 import { db } from "@/db.ts";
 import { computeNextDueAt } from "@/events/computeNextDueAt.ts";
+import { eventToolResult } from "@/events/eventToolResult.ts";
 import type { EventDataPartial } from "@/events/manageEventsSchema.ts";
 import { prepareEventData } from "@/events/prepareEventData.ts";
 import { replaceOpenEventSchedule } from "@/events/replaceOpenEventSchedule.ts";
@@ -27,7 +28,12 @@ export async function updateEvent(
     changes[key as keyof typeof changes] !== undefined
   );
   if (changedFields.length === 0) {
-    return { content: "No valid fields to update.", isError: true };
+    return eventToolResult({
+      operation: "update",
+      changed: false,
+      eventId,
+      reason: "no_valid_fields",
+    });
   }
 
   let title: string | undefined;
@@ -99,22 +105,26 @@ export async function updateEvent(
       }
     });
   } catch (err: unknown) {
-    return {
-      content: err instanceof Error ? err.message : String(err),
-      isError: true,
-    };
+    return eventToolResult({
+      operation: "update",
+      changed: false,
+      eventId,
+      reason: err instanceof Error ? err.message : String(err),
+    });
   }
 
   if (!title) {
-    return {
-      content: `No active reminder found with id ${eventId}.`,
-      isError: true,
-    };
+    return eventToolResult({
+      operation: "update",
+      changed: false,
+      eventId,
+      reason: "no_active_event",
+    });
   }
   await trace(traceId, "db.update", {
     table: "events",
     id: eventId,
     fields: changedFields,
   });
-  return { content: `Updated reminder "${title}".` };
+  return eventToolResult({ operation: "update", changed: true, eventId, title });
 }

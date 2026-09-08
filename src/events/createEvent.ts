@@ -1,5 +1,6 @@
 import { db } from "@/db.ts";
 import { computeNextDueAt } from "@/events/computeNextDueAt.ts";
+import { eventToolResult } from "@/events/eventToolResult.ts";
 import { insertEventOccurrences } from "@/events/insertEventOccurrences.ts";
 import type { EventData } from "@/events/manageEventsSchema.ts";
 import { prepareEventData } from "@/events/prepareEventData.ts";
@@ -18,10 +19,11 @@ export async function createEvent(
   try {
     prepared = prepareEventData(event);
   } catch (err: unknown) {
-    return {
-      content: err instanceof Error ? err.message : String(err),
-      isError: true,
-    };
+    return eventToolResult({
+      operation: "create",
+      changed: false,
+      reason: err instanceof Error ? err.message : String(err),
+    });
   }
 
   const embedding = await safeEmbed(prepared.title, "stored-document");
@@ -35,10 +37,13 @@ export async function createEvent(
         existingTitle: duplicate.title,
         distance: duplicate.distance,
       });
-      return {
-        content:
-          `Event "${duplicate.title}" already exists on that date (id: ${duplicate.id}) — not created.`,
-      };
+      return eventToolResult({
+        operation: "create",
+        changed: false,
+        eventId: duplicate.id,
+        title: duplicate.title,
+        reason: "duplicate_event",
+      });
     }
   }
 
@@ -92,7 +97,11 @@ export async function createEvent(
     id: created.id,
     title: created.title,
   });
-  return {
-    content: `Created reminder "${created.title}" (id: ${created.id}).`,
-  };
+  return eventToolResult({
+    operation: "create",
+    changed: true,
+    eventId: created.id,
+    title: created.title,
+    status: "active",
+  });
 }

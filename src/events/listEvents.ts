@@ -1,4 +1,5 @@
 import { db } from "@/db.ts";
+import { eventToolResult } from "@/events/eventToolResult.ts";
 import type { EventFilter } from "@/events/manageEventsSchema.ts";
 import type { ToolResult } from "@/tools/toolTypes.ts";
 
@@ -40,16 +41,20 @@ export async function listEvents(filter: EventFilter): Promise<ToolResult> {
     LIMIT 50
   ` as unknown as ListedEvent[];
 
-  if (results.length === 0) {
-    return { content: `No reminders found with status "${status}".` };
-  }
-  return {
-    content: results.map((event) => {
-      const dueAt = event.due_at?.toISOString() ?? "no current occurrence";
-      const occurrence = event.occurrence_status
-        ? `/${event.occurrence_status}`
-        : "";
-      return `- ${event.title} [${event.type}/${event.priority}${occurrence}] due: ${dueAt} (${event.timezone}) (id: ${event.id})`;
-    }).join("\n"),
-  };
+  return eventToolResult({
+    operation: "list",
+    changed: false,
+    status,
+    events: results.map((event) => ({
+      id: event.id,
+      title: event.title,
+      type: event.type,
+      priority: event.priority,
+      status: event.status,
+      dueAt: event.due_at?.toISOString() ?? null,
+      occurrenceStatus: event.occurrence_status,
+      timezone: event.timezone,
+      recurrenceRule: event.recurrence_rule,
+    })),
+  });
 }

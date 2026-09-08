@@ -5,6 +5,7 @@ import { createTelegramBot } from "@/telegram/createTelegramBot.ts";
 import { setBotInstance } from "@/telegram/sendTelegramMessage.ts";
 import { startScheduler } from "@/scheduler/startScheduler.ts";
 import { error, info, warn } from "@/logger.ts";
+import { trace } from "@/trace.ts";
 
 async function healthCheck(): Promise<void> {
   const result = await db`SELECT now() AS time, current_database() AS database`;
@@ -27,6 +28,12 @@ async function healthCheck(): Promise<void> {
       tables: tables.map((row) => row.table_name).join(", "),
     });
   }
+
+  const traceId = crypto.randomUUID();
+  const traceReady = await trace(traceId, "startup.trace_ready", {
+    database: String(result[0].database),
+  });
+  if (!traceReady) throw new Error("Trace storage is unavailable");
 }
 
 async function main(): Promise<void> {
