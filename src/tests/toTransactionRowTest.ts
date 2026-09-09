@@ -2,7 +2,9 @@ import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { toTransactionRow } from "@/finance/toTransactionRow.ts";
 import type { PlaidTransaction } from "@/plaid/fetchTransactionPage.ts";
 
-function plaidTransaction(overrides: Partial<PlaidTransaction> = {}): PlaidTransaction {
+function plaidTransaction(
+  overrides: Partial<PlaidTransaction> = {},
+): PlaidTransaction {
   return {
     transaction_id: "txn_1",
     account_id: "acct_plaid_1",
@@ -15,7 +17,10 @@ function plaidTransaction(overrides: Partial<PlaidTransaction> = {}): PlaidTrans
     pending: false,
     pending_transaction_id: null,
     payment_channel: "in store",
-    personal_finance_category: { primary: "FOOD_AND_DRINK", detailed: "FOOD_AND_DRINK_GROCERIES" },
+    personal_finance_category: {
+      primary: "FOOD_AND_DRINK",
+      detailed: "FOOD_AND_DRINK_GROCERIES",
+    },
     ...overrides,
   };
 }
@@ -51,7 +56,10 @@ Deno.test("toTransactionRow keeps Plaid's amount sign", () => {
   const paycheck = toTransactionRow({
     transaction: plaidTransaction({
       amount: -2400,
-      personal_finance_category: { primary: "INCOME", detailed: "INCOME_WAGES" },
+      personal_finance_category: {
+        primary: "INCOME",
+        detailed: "INCOME_WAGES",
+      },
     }),
     accountId: "acct",
     rules: [],
@@ -61,6 +69,32 @@ Deno.test("toTransactionRow keeps Plaid's amount sign", () => {
   assertEquals(spend.transaction_type, "expense");
   assertEquals(paycheck.amount, -2400);
   assertEquals(paycheck.transaction_type, "income");
+  assertEquals(paycheck.category, "Unsorted");
+  assertEquals(paycheck.category_source, null);
+  assertEquals(paycheck.needs_category, false);
+});
+
+Deno.test("toTransactionRow never queues a transfer for a spending category", () => {
+  const transfer = toTransactionRow({
+    transaction: plaidTransaction({
+      personal_finance_category: {
+        primary: "TRANSFER_OUT",
+        detailed: "TRANSFER_OUT_ACCOUNT_TRANSFER",
+      },
+    }),
+    accountId: "acct",
+    rules: [{
+      match_type: "merchant",
+      match_value: "trader joe's",
+      category: "Groceries",
+      policy: "auto",
+    }],
+  });
+
+  assertEquals(transfer.transaction_type, "transfer");
+  assertEquals(transfer.category, "Unsorted");
+  assertEquals(transfer.category_source, null);
+  assertEquals(transfer.needs_category, false);
 });
 
 // applyTransactionPage reads this back out to retire the pending row the posted one settles, so the

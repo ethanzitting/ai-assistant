@@ -1,5 +1,8 @@
 import type { PlaidTransaction } from "@/plaid/fetchTransactionPage.ts";
-import { resolveCategory, type CategoryRule } from "@/finance/resolveCategory.ts";
+import {
+  type CategoryRule,
+  resolveCategory,
+} from "@/finance/resolveCategory.ts";
 import { classifyTransactionType } from "@/finance/classifyTransactionType.ts";
 
 export interface TransactionRow {
@@ -31,8 +34,15 @@ export interface ToTransactionRowArgs {
 
 export function toTransactionRow(args: ToTransactionRowArgs): TransactionRow {
   const { transaction } = args;
-  const plaidCategoryPrimary = transaction.personal_finance_category?.primary ?? null;
-  const plaidCategoryDetailed = transaction.personal_finance_category?.detailed ?? null;
+  const plaidCategoryPrimary = transaction.personal_finance_category?.primary ??
+    null;
+  const plaidCategoryDetailed =
+    transaction.personal_finance_category?.detailed ?? null;
+  const transactionType = classifyTransactionType({
+    plaidCategoryPrimary,
+    plaidCategoryDetailed,
+    amount: transaction.amount,
+  });
 
   const resolved = resolveCategory({
     merchantName: transaction.merchant_name,
@@ -51,14 +61,10 @@ export function toTransactionRow(args: ToTransactionRowArgs): TransactionRow {
     merchant_name: transaction.merchant_name,
     plaid_category_primary: plaidCategoryPrimary,
     plaid_category_detailed: plaidCategoryDetailed,
-    category: resolved.category,
-    category_source: resolved.source,
-    needs_category: resolved.needsCategory,
-    transaction_type: classifyTransactionType({
-      plaidCategoryPrimary,
-      plaidCategoryDetailed,
-      amount: transaction.amount,
-    }),
+    category: transactionType === "expense" ? resolved.category : "Unsorted",
+    category_source: transactionType === "expense" ? resolved.source : null,
+    needs_category: transactionType === "expense" && resolved.needsCategory,
+    transaction_type: transactionType,
     payment_channel: transaction.payment_channel,
     pending: transaction.pending,
     source: "plaid",

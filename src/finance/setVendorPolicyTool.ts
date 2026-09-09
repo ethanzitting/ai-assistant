@@ -16,23 +16,29 @@ export const setVendorPolicyTool: ToolDefinition = {
   schema: {
     name: "set_vendor_policy",
     description:
-      "Decide how a merchant is handled from now on. policy 'auto' with a category files every charge from that merchant silently AND applies the category to matching charges already stored, so past totals change — say so. policy 'ask' queues every charge from that merchant for a nightly question instead, which is right for a shop that could be several categories, like a supermarket. Use 'merchant' when the merchant name is known and 'description_contains' when only the raw bank text identifies it, which is the case for charges with no merchant name.",
+      "Decide how a merchant is handled from now on. Use this only when the user explicitly says 'always', 'keep asking', 'from now on', or equivalent. policy 'auto' with a category files every charge from that merchant silently AND applies the category to matching charges already stored, so past totals change — say so. policy 'ask' queues every charge from that merchant for a nightly question instead, which is right for a shop that could be several categories, like a supermarket. Use 'merchant' when the merchant name is known and 'description_contains' when only the raw bank text identifies it, which is the case for charges with no merchant name.",
     inputSchema: {
       type: "object" as const,
       properties: {
-        match_type: { type: "string", enum: ["merchant", "description_contains"] },
+        match_type: {
+          type: "string",
+          enum: ["merchant", "description_contains"],
+        },
         match_value: {
           type: "string",
-          description: "The merchant name, or text to find in the raw bank description.",
+          description:
+            "The merchant name, or text to find in the raw bank description.",
         },
         policy: {
           type: "string",
           enum: ["auto", "ask"],
-          description: "'auto' files it silently; 'ask' queues it for a nightly question.",
+          description:
+            "'auto' files it silently; 'ask' queues it for a nightly question.",
         },
         category: {
           type: "string",
-          description: "Required for 'auto'. An exact category name. Ignored for 'ask'.",
+          description:
+            "Required for 'auto'. An exact category name. Ignored for 'ask'.",
         },
       },
       required: ["match_type", "match_value", "policy"],
@@ -56,14 +62,25 @@ async function handleSetVendorPolicy(
   );
   if (!parsed.success) return parsed.error;
 
-  const { match_type: matchType, match_value: matchValue, policy, category } = parsed.data;
+  const { match_type: matchType, match_value: matchValue, policy, category } =
+    parsed.data;
 
   if (policy === "auto" && !category) {
     return { content: "An 'auto' policy needs a category.", isError: true };
   }
 
-  const result = await setVendorPolicy({ matchType, matchValue, policy, category });
-  await trace(traceId, "finance.vendor_policy", { matchValue, policy, category, ...result });
+  const result = await setVendorPolicy({
+    matchType,
+    matchValue,
+    policy,
+    category,
+  });
+  await trace(traceId, "finance.vendor_policy", {
+    matchValue,
+    policy,
+    category,
+    ...result,
+  });
 
   if (result.refusedAsTooBroad) {
     return {
@@ -75,7 +92,10 @@ async function handleSetVendorPolicy(
   }
 
   if (policy === "ask") {
-    return { content: `Every ${matchValue} charge will be queued for a nightly question.` };
+    return {
+      content:
+        `Every ${matchValue} charge will be queued for a nightly question.`,
+    };
   }
 
   return {

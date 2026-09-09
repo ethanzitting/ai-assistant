@@ -60,9 +60,13 @@ export async function transactionSearch(
   const lines = rows.map((row) => {
     const date = row.posted_date.toISOString().slice(0, 10);
     const label = row.merchant_name ?? row.description;
-    const kind = row.transaction_type === "expense" ? "" : ` [${row.transaction_type}]`;
+    const kind = row.transaction_type === "expense"
+      ? ""
+      : ` [${row.transaction_type}]`;
     const pending = row.pending ? " (pending)" : "";
-    return `${date}  ${formatMoney(row.amount)}  ${label} — ${row.categories}, ${row.account}${kind}${pending}`;
+    return `${date}  ${
+      formatMoney(row.amount)
+    }  ${label} — ${row.categories}, ${row.account}${kind}${pending}  [${row.id}]`;
   });
 
   // Reporting rows.length alone said "25 match(es)" for a month holding 156, and the system prompt

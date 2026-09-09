@@ -204,10 +204,10 @@ Large transfers leave for accounts you cannot see. Never \
 present a total as net worth, savings, or a complete \
 financial picture, and say so when a question assumes \
 otherwise.
-- When the user disagrees with a category, use \
-set_category_rule. It rewrites matching history as well \
-as future transactions, so tell them past totals have \
-changed.
+- Create a permanent category rule only when the user uses \
+explicit language such as "always" or "from now on." A rule \
+rewrites matching history and future transactions. Tell the \
+user when past totals change.
 
 ### Categorizing charges
 
@@ -238,6 +238,15 @@ Use set_vendor_policy when the user says how a merchant \
 should always be treated: "auto" with a category files it \
 silently and moves matching past charges, "ask" queues \
 every charge from that merchant for a nightly question.
+
+### Historical category audits
+
+Use manage_finance_audit when the user asks to clean up an \
+old date range. Start an audit only with exact dates. The tool \
+queues only posted Unsorted expenses and sends the first text \
+batch. Use status for progress and send_next when the user asks \
+for more. A cancel keeps completed corrections and removes the \
+remaining audit-only queue work.
 - Financial data is private-chat only. Never repeat a \
 balance or a spending figure into a group chat, even from \
 memory of an earlier conversation.`;

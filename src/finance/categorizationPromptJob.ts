@@ -46,6 +46,7 @@ async function pendingCharges(): Promise<PendingCharge[]> {
     FROM transactions t
     JOIN accounts a ON a.id = t.account_id
     WHERE t.needs_category
+      AND t.transaction_type = 'expense'
       AND NOT t.pending
       AND t.removed_at IS NULL
       AND NOT EXISTS (

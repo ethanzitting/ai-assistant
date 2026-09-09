@@ -34,7 +34,8 @@ async function handleListPending(
   const rows = await db`
     SELECT t.id, t.posted_date, t.amount, t.merchant_name, t.description
     FROM transactions t
-    WHERE t.needs_category AND NOT t.pending AND t.removed_at IS NULL
+    WHERE t.needs_category AND t.transaction_type = 'expense'
+      AND NOT t.pending AND t.removed_at IS NULL
     ORDER BY t.posted_date DESC
     LIMIT ${MAX_ROWS}
   ` as unknown as PendingRow[];

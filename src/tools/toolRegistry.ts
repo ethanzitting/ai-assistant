@@ -15,6 +15,7 @@ import { splitTransactionTool } from "@/finance/splitTransactionTool.ts";
 import { listPendingCategorizationsTool } from "@/finance/listPendingCategorizationsTool.ts";
 import { setVendorPolicyTool } from "@/finance/setVendorPolicyTool.ts";
 import { applyCategorizationBatchTool } from "@/finance/applyCategorizationBatch.ts";
+import { manageFinanceAuditTool } from "@/finance/manageFinanceAuditTool.ts";
 import {
   confirmReceiptMatchTool,
   getReceiptContentTool,
@@ -40,6 +41,7 @@ const toolDefinitions: ToolDefinition[] = [
   listPendingCategorizationsTool,
   setVendorPolicyTool,
   applyCategorizationBatchTool,
+  manageFinanceAuditTool,
   recordReceiptTool,
   listReceiptMatchesTool,
   confirmReceiptMatchTool,

@@ -25,39 +25,68 @@ export async function applyCategoryRule(
   args: ApplyCategoryRuleArgs,
 ): Promise<ApplyCategoryRuleResult> {
   const matching = await countMatching(args);
-  if (matching > MAX_ROWS_PER_RULE) return { updated: 0, refusedAsTooBroad: matching };
+  if (matching > MAX_ROWS_PER_RULE) {
+    return { updated: 0, refusedAsTooBroad: matching };
+  }
 
-  await db`
-    INSERT INTO category_rules (match_type, match_value, category)
-    VALUES (${args.matchType}, ${args.matchValue}, ${args.category})
-    ON CONFLICT (match_type, match_value)
-      DO UPDATE SET category = EXCLUDED.category, created_at = now()
-  `;
+  return await db.begin(async (tx) => {
+    await tx`
+      INSERT INTO category_rules (match_type, match_value, category, policy)
+      VALUES (${args.matchType}, ${args.matchValue}, ${args.category}, 'auto')
+      ON CONFLICT (match_type, match_value)
+        DO UPDATE SET category = EXCLUDED.category, policy = 'auto', created_at = now()
+    `;
 
-  const updated = args.matchType === "merchant"
-    ? await db`
-        UPDATE transactions SET category = ${args.category}, category_source = 'rule', updated_at = now()
-        WHERE ${rewritable(args)} AND lower(merchant_name) = lower(${args.matchValue})
-        RETURNING id
-      `
-    : await db`
-        UPDATE transactions SET category = ${args.category}, category_source = 'rule', updated_at = now()
-        WHERE ${rewritable(args)} AND description ILIKE ${likePattern(args.matchValue)} ESCAPE '\'
-        RETURNING id
+    const updated = args.matchType === "merchant"
+      ? await tx`
+          UPDATE transactions SET category = ${args.category}, category_source = 'rule',
+            needs_category = false, updated_at = now()
+          WHERE ${
+        rewritable(args)
+      } AND lower(merchant_name) = lower(${args.matchValue})
+          RETURNING id
+        `
+      : await tx`
+          UPDATE transactions SET category = ${args.category}, category_source = 'rule',
+            needs_category = false, updated_at = now()
+          WHERE ${rewritable(args)} AND description ILIKE ${
+        likePattern(args.matchValue)
+      } ESCAPE '\'
+          RETURNING id
+        `;
+
+    const transactionIds = updated.map((row) => row.id as string);
+    if (transactionIds.length > 0) {
+      await tx`
+        UPDATE categorization_batch_items SET answered_at = now()
+        WHERE transaction_id = ANY(${transactionIds}) AND answered_at IS NULL
       `;
+      await tx`
+        UPDATE categorization_batches b SET completed_at = now()
+        WHERE b.completed_at IS NULL AND NOT EXISTS (
+          SELECT 1 FROM categorization_batch_items i
+          WHERE i.batch_id = b.id AND i.answered_at IS NULL
+        )
+      `;
+    }
 
-  return { updated: updated.length };
+    return { updated: updated.length };
+  });
 }
 
 async function countMatching(args: ApplyCategoryRuleArgs): Promise<number> {
   const [{ count }] = args.matchType === "merchant"
     ? await db`
         SELECT count(*)::int AS count FROM transactions
-        WHERE ${rewritable(args)} AND lower(merchant_name) = lower(${args.matchValue})
+        WHERE ${
+      rewritable(args)
+    } AND lower(merchant_name) = lower(${args.matchValue})
       ` as unknown as [{ count: number }]
     : await db`
         SELECT count(*)::int AS count FROM transactions
-        WHERE ${rewritable(args)} AND description ILIKE ${likePattern(args.matchValue)} ESCAPE '\'
+        WHERE ${rewritable(args)} AND description ILIKE ${
+      likePattern(args.matchValue)
+    } ESCAPE '\'
       ` as unknown as [{ count: number }];
 
   return count;
@@ -69,6 +98,7 @@ async function countMatching(args: ApplyCategoryRuleArgs): Promise<number> {
 function rewritable(args: ApplyCategoryRuleArgs) {
   return db`
     removed_at IS NULL
+    AND transaction_type = 'expense'
     AND category_source IS DISTINCT FROM 'manual'
     AND category IS DISTINCT FROM ${args.category}
     AND NOT EXISTS (SELECT 1 FROM transaction_splits s WHERE s.transaction_id = transactions.id)

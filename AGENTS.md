@@ -80,6 +80,8 @@ with an error telling the model to batch instead of retry. Current tools:
   person; parts must sum to the charge exactly. Private chat only
 - `apply_categorization_batch` — apply clear category answers to the numbered
   finance batch in the user's replied message. Private chat only
+- `manage_finance_audit` — start, inspect, continue, or cancel a date-range
+  cleanup of posted `Unsorted` expenses. Private chat only
 - `list_pending_categorizations` — list charges awaiting a category outside a
   finance batch. Private chat only
 - `set_vendor_policy` — `auto` files a merchant silently, `ask` queues every
@@ -100,7 +102,8 @@ Postgres with pgvector extension. Tables: `entities`, `facts`, `relationships`,
 `schema_migrations`, `scheduled_jobs`, `job_runs`, `plaid_items`, `accounts`,
 `transactions`, `category_rules`, `categories`, `people`, `transaction_splits`,
 `categorization_batches`, `categorization_batch_items`, `transaction_receipts`,
-plus the `transaction_categories` view.
+`finance_audits`, `finance_audit_items`, `transaction_category_changes`, plus
+the `transaction_categories` view.
 
 `audit_log` is a leftover from `004_skills_and_config.sql` — nothing in `src/`
 reads or writes it.
@@ -206,7 +209,7 @@ silent, permanent gap. Replay is safe because every write upserts on
 
 **Migrations apply in filename-sort order** (`scripts/migrate.sh`). Numbers
 aren't strictly unique historically (two `006_*` files exist); the latest is
-`021_reminder_delivery.sql`, so the next is `022`.
+`025_finance_audits.sql`, so the next is `026`.
 
 ## Dev workflow
 
