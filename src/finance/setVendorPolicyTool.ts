@@ -3,6 +3,7 @@ import type { ToolDefinition, ToolResult } from "@/tools/toolTypes.ts";
 import { parseToolInput } from "@/tools/parseToolInput.ts";
 import { requirePrivateChat } from "@/finance/requirePrivateChat.ts";
 import { setVendorPolicy } from "@/finance/setVendorPolicy.ts";
+import { resolveActiveCategory } from "@/finance/resolveActiveCategory.ts";
 import { trace } from "@/trace.ts";
 
 const setVendorPolicyInputSchema = v.object({
@@ -16,7 +17,7 @@ export const setVendorPolicyTool: ToolDefinition = {
   schema: {
     name: "set_vendor_policy",
     description:
-      "Decide how a merchant is handled from now on. Use this only when the user explicitly says 'always', 'keep asking', 'from now on', or equivalent. policy 'auto' with a category files every charge from that merchant silently AND applies the category to matching charges already stored, so past totals change — say so. policy 'ask' queues every charge from that merchant for a nightly question instead, which is right for a shop that could be several categories, like a supermarket. Use 'merchant' when the merchant name is known and 'description_contains' when only the raw bank text identifies it, which is the case for charges with no merchant name.",
+      "Set one permanent merchant policy. Call this only when the user explicitly says 'always', 'keep asking', 'from now on', or equivalent. 'auto' categorizes matching expense history and future expenses. 'ask' queues future matching expenses and does not change history. Use an exact merchant name when available. Use description_contains only when merchant_name is absent.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -33,12 +34,12 @@ export const setVendorPolicyTool: ToolDefinition = {
           type: "string",
           enum: ["auto", "ask"],
           description:
-            "'auto' files it silently; 'ask' queues it for a nightly question.",
+            "'auto' categorizes history and future expenses. 'ask' queues future expenses without changing history.",
         },
         category: {
           type: "string",
           description:
-            "Required for 'auto'. An exact category name. Ignored for 'ask'.",
+            "Required for 'auto'. Case-insensitive user category name. Ignored for 'ask'.",
         },
       },
       required: ["match_type", "match_value", "policy"],
@@ -62,11 +63,35 @@ async function handleSetVendorPolicy(
   );
   if (!parsed.success) return parsed.error;
 
-  const { match_type: matchType, match_value: matchValue, policy, category } =
+  const { match_type: matchType, match_value: matchValue, policy } =
     parsed.data;
+  let category = parsed.data.category;
 
   if (policy === "auto" && !category) {
-    return { content: "An 'auto' policy needs a category.", isError: true };
+    return {
+      content: JSON.stringify({
+        operation: "set_vendor_policy",
+        changed: false,
+        reason: "auto_policy_requires_category",
+      }),
+      isError: true,
+    };
+  }
+  if (policy === "auto" && category) {
+    const resolved = await resolveActiveCategory(category);
+    if (!resolved.category) {
+      return {
+        content: JSON.stringify({
+          operation: "set_vendor_policy",
+          changed: false,
+          reason: "unknown_category",
+          requestedCategory: category,
+          validCategories: resolved.validCategories,
+        }),
+        isError: true,
+      };
+    }
+    category = resolved.category;
   }
 
   const result = await setVendorPolicy({
@@ -84,23 +109,27 @@ async function handleSetVendorPolicy(
 
   if (result.refusedAsTooBroad) {
     return {
-      content:
-        `Not saved — "${matchValue}" matches ${result.refusedAsTooBroad} transactions, too broad ` +
-        `to rewrite in one step. Use a more specific match_value.`,
+      content: JSON.stringify({
+        operation: "set_vendor_policy",
+        changed: false,
+        reason: "match_too_broad",
+        matchingTransactions: result.refusedAsTooBroad,
+      }),
       isError: true,
     };
   }
 
-  if (policy === "ask") {
-    return {
-      content:
-        `Every ${matchValue} charge will be queued for a nightly question.`,
-    };
-  }
-
   return {
-    content: result.updated === 0
-      ? `${matchValue} will file as ${category}. No stored charges matched.`
-      : `${matchValue} will file as ${category}. ${result.updated} stored charge(s) moved, so past totals changed.`,
+    content: JSON.stringify({
+      operation: "set_vendor_policy",
+      changed: true,
+      matchType,
+      matchValue,
+      policy,
+      category: category ?? null,
+      historyTransactionsChanged: result.updated,
+      queueItemsClosed: result.queueItemsClosed,
+      futureMatchingExpenses: policy === "auto" ? "categorized" : "queued",
+    }),
   };
 }

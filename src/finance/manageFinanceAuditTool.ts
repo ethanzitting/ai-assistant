@@ -97,7 +97,15 @@ async function handleFinanceAudit(
 
   const status = await financeAuditStatus(auditId);
   if (!status) return { content: "No finance audit exists.", isError: true };
-  if (action === "status") return { content: JSON.stringify(status) };
+  if (action === "status") {
+    return {
+      content: JSON.stringify({
+        operation: "finance_audit_status",
+        changed: false,
+        ...status,
+      }),
+    };
+  }
 
   if (action === "send_next") {
     if (status.status !== "active") {
@@ -118,6 +126,7 @@ async function handleFinanceAudit(
       content: JSON.stringify({
         operation: "finance_audit_send_next",
         changed: sent > 0,
+        reason: sent > 0 ? undefined : "no_unbatched_items",
         sent,
         ...status,
       }),

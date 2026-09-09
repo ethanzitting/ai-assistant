@@ -10,11 +10,10 @@ import { sendImageTool } from "@/archive/sendImageTool.ts";
 import { rememberTool } from "@/knowledge/rememberTool.ts";
 import { manageEventsTool } from "@/events/manageEventsTool.ts";
 import { queryFinancesTool } from "@/finance/queryFinancesTool.ts";
-import { setCategoryRuleTool } from "@/finance/setCategoryRuleTool.ts";
 import { splitTransactionTool } from "@/finance/splitTransactionTool.ts";
 import { listPendingCategorizationsTool } from "@/finance/listPendingCategorizationsTool.ts";
 import { setVendorPolicyTool } from "@/finance/setVendorPolicyTool.ts";
-import { applyCategorizationBatchTool } from "@/finance/applyCategorizationBatch.ts";
+import { categorizeTransactionsTool } from "@/finance/categorizeTransactionsTool.ts";
 import { manageFinanceAuditTool } from "@/finance/manageFinanceAuditTool.ts";
 import {
   confirmReceiptMatchTool,
@@ -36,11 +35,10 @@ const toolDefinitions: ToolDefinition[] = [
   rememberTool,
   manageEventsTool,
   queryFinancesTool,
-  setCategoryRuleTool,
   splitTransactionTool,
   listPendingCategorizationsTool,
   setVendorPolicyTool,
-  applyCategorizationBatchTool,
+  categorizeTransactionsTool,
   manageFinanceAuditTool,
   recordReceiptTool,
   listReceiptMatchesTool,

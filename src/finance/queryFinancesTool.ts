@@ -1,6 +1,9 @@
 import type { ToolDefinition, ToolResult } from "@/tools/toolTypes.ts";
 import { parseToolInput } from "@/tools/parseToolInput.ts";
-import { queryFinancesInputSchema, QUERY_TYPES } from "@/finance/queryFinancesSchema.ts";
+import {
+  QUERY_TYPES,
+  queryFinancesInputSchema,
+} from "@/finance/queryFinancesSchema.ts";
 import { requirePrivateChat } from "@/finance/requirePrivateChat.ts";
 import { resolveDateRange } from "@/finance/resolveDateRange.ts";
 import { financeFilters } from "@/finance/financeFilters.ts";
@@ -17,7 +20,7 @@ export const queryFinancesTool: ToolDefinition = {
   schema: {
     name: "query_finances",
     description:
-      "Query the user's bank transactions and balances, synced from Plaid. Use this for ANY question about spending, income, balances, or a specific charge — never query_knowledge, which holds no transaction data. This tool does the arithmetic and returns computed totals: report them as given and do not re-add or re-derive them.\n\nONE CALL IS USUALLY ENOUGH. \"How much did I spend on X, and how does that compare to last month?\" is a single spending_summary with categories and compare_to: previous_period — do NOT query two ranges separately and subtract. Do not repeat a call you already made.\n\nCategory names are lowercase and spelled out, e.g. 'food and drink' (not 'food & drink'), 'general merchandise', 'rent and utilities'. A filter naming something that does not exist is rejected and the valid names are listed — it is never reported as zero spending.\n\nAmounts are positive for money spent and negative for money received. Spending figures exclude transfers between the user's own accounts and credit card payments, so they reflect real spending. Dates default to the current calendar month; the range used is always stated in the result. Only checking and one credit card are linked, so this cannot see net worth or accounts elsewhere.",
+      "Query the user's bank transactions and balances, synced from Plaid. Use this for ANY question about spending, income, balances, or a specific charge — never query_knowledge, which holds no transaction data. This tool does the arithmetic and returns computed totals: report them as given and do not re-add or re-derive them.\n\nONE CALL IS USUALLY ENOUGH. \"How much did I spend on X, and how does that compare to last month?\" is a single spending_summary with categories and compare_to: previous_period — do NOT query two ranges separately and subtract. Do not repeat a call you already made.\n\nUse the user's closed category list. Filters are case-insensitive. Examples include Groceries, Restaurants, Household Items, and Core Software. An unknown filter is rejected with the valid names; it is never reported as zero spending.\n\nAmounts are positive for money spent and negative for money received. Spending figures exclude transfers between the user's own accounts and credit card payments, so they reflect real spending. Dates default to the current calendar month; the range used is always stated in the result. Only checking and one credit card are linked, so this cannot see net worth or accounts elsewhere.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -27,17 +30,25 @@ export const queryFinancesTool: ToolDefinition = {
           description:
             "spending_summary: total, daily average, top categories. spending_by_category / spending_by_merchant: ranked breakdown. trends: month-by-month. account_balances: current balances. transaction_search: find specific transactions (the only type that includes income and transfers).",
         },
-        start_date: { type: "string", description: "Start of range, YYYY-MM-DD." },
-        end_date: { type: "string", description: "End of range, YYYY-MM-DD, inclusive." },
+        start_date: {
+          type: "string",
+          description: "Start of range, YYYY-MM-DD.",
+        },
+        end_date: {
+          type: "string",
+          description: "End of range, YYYY-MM-DD, inclusive.",
+        },
         categories: {
           type: "array",
           items: { type: "string" },
-          description: "Filter to these categories, e.g. ['groceries']. Case-insensitive.",
+          description:
+            "Filter to these categories, e.g. ['groceries']. Case-insensitive.",
         },
         merchants: {
           type: "array",
           items: { type: "string" },
-          description: "Filter to these merchant names. Case-insensitive exact match.",
+          description:
+            "Filter to these merchant names. Case-insensitive exact match.",
         },
         accounts: {
           type: "array",
@@ -46,14 +57,18 @@ export const queryFinancesTool: ToolDefinition = {
         },
         search: {
           type: "string",
-          description: "Free text matched against description and merchant. transaction_search only.",
+          description:
+            "Free text matched against description and merchant. transaction_search only.",
         },
         compare_to: {
           type: "string",
           enum: ["previous_period", "same_period_last_year"],
           description: "Add a comparison figure. spending_summary only.",
         },
-        limit: { type: "number", description: "Maximum rows for merchant and search results." },
+        limit: {
+          type: "number",
+          description: "Maximum rows for merchant and search results.",
+        },
       },
       required: ["query_type"],
     },
@@ -82,7 +97,9 @@ async function handleQueryFinances(
 
   const filterProblem = await validateFilters(filters);
   if (filterProblem) {
-    await trace(traceId, "finance.query.bad_filter", { problem: filterProblem });
+    await trace(traceId, "finance.query.bad_filter", {
+      problem: filterProblem,
+    });
     return { content: filterProblem, isError: true };
   }
 

@@ -14,6 +14,7 @@ export interface ApplyCategoryRuleArgs {
 
 export interface ApplyCategoryRuleResult {
   updated: number;
+  queueItemsClosed: number;
   refusedAsTooBroad?: number;
 }
 
@@ -26,7 +27,11 @@ export async function applyCategoryRule(
 ): Promise<ApplyCategoryRuleResult> {
   const matching = await countMatching(args);
   if (matching > MAX_ROWS_PER_RULE) {
-    return { updated: 0, refusedAsTooBroad: matching };
+    return {
+      updated: 0,
+      queueItemsClosed: 0,
+      refusedAsTooBroad: matching,
+    };
   }
 
   return await db.begin(async (tx) => {
@@ -56,11 +61,14 @@ export async function applyCategoryRule(
         `;
 
     const transactionIds = updated.map((row) => row.id as string);
-    if (transactionIds.length > 0) {
-      await tx`
+    const closed = transactionIds.length > 0
+      ? await tx`
         UPDATE categorization_batch_items SET answered_at = now()
         WHERE transaction_id = ANY(${transactionIds}) AND answered_at IS NULL
-      `;
+        RETURNING id
+      `
+      : [];
+    if (closed.length > 0) {
       await tx`
         UPDATE categorization_batches b SET completed_at = now()
         WHERE b.completed_at IS NULL AND NOT EXISTS (
@@ -70,7 +78,7 @@ export async function applyCategoryRule(
       `;
     }
 
-    return { updated: updated.length };
+    return { updated: updated.length, queueItemsClosed: closed.length };
   });
 }
 

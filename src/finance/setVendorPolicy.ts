@@ -10,6 +10,7 @@ export interface SetVendorPolicyArgs {
 
 export interface SetVendorPolicyResult {
   updated: number;
+  queueItemsClosed: number;
   refusedAsTooBroad?: number;
 }
 
@@ -27,12 +28,6 @@ export async function setVendorPolicy(
       matchValue: args.matchValue,
       category: args.category,
     });
-    if (result.refusedAsTooBroad) return result;
-
-    await db`
-      UPDATE category_rules SET policy = 'auto'
-      WHERE match_type = ${args.matchType} AND match_value = ${args.matchValue}
-    `;
     return result;
   }
 
@@ -43,5 +38,5 @@ export async function setVendorPolicy(
       DO UPDATE SET policy = 'ask', category = NULL, created_at = now()
   `;
 
-  return { updated: 0 };
+  return { updated: 0, queueItemsClosed: 0 };
 }

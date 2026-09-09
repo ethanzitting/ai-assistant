@@ -114,6 +114,7 @@ async function recordReceipt(
   return {
     content: JSON.stringify({
       operation: "record_receipt",
+      changed: true,
       receipt_id: receipt.id,
       ...match,
     }),
@@ -136,6 +137,8 @@ async function listReceiptMatches(
   return {
     content: JSON.stringify({
       operation: "list_receipt_matches",
+      changed: false,
+      count: rows.length,
       matches: rows,
     }),
   };
@@ -203,6 +206,7 @@ async function getReceiptContent(
   return {
     content: JSON.stringify({
       operation: "get_receipt_content",
+      changed: false,
       receipt: rows[0],
     }),
   };

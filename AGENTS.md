@@ -74,18 +74,18 @@ with an error telling the model to batch instead of retry. Current tools:
 - `query_finances` — spending, balances, and transaction search over the Plaid
   tables; the tool does the arithmetic and returns computed totals so the model
   never re-adds them. Private chat only
-- `set_category_rule` — correct a category; writes a `category_rules` row **and
-  replays it over matching history**, so past totals change. Private chat only
 - `split_transaction` — divide one charge across categories, optionally per
   person; parts must sum to the charge exactly. Private chat only
-- `apply_categorization_batch` — apply clear category answers to the numbered
-  finance batch in the user's replied message. Private chat only
+- `categorize_transactions` — apply one-time categories to exact posted
+  expenses; it accepts a batch and never creates a vendor rule. Private chat
+  only
 - `manage_finance_audit` — start, inspect, continue, or cancel a date-range
   cleanup of posted `Unsorted` expenses. Private chat only
 - `list_pending_categorizations` — list charges awaiting a category outside a
   finance batch. Private chat only
-- `set_vendor_policy` — `auto` files a merchant silently, `ask` queues every
-  charge for the nightly question. Private chat only
+- `set_vendor_policy` — `auto` categorizes matching history and future expenses;
+  `ask` queues future matching expenses. It requires explicit permanent
+  language. Private chat only
 - `record_receipt` — store a receipt photo and find one exact Plaid charge;
   never confirms a match. Private chat only
 - `list_receipt_matches` / `confirm_receipt_match` — review and confirm a

@@ -3,7 +3,6 @@ import type { ToolDefinition, ToolResult } from "@/tools/toolTypes.ts";
 import { parseToolInput } from "@/tools/parseToolInput.ts";
 import { requirePrivateChat } from "@/finance/requirePrivateChat.ts";
 import { applyTransactionSplit } from "@/finance/applyTransactionSplit.ts";
-import { formatMoney } from "@/finance/formatMoney.ts";
 import { trace } from "@/trace.ts";
 
 const splitTransactionInputSchema = v.object({
@@ -33,12 +32,19 @@ export const splitTransactionTool: ToolDefinition = {
           items: {
             type: "object",
             properties: {
-              category: { type: "string", description: "An exact category name from the list." },
+              category: {
+                type: "string",
+                description:
+                  "A case-insensitive category name from the user list.",
+              },
               amount: {
                 type: "number",
                 description: "Positive for a purchase, negative for a refund.",
               },
-              person: { type: "string", description: "Optional: Ethan or Betsy." },
+              person: {
+                type: "string",
+                description: "Optional: Ethan or Betsy.",
+              },
             },
             required: ["category", "amount"],
           },
@@ -68,13 +74,31 @@ async function handleSplitTransaction(
   const { transaction_id: transactionId, splits } = parsed.data;
   const result = await applyTransactionSplit(transactionId, splits);
 
-  await trace(traceId, "finance.split", { transactionId, parts: splits.length, ok: result.ok });
+  await trace(traceId, "finance.split", {
+    transactionId,
+    parts: splits.length,
+    ok: result.ok,
+  });
 
-  if (!result.ok) return { content: result.problem ?? "Could not split.", isError: true };
+  if (!result.ok) {
+    return {
+      content: JSON.stringify({
+        operation: "split_transaction",
+        changed: false,
+        transactionId,
+        reason: result.problem ?? "split_failed",
+      }),
+      isError: true,
+    };
+  }
 
-  const summary = (result.parts ?? splits)
-    .map((part) => `${part.category} ${formatMoney(part.amount)}${part.person ? ` (${part.person})` : ""}`)
-    .join(", ");
-
-  return { content: `Split ${formatMoney(result.total ?? 0)} into ${summary}.` };
+  return {
+    content: JSON.stringify({
+      operation: "split_transaction",
+      changed: true,
+      transactionId,
+      total: result.total,
+      parts: result.parts ?? splits,
+    }),
+  };
 }

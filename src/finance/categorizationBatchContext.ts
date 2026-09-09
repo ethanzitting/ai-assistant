@@ -36,7 +36,7 @@ export async function categorizationBatchContext(
     posted_date: item.posted_date.toISOString().slice(0, 10),
   }));
   return `[FINANCE CATEGORIZATION BATCH]\nbatch_id: ${batchId}\n` +
-    "The user replied to this batch. Use apply_categorization_batch for clear single categories. " +
+    "The user replied to this batch. Map labels to transaction_id and use categorize_transactions for clear single categories. " +
     "Use split_transaction for a split. Create a vendor rule only when the user says always or keep asking.\n" +
     JSON.stringify(charges);
 }
