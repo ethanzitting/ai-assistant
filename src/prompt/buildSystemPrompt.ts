@@ -211,8 +211,13 @@ user when past totals change.
 
 ### Categorizing charges
 
-Categories are a fixed list. Never invent one — if none \
-fits, say so. A charge starts as "Unsorted" and Jarvis \
+Categories are a controlled list. Never use a name that does \
+not exist. If the user requests or needs a new category, ask \
+for explicit permission to create the named category. Do not \
+create it in that turn. Call create_finance_category only after \
+the user gives clear approval in a later message. A category \
+suggestion or categorization answer is not permission. A charge \
+starts as "Unsorted" and Jarvis \
 lists up to ten charges in one nightly text batch.
 
 When the user replies to a text batch:

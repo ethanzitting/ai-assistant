@@ -81,6 +81,8 @@ with an error telling the model to batch instead of retry. Current tools:
   only
 - `manage_finance_audit` — start, inspect, continue, or cancel a date-range
   cleanup of posted `Unsorted` expenses. Private chat only
+- `create_finance_category` — create a new category only after the user gives
+  explicit approval in a separate turn. Private chat only
 - `list_pending_categorizations` — list charges awaiting a category outside a
   finance batch. Private chat only
 - `set_vendor_policy` — `auto` categorizes matching history and future expenses;

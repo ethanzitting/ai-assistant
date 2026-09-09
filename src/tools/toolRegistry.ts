@@ -15,6 +15,7 @@ import { listPendingCategorizationsTool } from "@/finance/listPendingCategorizat
 import { setVendorPolicyTool } from "@/finance/setVendorPolicyTool.ts";
 import { categorizeTransactionsTool } from "@/finance/categorizeTransactionsTool.ts";
 import { manageFinanceAuditTool } from "@/finance/manageFinanceAuditTool.ts";
+import { createFinanceCategoryTool } from "@/finance/createFinanceCategoryTool.ts";
 import {
   confirmReceiptMatchTool,
   getReceiptContentTool,
@@ -40,6 +41,7 @@ const toolDefinitions: ToolDefinition[] = [
   setVendorPolicyTool,
   categorizeTransactionsTool,
   manageFinanceAuditTool,
+  createFinanceCategoryTool,
   recordReceiptTool,
   listReceiptMatchesTool,
   confirmReceiptMatchTool,
