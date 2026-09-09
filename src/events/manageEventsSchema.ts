@@ -60,7 +60,7 @@ const listAction = v.object({
   action: v.literal("list"),
   filter: v.optional(v.object({
     status: v.optional(
-      v.picklist(["active", "completed", "missed", "dropped"]),
+      v.picklist(["active", "completed", "missed", "dropped", "dismissed"]),
     ),
     type: v.optional(v.string()),
     from: v.optional(v.string()),
@@ -78,12 +78,18 @@ const dropAction = v.object({
   event_id: nonEmptyString(),
 });
 
+const dismissAction = v.object({
+  action: v.literal("dismiss"),
+  event_id: nonEmptyString(),
+});
+
 export const manageEventsInputSchema = v.variant("action", [
   createAction,
   updateAction,
   listAction,
   completeAction,
   dropAction,
+  dismissAction,
 ]);
 
 export type ManageEventsInput = v.InferOutput<typeof manageEventsInputSchema>;

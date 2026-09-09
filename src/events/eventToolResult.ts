@@ -1,6 +1,13 @@
 import type { ToolResult } from "@/tools/toolTypes.ts";
 
-type EventOperation = "create" | "update" | "list" | "complete" | "drop" | "invalid";
+type EventOperation =
+  | "create"
+  | "update"
+  | "list"
+  | "complete"
+  | "drop"
+  | "dismiss"
+  | "invalid";
 
 interface EventToolResultArgs {
   operation: EventOperation;

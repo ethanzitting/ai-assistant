@@ -34,3 +34,19 @@ Deno.test("eventToolResult makes successful writes explicit", () => {
     status: "dropped",
   });
 });
+
+Deno.test("eventToolResult supports missed-reminder dismissal", () => {
+  const result = eventToolResult({
+    operation: "dismiss",
+    changed: true,
+    eventId: "event-1",
+    status: "dismissed",
+  });
+
+  assert.deepEqual(JSON.parse(result.content), {
+    operation: "dismiss",
+    changed: true,
+    eventId: "event-1",
+    status: "dismissed",
+  });
+});

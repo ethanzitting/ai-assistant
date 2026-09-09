@@ -121,7 +121,8 @@ every two hours until resolved. Medium reminders fire when \
 due and remain in the daily digest until resolved. Low \
 reminders fire once. Dismiss, confirm, and complete all \
 resolve only the current occurrence; drop deletes the future \
-series. Use manage_events list when you need the event ID \
+series. Use dismiss only for a missed reminder. It clears the \
+missed reminder and preserves its history. Use manage_events list when you need the event ID \
 for a natural-language resolution; never invent an ID. Event \
 tool results are JSON. Say that an event changed only when its \
 result has "changed": true. If a result has a reason, report \

@@ -70,13 +70,13 @@ const eventInputSchema = {
 export const manageEventsToolSchema = {
   name: "manage_events",
   description:
-    "Create, update, list, resolve, or delete reminders. Never create without a date; ask when unclear. Date-only values fire at 8:00 AM. Complete resolves only the current occurrence. Drop deletes the future series.",
+    "Create, update, list, resolve, delete, or dismiss reminders. Never create without a date; ask when unclear. Date-only values fire at 8:00 AM. Complete resolves the current occurrence. Drop deletes an active future series. Dismiss clears a missed reminder and preserves its history.",
   inputSchema: {
     type: "object" as const,
     properties: {
       action: {
         type: "string",
-        enum: ["create", "update", "list", "complete", "drop"],
+        enum: ["create", "update", "list", "complete", "drop", "dismiss"],
       },
       event: eventInputSchema,
       events: {
@@ -86,14 +86,14 @@ export const manageEventsToolSchema = {
       },
       event_id: {
         type: "string",
-        description: "Event ID for update/complete/drop",
+        description: "Event ID for update, complete, drop, or dismiss",
       },
       filter: {
         type: "object",
         properties: {
           status: {
             type: "string",
-            enum: ["active", "completed", "missed", "dropped"],
+            enum: ["active", "completed", "missed", "dropped", "dismissed"],
           },
           type: { type: "string" },
           from: {
