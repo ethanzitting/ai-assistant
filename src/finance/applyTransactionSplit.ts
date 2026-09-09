@@ -43,12 +43,18 @@ export async function applyTransactionSplit(
     for (const part of resolved.parts) {
       await tx`
         INSERT INTO transaction_splits (transaction_id, category, person, amount)
-        VALUES (${transactionId}, ${part.category}, ${part.person ?? null}, ${part.amount})
+        VALUES (${transactionId}, ${part.category}, ${
+        part.person ?? null
+      }, ${part.amount})
       `;
     }
     await tx`
       UPDATE transactions SET needs_category = false, category_source = 'manual', updated_at = now()
       WHERE id = ${transactionId}
+    `;
+    await tx`
+      UPDATE categorization_batch_items SET answered_at = now()
+      WHERE transaction_id = ${transactionId} AND answered_at IS NULL
     `;
   });
 
@@ -57,7 +63,10 @@ export async function applyTransactionSplit(
 
 // Plaid signs a refund negative, so "every part positive" would reject a legitimate split of a
 // returned purchase. The rule is that every part shares the charge's sign and the parts sum to it.
-function validateAmounts(parts: SplitPart[], charge: number): string | undefined {
+function validateAmounts(
+  parts: SplitPart[],
+  charge: number,
+): string | undefined {
   if (parts.length === 0) return "A split needs at least one part.";
 
   if (parts.some((part) => Math.sign(part.amount) !== Math.sign(charge))) {
@@ -68,7 +77,9 @@ function validateAmounts(parts: SplitPart[], charge: number): string | undefined
 
   const sum = parts.reduce((running, part) => running + part.amount, 0);
   if (Math.abs(sum - charge) > CENT_TOLERANCE) {
-    return `The parts total ${sum.toFixed(2)} but the charge is ${charge.toFixed(2)}. ` +
+    return `The parts total ${sum.toFixed(2)} but the charge is ${
+      charge.toFixed(2)
+    }. ` +
       `They must match — adjust a part or add one for the difference.`;
   }
 
@@ -82,11 +93,17 @@ async function resolveNames(
     db`SELECT name FROM categories WHERE active ORDER BY sort_order` as unknown as Promise<
       { name: string }[]
     >,
-    db`SELECT name FROM people ORDER BY name` as unknown as Promise<{ name: string }[]>,
+    db`SELECT name FROM people ORDER BY name` as unknown as Promise<
+      { name: string }[]
+    >,
   ]);
 
-  const categoryByLower = new Map(categories.map((row) => [row.name.toLowerCase(), row.name]));
-  const personByLower = new Map(people.map((row) => [row.name.toLowerCase(), row.name]));
+  const categoryByLower = new Map(
+    categories.map((row) => [row.name.toLowerCase(), row.name]),
+  );
+  const personByLower = new Map(
+    people.map((row) => [row.name.toLowerCase(), row.name]),
+  );
 
   const resolved: SplitPart[] = [];
 

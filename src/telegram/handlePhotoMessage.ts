@@ -21,7 +21,9 @@ export async function handlePhotoMessage(
 
     const photo = photos[photos.length - 1];
     if (photo.file_size && photo.file_size > MAX_FILE_SIZE) {
-      await ctx.reply("That image is too large for me to process (100MB limit).");
+      await ctx.reply(
+        "That image is too large for me to process (100MB limit).",
+      );
       return;
     }
 
@@ -33,12 +35,18 @@ export async function handlePhotoMessage(
     const botToken = requireEnv("TELEGRAM_BOT_TOKEN");
     const fileBytes = await downloadTelegramFile(file.file_path, botToken);
 
-    const { archiveId, ocrText, visionDescription } = await indexPhoto(fileBytes, photo.file_id);
+    const { archiveId, ocrText, visionDescription } = await indexPhoto(
+      fileBytes,
+      photo.file_id,
+    );
 
     const caption = ctx.message?.caption;
     const describedContent = photoEmbeddingText({ visionDescription, ocrText });
-    let messageText = describedContent ? `[Photo]\n${describedContent}` : "[Photo]";
+    let messageText = describedContent
+      ? `[Photo]\n${describedContent}`
+      : "[Photo]";
     if (caption) messageText += `\n\nCaption: ${caption}`;
+    if (archiveId) messageText += `\n\nArchive ID: ${archiveId}`;
 
     const imageMetadata: Record<string, unknown> = {
       source: "photo",
@@ -67,6 +75,7 @@ export async function handlePhotoMessage(
         chat_type: chatType,
         sender_name: senderNameFrom(ctx),
         sender_id: ctx.from ? String(ctx.from.id) : undefined,
+        reply_to_message_id: ctx.message?.reply_to_message?.message_id,
         respond,
         image_metadata: imageMetadata,
       },
@@ -74,7 +83,9 @@ export async function handlePhotoMessage(
     });
   } catch (err) {
     error("photo", "Failed to process photo message", { error: String(err) });
-    await ctx.reply("Sorry, I had trouble processing that image. Please try again.").catch(() => {});
+    await ctx.reply(
+      "Sorry, I had trouble processing that image. Please try again.",
+    ).catch(() => {});
   }
 }
 

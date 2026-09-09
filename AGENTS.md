@@ -78,10 +78,16 @@ with an error telling the model to batch instead of retry. Current tools:
   replays it over matching history**, so past totals change. Private chat only
 - `split_transaction` — divide one charge across categories, optionally per
   person; parts must sum to the charge exactly. Private chat only
-- `list_pending_categorizations` — charges awaiting a category, with ids; how a
-  receipt photo gets matched to a charge. Private chat only
+- `apply_categorization_batch` — apply clear category answers to the numbered
+  finance batch in the user's replied message. Private chat only
+- `list_pending_categorizations` — list charges awaiting a category outside a
+  finance batch. Private chat only
 - `set_vendor_policy` — `auto` files a merchant silently, `ask` queues every
   charge for the nightly question. Private chat only
+- `record_receipt` — store a receipt photo and find one exact Plaid charge;
+  never confirms a match. Private chat only
+- `list_receipt_matches` / `confirm_receipt_match` — review and confirm a
+  receipt match after the user gives explicit approval. Private chat only
 - `send_message` — proactive Telegram message
 
 ### Database
@@ -91,7 +97,8 @@ Postgres with pgvector extension. Tables: `entities`, `facts`, `relationships`,
 `engine_trace`, `archived_files`, `document_chunks`, `audit_log`,
 `schema_migrations`, `scheduled_jobs`, `job_runs`, `plaid_items`, `accounts`,
 `transactions`, `category_rules`, `categories`, `people`, `transaction_splits`,
-`categorization_prompts`, plus the `transaction_categories` view.
+`categorization_batches`, `categorization_batch_items`, `transaction_receipts`,
+plus the `transaction_categories` view.
 
 `audit_log` is a leftover from `004_skills_and_config.sql` — nothing in `src/`
 reads or writes it.
@@ -157,11 +164,16 @@ of them knows what a split is; every reported _transaction count_ must therefore
 be `count(DISTINCT id)`. `transactionSearch` additionally groups by transaction,
 or a split charge prints once per part.
 
-**A charge is prompted only after it posts.** A pending charge posts as a _new_
+**A charge is batched only after it posts.** A pending charge posts as a _new_
 `transaction_id` carrying `pending_transaction_id`, so prompting earlier would
 ask twice for one purchase and discard the first answer when the pending row is
 retired. `categorizationPromptJob` filters `NOT pending` for exactly this
 reason.
+
+**Receipt photos can arrive before or after their Plaid charge.** A receipt
+stays unmatched until Plaid offers one exact posted amount in its date window.
+Jarvis then asks for user confirmation. It never confirms a match or changes a
+category from a receipt photo alone.
 
 **Plaid signs a POSITIVE amount as money leaving the account.** That inverts
 most people's intuition and it is stored unchanged, because every other Plaid

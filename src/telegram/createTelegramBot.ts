@@ -2,21 +2,29 @@ import { Bot } from "grammy";
 import type { Context } from "grammy";
 import type { User } from "grammy/types";
 import type { EventQueue } from "@/engine/eventQueue.ts";
-import { ensureChat, getPrivateChat, getWatermark, markNotified } from "@/telegram/chatRegistry.ts";
-import { persistMessage, estimateBacklogTokens } from "@/conversationHistory.ts";
+import {
+  ensureChat,
+  getPrivateChat,
+  getWatermark,
+  markNotified,
+} from "@/telegram/chatRegistry.ts";
+import {
+  estimateBacklogTokens,
+  persistMessage,
+} from "@/conversationHistory.ts";
 import { handleVoiceMessage } from "@/telegram/handleVoiceMessage.ts";
 import { handlePhotoMessage } from "@/telegram/handlePhotoMessage.ts";
 import { handleDocumentMessage } from "@/telegram/handleDocumentMessage.ts";
 import { sendTelegramMessage } from "@/telegram/sendTelegramMessage.ts";
 import { requireEnv } from "@/requireEnv.ts";
 import { enqueueWithBatching } from "@/telegram/messageBatcher.ts";
-import { handleCategoryCallback } from "@/finance/handleCategoryCallback.ts";
-import { info, warn, error } from "@/logger.ts";
+import { error, info, warn } from "@/logger.ts";
 
 const OWNER_ID = Deno.env.get("TELEGRAM_OWNER_ID");
 const BACKLOG_TOKEN_THRESHOLD = 10_000;
 
-const FLUSH_INSTRUCTION = "The conversation history contains unprocessed group messages. Extract all entities, facts, and relationships into the knowledge graph. Do not respond conversationally.";
+const FLUSH_INSTRUCTION =
+  "The conversation history contains unprocessed group messages. Extract all entities, facts, and relationships into the knowledge graph. Do not respond conversationally.";
 
 const allowedChats = parseAllowedChats();
 const pendingFlushes = new Set<string>();
@@ -29,11 +37,6 @@ export function createTelegramBot(queue: EventQueue): Bot {
 
   bot.on("my_chat_member", async (ctx) => {
     await handleChatMemberUpdate(ctx);
-  });
-
-  // A button press is not more trustworthy than a message, so the owner check runs again here.
-  bot.on("callback_query:data", async (ctx) => {
-    await handleCategoryCallback(ctx, checkAccess(ctx) === "owner");
   });
 
   bot.on("message:text", async (ctx) => {
@@ -61,6 +64,7 @@ export function createTelegramBot(queue: EventQueue): Bot {
         chat_type: ctx.chat.type,
         sender_name: senderName(ctx.from),
         sender_id: String(ctx.from.id),
+        reply_to_message_id: ctx.message.reply_to_message?.message_id,
         respond: true,
       });
     } else {
@@ -75,7 +79,12 @@ export function createTelegramBot(queue: EventQueue): Bot {
     }
   });
 
-  bot.on(["message:voice", "message:audio", "message:video", "message:video_note"], async (ctx) => {
+  bot.on([
+    "message:voice",
+    "message:audio",
+    "message:video",
+    "message:video_note",
+  ], async (ctx) => {
     const access = checkAccess(ctx);
     if (access === "denied") {
       await notifyOwnerOfUnknown(ctx);
@@ -167,10 +176,15 @@ function isAddressedToBot(ctx: Context): boolean {
   if (botUsername) {
     for (const entity of entities) {
       if (entity.type === "mention") {
-        const mentionText = msg.text?.substring(entity.offset, entity.offset + entity.length);
+        const mentionText = msg.text?.substring(
+          entity.offset,
+          entity.offset + entity.length,
+        );
         if (mentionText === `@${botUsername}`) return true;
       }
-      if (entity.type === "text_mention" && entity.user?.id === ctx.me.id) return true;
+      if (entity.type === "text_mention" && entity.user?.id === ctx.me.id) {
+        return true;
+      }
     }
   }
 
@@ -202,7 +216,10 @@ async function maybeEnqueueFlush(
   if (backlogTokens < BACKLOG_TOKEN_THRESHOLD) return;
 
   pendingFlushes.add(internalChatId);
-  info("flush", "Token threshold crossed, enqueuing flush", { internalChatId, backlogTokens });
+  info("flush", "Token threshold crossed, enqueuing flush", {
+    internalChatId,
+    backlogTokens,
+  });
 
   queue.push({
     id: crypto.randomUUID(),
@@ -227,11 +244,15 @@ async function handleChatMemberUpdate(ctx: Context): Promise<void> {
   const update = ctx.myChatMember;
   if (!update || !ctx.chat) return;
 
-  if (update.new_chat_member.status !== "member" && update.new_chat_member.status !== "administrator") return;
+  if (
+    update.new_chat_member.status !== "member" &&
+    update.new_chat_member.status !== "administrator"
+  ) return;
 
   const chat = ctx.chat;
   const chatId = chat.id;
-  const chatTitle = ("title" in chat ? chat.title : undefined) ?? "private chat";
+  const chatTitle = ("title" in chat ? chat.title : undefined) ??
+    "private chat";
   const addedBy = senderName(update.from);
 
   await ensureChat({

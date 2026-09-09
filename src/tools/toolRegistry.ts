@@ -14,6 +14,12 @@ import { setCategoryRuleTool } from "@/finance/setCategoryRuleTool.ts";
 import { splitTransactionTool } from "@/finance/splitTransactionTool.ts";
 import { listPendingCategorizationsTool } from "@/finance/listPendingCategorizationsTool.ts";
 import { setVendorPolicyTool } from "@/finance/setVendorPolicyTool.ts";
+import { applyCategorizationBatchTool } from "@/finance/applyCategorizationBatch.ts";
+import {
+  confirmReceiptMatchTool,
+  listReceiptMatchesTool,
+  recordReceiptTool,
+} from "@/finance/receiptTools.ts";
 import { calendarTool } from "@/tools/calendarTool.ts";
 import { messagingTool } from "@/telegram/messagingTool.ts";
 import { error, warn } from "@/logger.ts";
@@ -32,6 +38,10 @@ const toolDefinitions: ToolDefinition[] = [
   splitTransactionTool,
   listPendingCategorizationsTool,
   setVendorPolicyTool,
+  applyCategorizationBatchTool,
+  recordReceiptTool,
+  listReceiptMatchesTool,
+  confirmReceiptMatchTool,
   calendarTool,
   messagingTool,
 ];

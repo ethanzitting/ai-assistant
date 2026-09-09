@@ -13,6 +13,7 @@ import { startTypingIndicator } from "@/telegram/sendTypingIndicator.ts";
 import { advanceWatermark } from "@/telegram/chatRegistry.ts";
 import { clearPendingFlush } from "@/telegram/createTelegramBot.ts";
 import { prefetchContext } from "@/knowledge/prefetchContext.ts";
+import { categorizationBatchContext } from "@/finance/categorizationBatchContext.ts";
 import { debug, info, warn } from "@/logger.ts";
 import { trace } from "@/trace.ts";
 
@@ -62,6 +63,10 @@ export async function processEvent(
   }
   if (event.type === "user_message") {
     appendToLastUserMessage(messages, currentTimeContext());
+    const batchContext = await categorizationBatchContext(
+      payload.reply_to_message_id as number | undefined,
+    );
+    if (batchContext) appendToLastUserMessage(messages, batchContext);
   }
 
   const prefetchSummary = event.type === "user_message"

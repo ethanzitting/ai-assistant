@@ -13,7 +13,7 @@ export type JobHandler = (
 
 const handlersByName = new Map<string, JobHandler>([
   ["plaid_sync", plaidSyncJob],
-  ["categorization_prompts", categorizationPromptJob],
+  ["categorization_batches", categorizationPromptJob],
   ["reminder_delivery", reminderDeliveryJob],
   ["reminder_digest", reminderDigestJob],
 ]);

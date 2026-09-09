@@ -17,7 +17,7 @@ export const listPendingCategorizationsTool: ToolDefinition = {
   schema: {
     name: "list_pending_categorizations",
     description:
-      "List charges still waiting for a category. Call this when the user answers a categorization question in text, or sends a receipt photo — you need the transaction_id before you can call split_transaction. Match a receipt to a charge by its TOTAL amount; if no pending charge matches the receipt total, say so rather than guessing at the nearest one.",
+      "List charges still waiting for a category. Use this when the user asks about the queue outside a finance batch. A reply to a finance batch already has its transaction ids, so use that context instead.",
     inputSchema: { type: "object" as const, properties: {} },
   },
   handle: handleListPending,
@@ -39,13 +39,17 @@ async function handleListPending(
     LIMIT ${MAX_ROWS}
   ` as unknown as PendingRow[];
 
-  if (rows.length === 0) return { content: "Nothing is waiting for a category." };
+  if (rows.length === 0) {
+    return { content: "Nothing is waiting for a category." };
+  }
 
   const lines = rows.map((row) =>
-    `${row.posted_date.toISOString().slice(0, 10)}  ${formatMoney(row.amount)}  ${
-      row.merchant_name ?? row.description
-    }  [${row.id}]`
+    `${row.posted_date.toISOString().slice(0, 10)}  ${
+      formatMoney(row.amount)
+    }  ${row.merchant_name ?? row.description}  [${row.id}]`
   );
 
-  return { content: `${rows.length} awaiting a category:\n${lines.join("\n")}` };
+  return {
+    content: `${rows.length} awaiting a category:\n${lines.join("\n")}`,
+  };
 }

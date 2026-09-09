@@ -9,6 +9,7 @@ interface TextMessagePayload {
   chat_type: string;
   sender_name?: string;
   sender_id?: string;
+  reply_to_message_id?: number;
   respond: boolean;
 }
 
@@ -56,6 +57,9 @@ function flush(queue: EventQueue, key: string): void {
       chat_type: first.chat_type,
       sender_name: first.sender_name,
       sender_id: first.sender_id,
+      reply_to_message_id: batch.payloads.length === 1
+        ? first.reply_to_message_id
+        : undefined,
       respond: true,
     },
     createdAt: new Date(),

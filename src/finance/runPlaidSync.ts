@@ -4,6 +4,7 @@ import { fetchBalances } from "@/plaid/fetchBalances.ts";
 import { fetchTransactionPage } from "@/plaid/fetchTransactionPage.ts";
 import { upsertAccounts } from "@/finance/upsertAccounts.ts";
 import { applyTransactionPage } from "@/finance/applyTransactionPage.ts";
+import { matchUnmatchedReceipts } from "@/finance/matchUnmatchedReceipts.ts";
 import type { CategoryRule } from "@/finance/resolveCategory.ts";
 import { info, warn } from "@/logger.ts";
 
@@ -18,6 +19,7 @@ export interface PlaidSyncResult {
   added: number;
   modified: number;
   removed: number;
+  matchedReceipts: number;
   // False when the page ceiling cut the run short. No data is lost — the next run resumes from the
   // committed cursor — but the run is not the full picture and should not read as finished.
   caughtUp: boolean;
@@ -38,6 +40,7 @@ export async function runPlaidSync(): Promise<PlaidSyncResult> {
     added: 0,
     modified: 0,
     removed: 0,
+    matchedReceipts: 0,
     caughtUp: false,
   };
 
@@ -60,9 +63,12 @@ export async function runPlaidSync(): Promise<PlaidSyncResult> {
   }
 
   if (!result.caughtUp) {
-    warn("finance", "Stopped at the page ceiling with more to fetch", { pages: result.pages });
+    warn("finance", "Stopped at the page ceiling with more to fetch", {
+      pages: result.pages,
+    });
   }
 
+  result.matchedReceipts = await matchUnmatchedReceipts();
   info("finance", "Plaid sync complete", { ...result });
   return result;
 }
