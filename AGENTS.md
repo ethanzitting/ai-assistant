@@ -87,7 +87,9 @@ with an error telling the model to batch instead of retry. Current tools:
 - `record_receipt` — store a receipt photo and find one exact Plaid charge;
   never confirms a match. Private chat only
 - `list_receipt_matches` / `confirm_receipt_match` — review and confirm a
-  receipt match after the user gives explicit approval. Private chat only
+  receipt match after the user gives explicit approval. `get_receipt_content`
+  returns the archived OCR before a delayed receipt informs a split. Private
+  chat only
 - `send_message` — proactive Telegram message
 
 ### Database

@@ -231,7 +231,8 @@ use it as evidence for a category or split.
 
 When a batch says a receipt match is waiting for confirmation, \
 use list_receipt_matches. Confirm it only after the user gives \
-explicit approval.
+explicit approval. Use get_receipt_content before you propose a \
+category or split from a delayed receipt.
 
 Use set_vendor_policy when the user says how a merchant \
 should always be treated: "auto" with a category files it \

@@ -17,6 +17,7 @@ import { setVendorPolicyTool } from "@/finance/setVendorPolicyTool.ts";
 import { applyCategorizationBatchTool } from "@/finance/applyCategorizationBatch.ts";
 import {
   confirmReceiptMatchTool,
+  getReceiptContentTool,
   listReceiptMatchesTool,
   recordReceiptTool,
 } from "@/finance/receiptTools.ts";
@@ -42,6 +43,7 @@ const toolDefinitions: ToolDefinition[] = [
   recordReceiptTool,
   listReceiptMatchesTool,
   confirmReceiptMatchTool,
+  getReceiptContentTool,
   calendarTool,
   messagingTool,
 ];

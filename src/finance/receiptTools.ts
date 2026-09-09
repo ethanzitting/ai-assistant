@@ -61,6 +61,20 @@ export const confirmReceiptMatchTool: ToolDefinition = {
   handle: confirmReceiptMatch,
 };
 
+export const getReceiptContentTool: ToolDefinition = {
+  schema: {
+    name: "get_receipt_content",
+    description:
+      "Get the OCR and image description for one stored receipt. Use this after the user confirms a match and before you propose a category or split from a delayed receipt.",
+    inputSchema: {
+      type: "object" as const,
+      properties: { receipt_id: { type: "string" } },
+      required: ["receipt_id"],
+    },
+  },
+  handle: getReceiptContent,
+};
+
 async function recordReceipt(
   input: Record<string, unknown>,
   traceId: string,
@@ -161,6 +175,35 @@ async function confirmReceiptMatch(
       operation: "confirm_receipt_match",
       changed: true,
       transaction_id: rows[0].transaction_id,
+    }),
+  };
+}
+
+async function getReceiptContent(
+  input: Record<string, unknown>,
+  _traceId: string,
+  telegramChatId?: number | null,
+): Promise<ToolResult> {
+  const refusal = requirePrivateChat(telegramChatId);
+  if (refusal) return refusal;
+  const parsed = parseToolInput(
+    receiptIdSchema,
+    input,
+    '{ receipt_id: "uuid" }',
+  );
+  if (!parsed.success) return parsed.error;
+
+  const rows = await db`
+    SELECT r.id, r.receipt_total, r.merchant_name, r.purchase_date, r.status,
+      r.transaction_id, af.ocr_text, af.vision_description
+    FROM transaction_receipts r JOIN archived_files af ON af.id = r.archived_file_id
+    WHERE r.id = ${parsed.data.receipt_id}
+  `;
+  if (rows.length === 0) return { content: "No such receipt.", isError: true };
+  return {
+    content: JSON.stringify({
+      operation: "get_receipt_content",
+      receipt: rows[0],
     }),
   };
 }
