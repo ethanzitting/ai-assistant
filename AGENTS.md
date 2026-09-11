@@ -55,8 +55,8 @@ function. Handlers receive `(input, traceId, telegramChatId?)` — the third
 argument is the chat the current turn came from, so a tool that sends something
 replies where it was asked instead of defaulting to the owner's private chat.
 `toolRegistry.ts` also enforces per-turn gates: `remember` and `manage_events`
-`create` may each be called only once per turn, and a second call is rejected
-with an error telling the model to batch instead of retry. Current tools:
+`create` may each complete three successful calls per turn. Failed calls do not
+consume the allowance, so the model can correct invalid input. Current tools:
 
 - `query_knowledge` — hybrid (semantic + keyword) search over the knowledge
   graph; returns the facts most relevant to the query, ranked, capped per entity

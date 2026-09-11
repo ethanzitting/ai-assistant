@@ -2,19 +2,18 @@ import * as v from "valibot";
 import { storeEntity } from "@/knowledge/storeEntity.ts";
 import { storeFact } from "@/knowledge/storeFact.ts";
 import { storeRelationship } from "@/knowledge/storeRelationship.ts";
-import { rememberInputSchema, type RememberItem } from "@/knowledge/rememberSchema.ts";
+import {
+  rememberInputSchema,
+  type RememberItem,
+} from "@/knowledge/rememberSchema.ts";
 import type { ToolDefinition, ToolResult } from "@/tools/toolTypes.ts";
-
-const ITEM_SCHEMA_HELP = `Each item in the array must have a "type" field and a corresponding nested object:
-
-  { type: "entity", entity: { name, type, properties? } }
-  { type: "fact", fact: { entity_name, attribute, value } }
-  { type: "relationship", relationship: { entity_a_name, entity_b_name, type } }`;
+import type { KnowledgeWriteResult } from "@/knowledge/knowledgeWriteResult.ts";
 
 export const rememberTool: ToolDefinition = {
   schema: {
     name: "remember",
-    description: `Store items into the knowledge graph. You may call this ONCE per turn — a second call will be rejected and those items will be lost. Batch all entities, facts, and relationships into a single call. For many items (>5), propose them to the user first and wait for approval before calling.
+    description:
+      `Store items into the knowledge graph. You may complete up to three successful calls per turn. A failed call does not consume the allowance, so correct its input and retry. Batch related entities, facts, and relationships when practical. For many items (>5), propose them to the user first and wait for approval before calling.
 
 Pass an "items" array — each element is one of:
 
@@ -39,7 +38,10 @@ Create entities BEFORE facts/relationships that reference them. Old fact values 
                 type: "object",
                 properties: {
                   name: { type: "string" },
-                  type: { type: "string", enum: ["person", "organization", "place", "account"] },
+                  type: {
+                    type: "string",
+                    enum: ["person", "organization", "place", "account"],
+                  },
                   properties: { type: "object" },
                 },
                 required: ["name", "type"],
@@ -66,7 +68,8 @@ Create entities BEFORE facts/relationships that reference them. Old fact values 
             required: ["type"],
           },
           minItems: 1,
-          description: "Array of items to store. Order matters — create entities before referencing them in facts or relationships.",
+          description:
+            "Array of items to store. Order matters — create entities before referencing them in facts or relationships.",
         },
       },
       required: ["items"],
@@ -75,34 +78,80 @@ Create entities BEFORE facts/relationships that reference them. Old fact values 
   handle: handleRemember,
 };
 
-async function handleRemember(input: Record<string, unknown>, traceId: string): Promise<ToolResult> {
+async function handleRemember(
+  input: Record<string, unknown>,
+  traceId: string,
+): Promise<ToolResult> {
   const result = v.safeParse(rememberInputSchema, input);
   if (!result.success) {
-    return { content: formatValidationError(result.issues), isError: true };
+    return {
+      content: JSON.stringify({
+        operation: "remember",
+        changed: false,
+        reason: "invalid_input",
+        retryable: true,
+        instruction: "Correct the listed input fields and retry now.",
+        errors: formatValidationIssues(result.issues),
+      }),
+      isError: true,
+    };
   }
 
-  const results: string[] = [];
-  for (const item of result.output.items) {
+  const results = [];
+  for (const [index, item] of result.output.items.entries()) {
     try {
       const itemResult = await storeItem(item, traceId);
-      results.push(itemResult.isError ? `ERROR: ${itemResult.content}` : itemResult.content);
+      results.push({
+        index,
+        type: item.type,
+        status: itemResult.isError
+          ? "failed"
+          : itemResult.changed
+          ? "changed"
+          : "unchanged",
+        reason: itemResult.reason,
+        detail: itemResult.content,
+      });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      results.push(`ERROR: ${item.type} failed: ${message}`);
+      results.push({
+        index,
+        type: item.type,
+        status: "failed",
+        reason: "unexpected_error",
+        detail: message,
+      });
     }
   }
 
-  const errorCount = results.filter((r) => r.startsWith("ERROR:")).length;
-  const successCount = results.length - errorCount;
-  if (errorCount > 0) {
-    const summary = `${successCount} succeeded, ${errorCount} failed:`;
-    return { content: `${summary}\n${results.join("\n")}`, isError: true };
-  }
+  const changedItems = results.filter((item) => item.status === "changed")
+    .length;
+  const unchangedItems = results.filter((item) => item.status === "unchanged")
+    .length;
+  const failedItems = results.filter((item) => item.status === "failed").length;
 
-  return { content: results.join("\n") };
+  return {
+    content: JSON.stringify({
+      operation: "remember",
+      changed: changedItems > 0,
+      requestedItems: results.length,
+      changedItems,
+      unchangedItems,
+      failedItems,
+      retryable: failedItems > 0,
+      instruction: failedItems > 0
+        ? "Retry only the failed items with corrected input."
+        : undefined,
+      results,
+    }),
+    isError: failedItems > 0,
+  };
 }
 
-function storeItem(item: RememberItem, traceId: string): Promise<ToolResult> {
+function storeItem(
+  item: RememberItem,
+  traceId: string,
+): Promise<KnowledgeWriteResult> {
   switch (item.type) {
     case "entity":
       return storeEntity(item.entity, traceId);
@@ -111,19 +160,22 @@ function storeItem(item: RememberItem, traceId: string): Promise<ToolResult> {
     case "relationship":
       return storeRelationship(item.relationship, traceId);
     default:
-      return Promise.resolve({ content: `Unknown type: ${(item as Record<string, unknown>).type}`, isError: true });
+      return Promise.resolve({
+        content: `Unknown type: ${(item as Record<string, unknown>).type}`,
+        changed: false,
+        reason: "unknown_type",
+        isError: true,
+      });
   }
 }
 
-function formatValidationError(issues: v.BaseIssue<unknown>[]): string {
-  const details = issues.map((issue) => {
+function formatValidationIssues(issues: v.BaseIssue<unknown>[]): string[] {
+  return issues.map((issue) => {
     const path = issue.path
-      ? issue.path.map((segment: v.IssuePathItem) => String(segment.key)).join(".")
+      ? issue.path.map((segment: v.IssuePathItem) => String(segment.key)).join(
+        ".",
+      )
       : "root";
     return `${path}: ${issue.message}`;
   });
-
-  return `Invalid remember input. ${ITEM_SCHEMA_HELP}
-
-Errors: ${details.join("; ")}`;
 }

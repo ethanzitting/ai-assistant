@@ -1,20 +1,30 @@
 import { db } from "@/db.ts";
 import { findExistingEntity } from "@/knowledge/findExistingEntity.ts";
 import type { RelationshipInput } from "@/knowledge/rememberSchema.ts";
-import type { ToolResult } from "@/tools/toolTypes.ts";
+import type { KnowledgeWriteResult } from "@/knowledge/knowledgeWriteResult.ts";
 import { trace } from "@/trace.ts";
 
 export async function storeRelationship(
   input: RelationshipInput,
   traceId: string,
-): Promise<ToolResult> {
-  const { entity_a_name: entityAName, entity_b_name: entityBName, type: relationshipType } = input;
+): Promise<KnowledgeWriteResult> {
+  const {
+    entity_a_name: entityAName,
+    entity_b_name: entityBName,
+    type: relationshipType,
+  } = input;
 
   const entityA = await findExistingEntity(entityAName);
   const entityB = await findExistingEntity(entityBName);
 
   if (entityA.length !== 1 || entityB.length !== 1) {
-    return { content: `Could not uniquely resolve both entities. Entity A matches: ${entityA.length}, Entity B matches: ${entityB.length}. Please be more specific.`, isError: true };
+    return {
+      content:
+        `Could not uniquely resolve both entities. Entity A matches: ${entityA.length}, Entity B matches: ${entityB.length}. Please be more specific.`,
+      changed: false,
+      reason: "entity_resolution_failed",
+      isError: true,
+    };
   }
 
   const existing = await db`
@@ -28,7 +38,13 @@ export async function storeRelationship(
   `;
 
   if (existing.length > 0) {
-    return { content: `Already stored: ${entityA[0].name} → ${relationshipType} → ${entityB[0].name}. Stored and current — do not re-store.` };
+    return {
+      content: `Already stored: ${entityA[0].name} → ${relationshipType} → ${
+        entityB[0].name
+      }. Stored and current — do not re-store.`,
+      changed: false,
+      reason: "relationship_exists",
+    };
   }
 
   await db`
@@ -42,5 +58,11 @@ export async function storeRelationship(
     entityB: entityB[0].name,
     type: relationshipType,
   });
-  return { content: `Stored relationship: ${entityA[0].name} → ${relationshipType} → ${entityB[0].name}` };
+  return {
+    content: `Stored relationship: ${entityA[0].name} → ${relationshipType} → ${
+      entityB[0].name
+    }`,
+    changed: true,
+    reason: "relationship_stored",
+  };
 }
