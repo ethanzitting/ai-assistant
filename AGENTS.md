@@ -1,14 +1,14 @@
 # Jarvis — Personal AI Assistant
 
 Single-user AI assistant that runs as a Telegram bot through the
-provider-neutral Vercel AI SDK. Fireworks AI is the current model provider.
-Built in Deno/TypeScript, deployed with Docker Compose, using Postgres for all
-persistence.
+provider-neutral Vercel AI SDK. xAI provides the primary Grok 4.7 model, and
+Fireworks AI provides lower-cost support models. Built in Deno/TypeScript,
+deployed with Docker Compose, using Postgres for all persistence.
 
 ## Architecture
 
 ```
-Telegram → grammY bot → EventQueue → processEvent → Vercel AI SDK → Fireworks AI → tool loop → response
+Telegram → grammY bot → EventQueue → processEvent → Vercel AI SDK → xAI Grok → tool loop → response
 scheduler tick → claim due scheduled_jobs → run handler as plain code → job_runs
 ```
 
@@ -28,8 +28,10 @@ scheduler tick → claim due scheduled_jobs → run handler as plain code → jo
 - **Conversation history**: stored in `conversations` table, truncated to ~20k
   tokens per turn (assembleContext.ts)
 - **Model routing**: hardcoded task-specific models live in `src/ai/models.ts`;
-  the main model is GLM-5.3, with cheaper Fireworks models for vision,
-  consolidation, and filenames. Fireworks calls use the US endpoint.
+  the main model is Grok 4.7 through xAI's Responses API, with medium reasoning,
+  disabled response storage, and sequential client-side tools. Cheaper
+  Fireworks models handle vision, consolidation, and filenames. Fireworks calls
+  use the US endpoint.
 
 ### Key subsystems
 

@@ -19,6 +19,14 @@ export async function generateModelResponse(
     tools: options.tools,
     maxOutputTokens: MAX_OUTPUT_TOKENS,
     maxRetries: 1,
+    providerOptions: {
+      xai: {
+        reasoningEffort: "medium",
+        parallelToolCalls: false,
+        promptCacheKey: "jarvis-primary",
+        store: false,
+      },
+    },
   });
 }
 

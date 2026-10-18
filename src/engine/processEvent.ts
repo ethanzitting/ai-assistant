@@ -103,6 +103,7 @@ export async function processEvent(
     logTokenUsage(response.usage);
     await trace(traceId, "model.response", {
       ...toTraceTokenUsage(response.usage),
+      modelId: response.response.modelId,
       stopReason: response.finishReason,
       rawStopReason: response.rawFinishReason,
     });

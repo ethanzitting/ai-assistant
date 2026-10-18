@@ -89,6 +89,7 @@ export async function handleToolUseResponse(
 
     await trace(traceId, "model.response", {
       ...toTraceTokenUsage(nextResponse.usage),
+      modelId: nextResponse.response.modelId,
       stopReason: nextResponse.finishReason,
       rawStopReason: nextResponse.rawFinishReason,
       iteration,

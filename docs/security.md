@@ -32,7 +32,9 @@ Entire server behind a **WireGuard VPN** — nothing exposed to the public inter
 
 ### 5. Treat the LLM API as a data exfiltration channel
 
-Rich personal context is sent to Fireworks AI with every model query. Selected content also reaches the task-specific Google, Mistral, and Deepgram services. Mitigations:
+Rich personal context is sent to xAI with every primary model query. Selected
+content also reaches the task-specific Fireworks, Google, Mistral, and Deepgram
+services. xAI response storage is disabled. Mitigations:
 
 - Enable zero data retention on LLM APIs.
 - Prompt injection defense is critical — see the dedicated section below.
@@ -49,8 +51,9 @@ Anomaly alerts: API calls at unusual hours, spikes in database queries, access f
 - **Breach runbook** — a checklist executable from your phone when the server is fully compromised:
   1. **Kill the droplet** from DigitalOcean's control panel (mobile app or web)
   2. **Revoke OAuth tokens** — Google security settings for Gmail/Calendar, Telegram for the bot token
-  3. **Revoke the Fireworks AI API key** — stops model usage on your account
-  4. **Rotate the 1Password service account token** — invalidates any cached credentials
+  3. **Revoke the xAI API key** — stops primary model usage on your account
+  4. **Revoke the Fireworks AI API key** — stops support model usage on your account
+  5. **Rotate the 1Password service account token** — invalidates any cached credentials
   
   Each step is independent. The on-server kill switch (SSH CLI, 1Password flag) is useless if the server itself is compromised — these external revocations are the real emergency stop.
 
@@ -105,7 +108,7 @@ Processes all untrusted external input: emails, Telegram messages, Plaid transac
 **Container monitoring:** Core actively watches the ingestion container for signs of compromise or exploitation attempts:
 
 - **Permission denial log watching.** Core tails the ingestion container's stderr via Docker's log API. Deno writes `PermissionDenied` errors when anything attempts an unauthorized action (network call to an unlisted domain, subprocess spawn, filesystem write outside allowed paths). Any permission denial triggers an immediate Telegram alert — it means a prompt injection is actively attempting exploitation.
-- **Network connection auditing.** Core periodically inspects active network connections from the ingestion container via Docker's API. Expected connections include Gmail, Calendar, Fireworks AI, Mistral, Google embeddings, Deepgram, and the Postgres emission table. Any connection to an unexpected destination is flagged and alerted.
+- **Network connection auditing.** Core periodically inspects active network connections from the ingestion container via Docker's API. Expected connections include Gmail, Calendar, xAI, Fireworks AI, Mistral, Google embeddings, Deepgram, and the Postgres emission table. Any connection to an unexpected destination is flagged and alerted.
 - **Process auditing.** Core periodically checks the ingestion container's process list. Only Deno should be running. Any additional process indicates something bypassed `--deny-run`, which warrants killing the container immediately.
 
 **Emission stream monitoring:** Core also watches the emission data for anomalies:

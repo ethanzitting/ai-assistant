@@ -1,20 +1,17 @@
 {
   "version": "5",
   "specifiers": {
-    "npm:@ai-sdk/fireworks@*": "3.0.47_zod@4.4.3",
-    "npm:@ai-sdk/fireworks@3": "3.0.47_zod@4.4.3",
-    "npm:@ai-sdk/fireworks@3.0.47": "3.0.47_zod@4.4.3",
-    "npm:ai@*": "7.0.93_zod@4.4.3",
-    "npm:ai@7": "7.0.93_zod@4.4.3",
-    "npm:ai@7.0.93": "7.0.93_zod@4.4.3",
+    "npm:@ai-sdk/fireworks@^3.0.74": "3.0.74_zod@4.6.7",
+    "npm:@ai-sdk/xai@^5.0.24": "5.0.24_zod@4.6.7",
+    "npm:ai@^7.0.143": "7.0.143_zod@4.6.7",
     "npm:grammy@^1.35.0": "1.43.0",
     "npm:postgres@*": "3.4.9",
     "npm:postgres@^3.4.0": "3.4.9",
     "npm:valibot@1": "1.4.1"
   },
   "npm": {
-    "@ai-sdk/fireworks@3.0.47_zod@4.4.3": {
-      "integrity": "sha512-JRCoKAi6/XEDtyTKBrew2oWekdFglnDjRvFtPfcHTPPwDq1hjiWgki+j66HNUJXqqA/J7W1XRQ1mYn0Yb49f7w==",
+    "@ai-sdk/fireworks@3.0.74_zod@4.6.7": {
+      "integrity": "sha512-Y71UwV9TQWDE2l5F2iX1i5FmW6HV7s3uoi3LXTnukPSJwpkLkKontwzQPcl4empbU6bOtcKtNsZjAJ7ek8HnGg==",
       "dependencies": [
         "@ai-sdk/openai-compatible",
         "@ai-sdk/provider",
@@ -22,8 +19,8 @@
         "zod"
       ]
     },
-    "@ai-sdk/gateway@4.0.75_zod@4.4.3": {
-      "integrity": "sha512-HOnhw3oXtBnboBF7kAKipjToCN6+5w6EuukiUKiULcxBitS+vbHRRv9IUBcq+Z1wkXcJjfywKrt5r++I6OYyXg==",
+    "@ai-sdk/gateway@4.0.116_zod@4.6.7": {
+      "integrity": "sha512-YK2As2GpxmyHi5w6R4FLepiLcs6MbIMxh6nyTMgHaoHKoM5aWEXvKDe/JqdMQ1ivOy3EPJiEBgRI677YTGxfHQ==",
       "dependencies": [
         "@ai-sdk/provider",
         "@ai-sdk/provider-utils",
@@ -31,16 +28,16 @@
         "zod"
       ]
     },
-    "@ai-sdk/openai-compatible@3.0.44_zod@4.4.3": {
-      "integrity": "sha512-pK7mERd/aIJVtyQCe/nV3G3iEJCY1no8GHDOGbgpNC+petjSfsxj+ni0Q8WVVehTUiY9B04F3Xvir+icBgORCg==",
+    "@ai-sdk/openai-compatible@3.0.71_zod@4.6.7": {
+      "integrity": "sha512-8uvAsESbfoiUUa3DEXnM6bcpwObpsDrbv+6DgmkaiBJsONL0sBhglJhC61+X9yIxEuwE0YXwiQ7hfitxyzuFDQ==",
       "dependencies": [
         "@ai-sdk/provider",
         "@ai-sdk/provider-utils",
         "zod"
       ]
     },
-    "@ai-sdk/provider-utils@5.0.36_zod@4.4.3": {
-      "integrity": "sha512-MFXBn6XDyf37PNQAge/HTatPJE8Vmg/g/w4WPtjSV53jq8FKAzoaN5+43hsdQa9bqgN+/13jxug9ChvsG+godQ==",
+    "@ai-sdk/provider-utils@5.0.62_zod@4.6.7": {
+      "integrity": "sha512-//6sHa6QNQdM2KHOg5pxp1UMFQB4U8cqdw/kSm9BMr0DLeaFgG3TXZfxhpwRZmxgBpOrzMVZ/gwLXH309+Ortw==",
       "dependencies": [
         "@ai-sdk/provider",
         "@standard-schema/spec",
@@ -50,10 +47,18 @@
         "zod"
       ]
     },
-    "@ai-sdk/provider@4.0.10": {
-      "integrity": "sha512-fX2ENAc7iDpZ+Wp4+Rk06Usn/Ys7dI9uAkGv0jlF6XVrW13NkRWx5Ou+U6lIM2E1fTLkCs16GGrUAaVvroag7A==",
+    "@ai-sdk/provider@4.0.29": {
+      "integrity": "sha512-nV7UpLADtKn9f0xfnxVZAeFEKuNkScJv5rOpHL7qeWe2EwEEBa3pd6P0QVK6D6coCJ0E8FyCgoM50AffTYrzDQ==",
       "dependencies": [
         "json-schema"
+      ]
+    },
+    "@ai-sdk/xai@5.0.24_zod@4.6.7": {
+      "integrity": "sha512-pLo/jWgPIp5PES6FCA7ocv9P3jrxJexslMY9X60G2lyRBvkg46Vcu5kqN3Z/BsGdnB2RrAIiEx97LZM/MWH3IQ==",
+      "dependencies": [
+        "@ai-sdk/provider",
+        "@ai-sdk/provider-utils",
+        "zod"
       ]
     },
     "@grammyjs/types@3.27.3": {
@@ -74,8 +79,8 @@
         "event-target-shim"
       ]
     },
-    "ai@7.0.93_zod@4.4.3": {
-      "integrity": "sha512-CJss6zb9mlltk/mCr8qom20NBnqEQxVawkqwtT62tCwsxilZpXfHNRMRwcS3XRpzdP1kEluVuDBUayYWEEd95g==",
+    "ai@7.0.143_zod@4.6.7": {
+      "integrity": "sha512-y9QNgCK9QRHRCcHEUNoU2vemJ+q2zFX5M9T7xHCMZutfcWCqZPckkAfDbp+KHwqZDiJs5AqoKazj64cb20m5PA==",
       "dependencies": [
         "@ai-sdk/gateway",
         "@ai-sdk/provider",
@@ -122,8 +127,8 @@
     "tr46@0.0.3": {
       "integrity": "sha512-N3WMsuqV66lT30CrXNbEjx4GEwlow3v6rr4mCcv6prnfwhS01rkgyFdjPNBYd9br7LpXV1+Emh01fHnq2Gdgrw=="
     },
-    "undici@7.29.1": {
-      "integrity": "sha512-RYONW2MeafgYlkVOKYKkA/Ag7BmXqgIWCa8t1m0JcxrQg9pI9lEqRhAOruOBCbAohOa/gkCF+iPi9hrgvTzu6Q=="
+    "undici@7.30.1": {
+      "integrity": "sha512-03KrMbjIFDWQR5RNPrSw3bd1r12JpyFQl9/yxjUbJtqkjmllqC5lFjZh6ujeuJCKr8EOQvRW872Oy/az+nLYxg=="
     },
     "valibot@1.4.1": {
       "integrity": "sha512-klCmFTz2jeDluy9RwX+F884TCiogtdBJ/YaxSx1EOBYXa3NXNWj8kR1jjN8rzluwojJVWWaHJ4r1U5LfICnM3g=="
@@ -138,8 +143,8 @@
         "webidl-conversions"
       ]
     },
-    "zod@4.4.3": {
-      "integrity": "sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ=="
+    "zod@4.6.7": {
+      "integrity": "sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg=="
     }
   },
   "remote": {
@@ -179,8 +184,9 @@
   },
   "workspace": {
     "dependencies": [
-      "npm:@ai-sdk/fireworks@3",
-      "npm:ai@7",
+      "npm:@ai-sdk/fireworks@^3.0.74",
+      "npm:@ai-sdk/xai@^5.0.24",
+      "npm:ai@^7.0.143",
       "npm:grammy@^1.35.0",
       "npm:postgres@^3.4.0",
       "npm:valibot@1"
