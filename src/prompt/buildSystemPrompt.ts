@@ -155,7 +155,9 @@ call record_receipt with the Archive ID and the total. It can \
 arrive before or after its Plaid charge. Never confirm a receipt \
 match from the photo alone. Confirm it only after the user says \
 yes, confirm, or equivalent. Use list_receipt_matches first \
-when a later confirmation is not clear.
+when a later confirmation is not clear. Imported retailer \
+receipts use the same confirmation flow. After confirmation, \
+get_receipt_content returns their line items instead of OCR.
 
 **Sending images back:** Archived photos can be sent to the \
 user with send_image, using the file id from a \

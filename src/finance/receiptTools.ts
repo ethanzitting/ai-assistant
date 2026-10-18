@@ -65,7 +65,7 @@ export const getReceiptContentTool: ToolDefinition = {
   schema: {
     name: "get_receipt_content",
     description:
-      "Get the OCR and image description for one stored receipt. Use this after the user confirms a match and before you propose a category or split from a delayed receipt.",
+      "Get the line items or OCR for one stored receipt. Use this after the user confirms a match and before you propose a category or split.",
     inputSchema: {
       type: "object" as const,
       properties: { receipt_id: { type: "string" } },
@@ -197,9 +197,23 @@ async function getReceiptContent(
   if (!parsed.success) return parsed.error;
 
   const rows = await db`
-    SELECT r.id, r.receipt_total, r.merchant_name, r.purchase_date, r.status,
-      r.transaction_id, af.ocr_text, af.vision_description
-    FROM transaction_receipts r JOIN archived_files af ON af.id = r.archived_file_id
+    SELECT r.id, r.source, r.source_receipt_id, r.receipt_total, r.subtotal, r.tax,
+      r.merchant_name, r.purchase_date, r.status, r.transaction_id, r.source_url,
+      af.ocr_text, af.vision_description,
+      COALESCE((
+        SELECT json_agg(json_build_object(
+          'line_index', i.line_index,
+          'name', i.name,
+          'quantity', i.quantity,
+          'unit_price', i.unit_price,
+          'line_total', i.line_total,
+          'metadata', i.metadata
+        ) ORDER BY i.line_index)
+        FROM transaction_receipt_items i
+        WHERE i.receipt_id = r.id
+      ), '[]'::json) AS items
+    FROM transaction_receipts r
+    LEFT JOIN archived_files af ON af.id = r.archived_file_id
     WHERE r.id = ${parsed.data.receipt_id}
   `;
   if (rows.length === 0) return { content: "No such receipt.", isError: true };

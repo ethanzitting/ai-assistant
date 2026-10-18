@@ -1,4 +1,4 @@
-.PHONY: dev deploy up down logs db migrate reembed reindex-photos sync-transactions reclassify-transactions plaid-link backfill-archives prune-duplicates prune-duplicates-apply consolidate-facts consolidate-facts-apply backup test trace
+.PHONY: dev deploy up down logs db migrate reembed reindex-photos sync-transactions reclassify-transactions import-walmart-history plaid-link backfill-archives prune-duplicates prune-duplicates-apply consolidate-facts consolidate-facts-apply backup test trace
 
 # Jarvis runs on ezbox. Every target below drives ezbox's Docker daemon over SSH, which is why
 # DOCKER_CONTEXT is exported rather than passed as a --context flag: the variable also reaches
@@ -66,6 +66,12 @@ sync-transactions:
 
 reclassify-transactions:
 	docker compose exec agent deno run --allow-net --allow-env --allow-read src/maintenance/reclassifyTransactions.ts
+
+WALMART_HISTORY ?= data/imports/walmart/walmart-history-2026.json
+
+import-walmart-history:
+	@test -f "$(WALMART_HISTORY)" || (echo "Missing $(WALMART_HISTORY)" && exit 1)
+	@cat "$(WALMART_HISTORY)" | docker compose exec -T agent deno run --allow-net --allow-env src/maintenance/importWalmartHistory.ts
 
 plaid-link:
 	op run --env-file=.env.tpl -- deno run --allow-net --allow-env scripts/plaid-link.ts

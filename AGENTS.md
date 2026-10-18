@@ -44,7 +44,7 @@ scheduler tick → claim due scheduled_jobs → run handler as plain code → jo
 | Vision          | Describes photos at ingest so charts are searchable by content            | `src/vision/`                                      |
 | Archive         | File storage to Backblaze B2                                              | `src/archive/`                                     |
 | Scheduler       | Runs jobs on a clock, beside the event loop                               | `src/scheduler/`                                   |
-| Finance         | Plaid ingest, spending queries, and interactive categorization            | `src/plaid/`, `src/finance/`                       |
+| Finance         | Plaid ingest, retailer receipts, spending queries, and categorization       | `src/plaid/`, `src/finance/`                       |
 | Tracing         | Full request/response cycle logging                                       | `src/trace.ts`                                     |
 | Retry           | Backoff/jitter/timeout wrapper for external API calls                     | `src/retry/`                                       |
 | Maintenance     | Dedup/consolidation passes over the KG, re-embedding                      | `src/maintenance/`                                 |
@@ -108,8 +108,8 @@ Postgres with pgvector extension. Tables: `entities`, `facts`, `relationships`,
 `schema_migrations`, `scheduled_jobs`, `job_runs`, `plaid_items`, `accounts`,
 `transactions`, `category_rules`, `categories`, `people`, `transaction_splits`,
 `categorization_batches`, `categorization_batch_items`, `transaction_receipts`,
-`finance_audits`, `finance_audit_items`, `transaction_category_changes`, plus
-the `transaction_categories` view.
+`transaction_receipt_items`, `finance_audits`, `finance_audit_items`,
+`transaction_category_changes`, plus the `transaction_categories` view.
 
 `audit_log` is a leftover from `004_skills_and_config.sql` — nothing in `src/`
 reads or writes it.
@@ -193,6 +193,13 @@ stays unmatched until Plaid offers one exact posted amount in its date window.
 Jarvis then asks for user confirmation. It never confirms a match or changes a
 category from a receipt photo alone.
 
+**Imported retailer receipts use the same confirmation rule.** The ignored
+`data/imports/` directory holds private local exports. `make
+import-walmart-history` sends the normalized JSON bundle through stdin and
+stores receipt totals plus line items. The import is idempotent by retailer and
+receipt ID. A unique nearest date can propose a Plaid match, but the user must
+still confirm it before Jarvis uses the items for a category or split.
+
 **Plaid signs a POSITIVE amount as money leaving the account.** That inverts
 most people's intuition and it is stored unchanged, because every other Plaid
 field agrees with it. Spending totals SUM to a positive number once
@@ -222,7 +229,7 @@ silent, permanent gap. Replay is safe because every write upserts on
 
 **Migrations apply in filename-sort order** (`scripts/migrate.sh`). Numbers
 aren't strictly unique historically (two `006_*` files exist); the latest is
-`026_daily_plaid_balance.sql`, so the next is `027`.
+`027_imported_receipts.sql`, so the next is `028`.
 
 ## Dev workflow
 
@@ -252,6 +259,7 @@ make reindex-photos       # heal photo search index: describe, re-OCR, rebuild c
 make plaid-link           # one-time: link a bank via Plaid Hosted Link, print the access token (host-side)
 make sync-transactions    # run the Plaid sync once now instead of waiting for the scheduler (in-container)
 make reclassify-transactions  # re-derive transaction_type over stored history after the rules in classifyTransactionType change (in-container, idempotent)
+make import-walmart-history   # import the ignored local Walmart JSON bundle and propose Plaid matches (in-container, idempotent)
 make backfill-archives    # one-time: populate document_chunks from pre-existing archived files (in-container)
 make prune-duplicates     # dry-run report of duplicate facts/relationships (in-container)
 make consolidate-facts    # dry-run report of fact clusters to merge (in-container)
