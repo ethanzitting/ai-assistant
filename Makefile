@@ -62,7 +62,7 @@ reindex-photos:
 	docker compose exec agent deno run --allow-net --allow-env --allow-read src/maintenance/reindexPhotos.ts
 
 sync-transactions:
-	docker compose exec agent deno run --allow-net --allow-env --allow-read src/maintenance/syncTransactions.ts
+	docker compose exec agent deno run --allow-net --allow-env --allow-read --allow-sys=hostname src/maintenance/syncTransactions.ts
 
 reclassify-transactions:
 	docker compose exec agent deno run --allow-net --allow-env --allow-read src/maintenance/reclassifyTransactions.ts
