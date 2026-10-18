@@ -74,6 +74,8 @@ consume the allowance, so the model can correct invalid input. Current tools:
 - `query_finances` — spending, balances, and transaction search over the Plaid
   tables; the tool does the arithmetic and returns computed totals so the model
   never re-adds them. Private chat only
+- `refresh_finance_balances` — make one paid Plaid real-time Balance request
+  only after the user explicitly asks for a live refresh. Private chat only
 - `split_transaction` — divide one charge across categories, optionally per
   person; parts must sum to the charge exactly. Private chat only
 - `categorize_transactions` — apply one-time categories to exact posted
@@ -155,6 +157,13 @@ and `plaidRequest` throws on anything outside it. The one-time Link script
 (`scripts/plaid-link.ts`) is host-side and deliberately does _not_ use
 `plaidRequest`, so the agent cannot create or exchange tokens at all.
 
+**Transaction syncs do not request paid real-time balances.** `plaid_sync` runs
+every six hours and uses the free `/accounts/get` endpoint for account metadata,
+then advances `/transactions/sync`. The separate `plaid_balance_refresh` job
+runs at 6:00 AM local time and calls the paid `/accounts/balance/get` endpoint
+once each day. Cached account responses never overwrite the last real-time
+balance or its `balance_as_of` timestamp.
+
 **Categories are a closed list, and Plaid's are not used at all.** Plaid was
 wrong _consistently_ rather than erratically (Walmart is `GENERAL_MERCHANDISE`
 on all 234 of its transactions), so there is no disagreement signal to mine and
@@ -211,7 +220,7 @@ silent, permanent gap. Replay is safe because every write upserts on
 
 **Migrations apply in filename-sort order** (`scripts/migrate.sh`). Numbers
 aren't strictly unique historically (two `006_*` files exist); the latest is
-`025_finance_audits.sql`, so the next is `026`.
+`026_daily_plaid_balance.sql`, so the next is `027`.
 
 ## Dev workflow
 

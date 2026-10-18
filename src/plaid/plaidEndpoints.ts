@@ -6,6 +6,7 @@
 // The one-time Link flow (scripts/plaid-link.ts) deliberately does NOT use plaidRequest. Token
 // creation and exchange stay outside the agent entirely.
 export const PLAID_READ_ENDPOINTS = [
+  "/accounts/get",
   "/accounts/balance/get",
   "/transactions/sync",
 ] as const;

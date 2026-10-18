@@ -10,6 +10,7 @@ import { sendImageTool } from "@/archive/sendImageTool.ts";
 import { rememberTool } from "@/knowledge/rememberTool.ts";
 import { manageEventsTool } from "@/events/manageEventsTool.ts";
 import { queryFinancesTool } from "@/finance/queryFinancesTool.ts";
+import { refreshFinanceBalancesTool } from "@/finance/refreshFinanceBalancesTool.ts";
 import { splitTransactionTool } from "@/finance/splitTransactionTool.ts";
 import { listPendingCategorizationsTool } from "@/finance/listPendingCategorizationsTool.ts";
 import { setVendorPolicyTool } from "@/finance/setVendorPolicyTool.ts";
@@ -38,6 +39,7 @@ const toolDefinitions: ToolDefinition[] = [
   rememberTool,
   manageEventsTool,
   queryFinancesTool,
+  refreshFinanceBalancesTool,
   splitTransactionTool,
   listPendingCategorizationsTool,
   setVendorPolicyTool,

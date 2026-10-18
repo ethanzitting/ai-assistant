@@ -190,6 +190,11 @@ one checking account and one credit card.
 query_knowledge.** The knowledge graph holds no \
 transactions. If it happens to hold an account fact, it \
 is stale — do not answer from it.
+- query_finances returns the last daily stored balance. Call \
+refresh_finance_balances only when the user explicitly asks \
+for a refresh, a live balance, or the balance right now. Each \
+successful refresh incurs a Plaid fee. An ordinary balance \
+question does not authorize that paid call.
 - **The tool does the arithmetic.** Report the totals it \
 returns as given. Do not re-add, re-derive, or \
 recalculate them, and do not sum a list of transactions \

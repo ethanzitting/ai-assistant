@@ -1,4 +1,5 @@
 import { plaidSyncJob } from "@/finance/plaidSyncJob.ts";
+import { plaidBalanceRefreshJob } from "@/finance/plaidBalanceRefreshJob.ts";
 import { categorizationPromptJob } from "@/finance/categorizationPromptJob.ts";
 import { reminderDeliveryJob } from "@/events/reminderDeliveryJob.ts";
 import { reminderDigestJob } from "@/events/reminderDigestJob.ts";
@@ -13,6 +14,7 @@ export type JobHandler = (
 
 const handlersByName = new Map<string, JobHandler>([
   ["plaid_sync", plaidSyncJob],
+  ["plaid_balance_refresh", plaidBalanceRefreshJob],
   ["categorization_batches", categorizationPromptJob],
   ["reminder_delivery", reminderDeliveryJob],
   ["reminder_digest", reminderDigestJob],

@@ -1,6 +1,6 @@
 import { db } from "@/db.ts";
 import { requireEnv } from "@/requireEnv.ts";
-import { fetchBalances } from "@/plaid/fetchBalances.ts";
+import { fetchAccounts } from "@/plaid/fetchAccounts.ts";
 import { fetchTransactionPage } from "@/plaid/fetchTransactionPage.ts";
 import { upsertAccounts } from "@/finance/upsertAccounts.ts";
 import { applyTransactionPage } from "@/finance/applyTransactionPage.ts";
@@ -28,14 +28,17 @@ export interface PlaidSyncResult {
 export async function runPlaidSync(): Promise<PlaidSyncResult> {
   const accessToken = requireEnv("PLAID_ACCESS_TOKEN");
 
-  const balances = await fetchBalances(accessToken);
-  const accountIdByPlaidId = await upsertAccounts(balances);
+  const accounts = await fetchAccounts(accessToken);
+  const accountIdByPlaidId = await upsertAccounts({
+    response: accounts,
+    updateBalances: false,
+  });
   const rules = await loadCategoryRules();
 
-  const itemId = balances.item.item_id;
+  const itemId = accounts.item.item_id;
   const result: PlaidSyncResult = {
     itemId,
-    accounts: balances.accounts.length,
+    accounts: accounts.accounts.length,
     pages: 0,
     added: 0,
     modified: 0,
