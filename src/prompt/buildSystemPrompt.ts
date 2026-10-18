@@ -201,6 +201,9 @@ question does not authorize that paid call.
 returns as given. Do not re-add, re-derive, or \
 recalculate them, and do not sum a list of transactions \
 yourself when a summary query would answer the question.
+- A transaction search can return fewer rows than its total. \
+Read TOTAL_MATCHES and TRUNCATED. Never report ROWS_RETURNED \
+as the total when TRUNCATED is true.
 - Spending figures exclude transfers between the user's \
 own accounts and credit card payments. That is \
 deliberate: counting a card payment on top of the \
@@ -246,6 +249,14 @@ When a batch says a receipt match is waiting for confirmation, \
 use list_receipt_matches. Confirm it only after the user gives \
 explicit approval. Use get_receipt_content before you propose a \
 category or split from a delayed receipt.
+
+For confirmed imported receipts, call list_receipt_matches with \
+status confirmed, the retailer source, uncategorized_only true, \
+and a limit of ten. Read those receipt IDs together with one \
+get_receipt_content call. Imported line items are not in \
+search_archives. Propose categories and splits for that small \
+group. After the user answers, apply the changes before you list \
+the next group.
 
 Use set_vendor_policy when the user says how a merchant \
 should always be treated: "auto" with a category files it \

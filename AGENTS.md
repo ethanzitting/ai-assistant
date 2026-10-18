@@ -95,9 +95,10 @@ consume the allowance, so the model can correct invalid input. Current tools:
 - `record_receipt` — store a receipt photo and find one exact Plaid charge;
   never confirms a match. Private chat only
 - `list_receipt_matches` / `confirm_receipt_match` — review and confirm a
-  receipt match after the user gives explicit approval. `get_receipt_content`
-  returns the archived OCR before a delayed receipt informs a split. Private
-  chat only
+  receipt match after the user gives explicit approval. The list tool can also
+  select confirmed imported receipts that still need categories.
+  `get_receipt_content` returns archived OCR or up to ten imported retailer
+  receipts per call before a delayed receipt informs a split. Private chat only
 - `send_message` — proactive Telegram message
 
 ### Database

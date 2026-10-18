@@ -1,6 +1,7 @@
 import { db } from "@/db.ts";
 import type { FinanceFilters } from "@/finance/financeFilters.ts";
 import { formatMoney } from "@/finance/formatMoney.ts";
+import { formatTransactionSearchHeader } from "@/finance/formatTransactionSearchHeader.ts";
 
 const DEFAULT_LIMIT = 25;
 
@@ -72,9 +73,7 @@ export async function transactionSearch(
   // Reporting rows.length alone said "25 match(es)" for a month holding 156, and the system prompt
   // tells the model to repeat these figures rather than re-derive them.
   const matched = rows[0].total_matches;
-  const header = matched > rows.length
-    ? `${matched} matches, showing the ${rows.length} most recent:`
-    : `${matched} match(es):`;
+  const header = formatTransactionSearchHeader(matched, rows.length);
 
   return `${header}\n${lines.join("\n")}`;
 }
